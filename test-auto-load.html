@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DocLight Auto-Load Test</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #0d1117;
+      color: #c9d1d9;
+    }
+    h1 { color: #58a6ff; border-bottom: 2px solid #21262d; padding-bottom: 10px; }
+    h2 { color: #8b949e; margin-top: 30px; }
+    .test-section {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+    .step {
+      background: #0d1117;
+      border-left: 3px solid #58a6ff;
+      padding: 15px;
+      margin: 10px 0;
+    }
+    .step-number {
+      display: inline-block;
+      background: #58a6ff;
+      color: #0d1117;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 30px;
+      font-weight: bold;
+      margin-right: 10px;
+    }
+    .expected {
+      background: #1a472a;
+      border-left: 3px solid #2ea043;
+      padding: 10px;
+      margin: 10px 0;
+    }
+    .code {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      padding: 15px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+    }
+    .status {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: bold;
+      margin-left: 10px;
+    }
+    .pass { background: #2ea043; color: white; }
+    .fail { background: #da3633; color: white; }
+    .pending { background: #6e7681; color: white; }
+    button {
+      background: #238636;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      margin: 5px;
+    }
+    button:hover { background: #2ea043; }
+    button.secondary {
+      background: #21262d;
+      border: 1px solid #30363d;
+    }
+    button.secondary:hover { background: #30363d; }
+    #results {
+      margin-top: 20px;
+      padding: 20px;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+    }
+    .result-item {
+      padding: 10px;
+      margin: 5px 0;
+      border-left: 3px solid #6e7681;
+    }
+    .result-item.pass { border-color: #2ea043; background: #0d1d11; }
+    .result-item.fail { border-color: #da3633; background: #1d0d0d; }
+  </style>
+</head>
+<body>
+  <h1>🧪 DocLight Auto-Load Feature Test Suite</h1>
+
+  <div class="test-section">
+    <h2>📋 Test Overview</h2>
+    <p>This test suite verifies the auto-load functionality with IndexedDB implementation.</p>
+    <p><strong>Test Objective:</strong> Ensure that when a user refreshes the page, the last viewed file is automatically loaded with its parent folders expanded.</p>
+  </div>
+
+  <div class="test-section">
+    <h2>🔧 Prerequisites</h2>
+    <ul>
+      <li>✅ Server running at http://localhost:3000</li>
+      <li>✅ Browser with IndexedDB support (Chrome, Firefox, Edge, Safari)</li>
+      <li>✅ Test file: <code>guide/programming-samples.md</code> exists in docs directory</li>
+    </ul>
+  </div>
+
+  <div class="test-section">
+    <h2>📝 Manual Test Steps</h2>
+
+    <div class="step">
+      <span class="step-number">1</span>
+      <strong>Navigate to Application</strong>
+      <p>Open http://localhost:3000 in your browser</p>
+      <div class="expected">
+        <strong>Expected:</strong> Welcome screen displayed, no file loaded
+      </div>
+    </div>
+
+    <div class="step">
+      <span class="step-number">2</span>
+      <strong>Expand Guide Folder</strong>
+      <p>Click on the "guide" folder in the file tree to expand it</p>
+      <div class="expected">
+        <strong>Expected:</strong> Guide folder expands, showing child files including "programming-samples.md"
+      </div>
+    </div>
+
+    <div class="step">
+      <span class="step-number">3</span>
+      <strong>Load Test File</strong>
+      <p>Click on "programming-samples.md" file</p>
+      <div class="expected">
+        <strong>Expected:</strong>
+        <ul>
+          <li>File content loads in main panel</li>
+          <li>Breadcrumb shows "guide/programming-samples.md"</li>
+          <li>File item in tree is highlighted/active</li>
+          <li>Code blocks are syntax-highlighted</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="step">
+      <span class="step-number">4</span>
+      <strong>Verify IndexedDB Storage</strong>
+      <p>Open Browser DevTools → Application/Storage → IndexedDB → doclight</p>
+      <div class="expected">
+        <strong>Expected:</strong>
+        <ul>
+          <li>Object Store "lastOpened" contains: { key: "file", path: "guide/programming-samples.md", ts: [timestamp] }</li>
+          <li>Object Store "treeState" contains: { path: "guide", expanded: true, ts: [timestamp] }</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="step">
+      <span class="step-number">5</span>
+      <strong>Refresh Page (CRITICAL TEST)</strong>
+      <p>Press F5 or Ctrl+R to refresh the page</p>
+      <div class="expected">
+        <strong>Expected AUTO-LOAD BEHAVIOR:</strong>
+        <ul>
+          <li>✅ Page loads</li>
+          <li>✅ File tree renders</li>
+          <li>✅ "guide" folder is <strong>automatically expanded</strong></li>
+          <li>✅ "programming-samples.md" is <strong>automatically loaded</strong></li>
+          <li>✅ Breadcrumb shows "guide/programming-samples.md"</li>
+          <li>✅ File item in tree is marked active</li>
+          <li>✅ Code blocks are rendered and highlighted</li>
+          <li>✅ Main content shows markdown-rendered file</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="step">
+      <span class="step-number">6</span>
+      <strong>Test Navigation</strong>
+      <p>Click on a different file (e.g., "README.md" at root level)</p>
+      <div class="expected">
+        <strong>Expected:</strong> README.md loads, IndexedDB updates to new file path
+      </div>
+    </div>
+
+    <div class="step">
+      <span class="step-number">7</span>
+      <strong>Re-test Auto-Load</strong>
+      <p>Refresh page again (F5)</p>
+      <div class="expected">
+        <strong>Expected:</strong> README.md automatically loads (no folder expansion needed as it's at root)
+      </div>
+    </div>
+
+    <div class="step">
+      <span class="step-number">8</span>
+      <strong>Test Nested Path</strong>
+      <p>Navigate to a file in a nested folder (if available, e.g., "guide/examples/test.md")</p>
+      <p>Refresh page</p>
+      <div class="expected">
+        <strong>Expected:</strong> All parent folders automatically expand, nested file loads
+      </div>
+    </div>
+  </div>
+
+  <div class="test-section">
+    <h2>🤖 Automated Verification</h2>
+    <p>Run these checks in browser console after Step 5 (refresh):</p>
+
+    <button onclick="runAutoTests()">Run Automated Tests</button>
+    <button class="secondary" onclick="checkIndexedDB()">Check IndexedDB</button>
+    <button class="secondary" onclick="clearTestData()">Clear Test Data</button>
+
+    <div id="results"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>📊 Verification Checklist</h2>
+    <div class="code">
+// Console verification script
+const verifyAutoLoad = () => {
+  const results = {
+    breadcrumb: document.getElementById('breadcrumb').textContent,
+    guideFolderExpanded: false,
+    fileItemExists: false,
+    fileItemActive: false,
+    contentLoaded: false,
+    codeBlocksRendered: false
+  };
+
+  // Check guide folder expansion
+  const guideWrapper = document.querySelector('.tree-item-wrapper[data-path="guide"]');
+  if (guideWrapper) {
+    const childrenDiv = guideWrapper.querySelector('.tree-children');
+    results.guideFolderExpanded = childrenDiv && childrenDiv.style.display !== 'none';
+  }
+
+  // Check file item in tree
+  const fileItem = document.querySelector('.tree-item[data-path="guide/programming-samples.md"]');
+  results.fileItemExists = fileItem !== null;
+  results.fileItemActive = fileItem && fileItem.classList.contains('active');
+
+  // Check content loaded
+  const content = document.querySelector('.markdown-content');
+  results.contentLoaded = content && content.children.length > 0;
+  results.codeBlocksRendered = document.querySelectorAll('.markdown-content pre code').length > 0;
+
+  // Display results
+  console.table(results);
+
+  // Overall pass/fail
+  const allPassed = Object.values(results).every(v => v === true || v.includes('guide/programming-samples.md'));
+  console.log(allPassed ? '✅ ALL CHECKS PASSED' : '❌ SOME CHECKS FAILED');
+
+  return results;
+};
+
+verifyAutoLoad();
+    </div>
+  </div>
+
+  <div class="test-section">
+    <h2>🐛 Known Issues & Edge Cases</h2>
+    <ul>
+      <li><strong>File deleted:</strong> If last viewed file no longer exists, should show welcome screen (graceful fallback)</li>
+      <li><strong>Folder renamed:</strong> Auto-expand may fail if folder path changed</li>
+      <li><strong>IndexedDB disabled:</strong> Feature should degrade gracefully, no errors</li>
+      <li><strong>Slow network:</strong> File should still load, just with delay</li>
+    </ul>
+  </div>
+
+  <div class="test-section">
+    <h2>✅ Success Criteria</h2>
+    <div class="expected">
+      <strong>Test PASSES if after page refresh:</strong>
+      <ol>
+        <li>Breadcrumb = "guide/programming-samples.md"</li>
+        <li>Guide folder is expanded (visible children)</li>
+        <li>File item is visible in tree and marked active</li>
+        <li>Main content shows rendered markdown with code highlighting</li>
+        <li>No JavaScript errors in console</li>
+        <li>IndexedDB contains correct lastOpened record</li>
+      </ol>
+    </div>
+  </div>
+
+  <script>
+    function runAutoTests() {
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = '<h3>🔍 Test Results</h3>';
+
+      const tests = [
+        {
+          name: 'Breadcrumb Check',
+          fn: () => {
+            const breadcrumb = document.getElementById('breadcrumb')?.textContent;
+            return {
+              pass: breadcrumb === 'guide/programming-samples.md',
+              details: `Breadcrumb: "${breadcrumb}"`
+            };
+          }
+        },
+        {
+          name: 'Guide Folder Expanded',
+          fn: () => {
+            const wrapper = document.querySelector('.tree-item-wrapper[data-path="guide"]');
+            const children = wrapper?.querySelector('.tree-children');
+            const expanded = children && children.style.display !== 'none';
+            return {
+              pass: expanded,
+              details: `Guide folder ${expanded ? 'is' : 'is NOT'} expanded`
+            };
+          }
+        },
+        {
+          name: 'File Item Exists',
+          fn: () => {
+            const item = document.querySelector('.tree-item[data-path="guide/programming-samples.md"]');
+            return {
+              pass: item !== null,
+              details: item ? 'File item found in tree' : 'File item NOT found'
+            };
+          }
+        },
+        {
+          name: 'File Item Active',
+          fn: () => {
+            const item = document.querySelector('.tree-item[data-path="guide/programming-samples.md"]');
+            const active = item?.classList.contains('active');
+            return {
+              pass: active,
+              details: `File item ${active ? 'is' : 'is NOT'} active`
+            };
+          }
+        },
+        {
+          name: 'Content Loaded',
+          fn: () => {
+            const content = document.querySelector('.markdown-content');
+            const loaded = content && content.children.length > 0;
+            return {
+              pass: loaded,
+              details: `Content ${loaded ? 'is' : 'is NOT'} loaded (${content?.children.length || 0} elements)`
+            };
+          }
+        },
+        {
+          name: 'Code Blocks Rendered',
+          fn: () => {
+            const blocks = document.querySelectorAll('.markdown-content pre code');
+            return {
+              pass: blocks.length > 0,
+              details: `${blocks.length} code blocks rendered`
+            };
+          }
+        }
+      ];
+
+      let passed = 0;
+      tests.forEach(test => {
+        const result = test.fn();
+        const resultDiv = document.createElement('div');
+        resultDiv.className = `result-item ${result.pass ? 'pass' : 'fail'}`;
+        resultDiv.innerHTML = `
+          <strong>${result.pass ? '✅' : '❌'} ${test.name}</strong>
+          <br><small>${result.details}</small>
+        `;
+        resultsDiv.appendChild(resultDiv);
+        if (result.pass) passed++;
+      });
+
+      const summary = document.createElement('div');
+      summary.className = 'result-item';
+      summary.innerHTML = `<h3>${passed}/${tests.length} tests passed</h3>`;
+      summary.style.marginTop = '20px';
+      summary.style.borderTop = '2px solid #30363d';
+      summary.style.paddingTop = '20px';
+      resultsDiv.appendChild(summary);
+    }
+
+    async function checkIndexedDB() {
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = '<h3>💾 IndexedDB Contents</h3>';
+
+      try {
+        const dbRequest = indexedDB.open('doclight', 1);
+
+        dbRequest.onsuccess = () => {
+          const db = dbRequest.result;
+
+          // Check lastOpened
+          const tx1 = db.transaction('lastOpened', 'readonly');
+          const store1 = tx1.objectStore('lastOpened');
+          const req1 = store1.get('file');
+
+          req1.onsuccess = () => {
+            const data = req1.result;
+            const div = document.createElement('div');
+            div.className = 'code';
+            div.innerHTML = `<strong>lastOpened:</strong><br>${JSON.stringify(data, null, 2)}`;
+            resultsDiv.appendChild(div);
+          };
+
+          // Check treeState
+          const tx2 = db.transaction('treeState', 'readonly');
+          const store2 = tx2.objectStore('treeState');
+          const req2 = store2.getAll();
+
+          req2.onsuccess = () => {
+            const data = req2.result;
+            const div = document.createElement('div');
+            div.className = 'code';
+            div.style.marginTop = '10px';
+            div.innerHTML = `<strong>treeState:</strong><br>${JSON.stringify(data, null, 2)}`;
+            resultsDiv.appendChild(div);
+          };
+        };
+
+        dbRequest.onerror = () => {
+          resultsDiv.innerHTML += '<p style="color: #da3633;">Failed to open IndexedDB</p>';
+        };
+      } catch (error) {
+        resultsDiv.innerHTML += `<p style="color: #da3633;">Error: ${error.message}</p>`;
+      }
+    }
+
+    function clearTestData() {
+      if (confirm('Clear all test data from IndexedDB? This will reset the auto-load feature.')) {
+        indexedDB.deleteDatabase('doclight');
+        alert('IndexedDB cleared. Please refresh the page.');
+      }
+    }
+  </script>
+</body>
+</html>

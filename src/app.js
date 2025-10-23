@@ -46,6 +46,13 @@ app.get('/', (req, res) => {
   });
 });
 
+// Document viewer route (for clean URLs)
+app.get('/doc/*', (req, res) => {
+  res.render('index', {
+    title: 'DocLight - Markdown Viewer'
+  });
+});
+
 // Health check endpoint
 app.get('/healthz', (req, res) => {
   res.status(200).json({

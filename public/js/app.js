@@ -40,32 +40,58 @@ async function initDB() {
 
 // Save tree state
 async function saveTreeState(path, expanded) {
-  const tx = db.transaction('treeState', 'readwrite');
-  const store = tx.objectStore('treeState');
-  await store.put({ path, expanded, ts: Date.now() });
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('treeState', 'readwrite');
+    const store = tx.objectStore('treeState');
+    const request = store.put({ path, expanded, ts: Date.now() });
+
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
 }
 
 // Get tree state
 async function getTreeState(path) {
-  const tx = db.transaction('treeState', 'readonly');
-  const store = tx.objectStore('treeState');
-  const result = await store.get(path);
-  return result ? result.expanded : false;
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('treeState', 'readonly');
+    const store = tx.objectStore('treeState');
+    const request = store.get(path);
+
+    request.onsuccess = () => {
+      const result = request.result;
+      resolve(result ? result.expanded : false);
+    };
+
+    request.onerror = () => reject(request.error);
+  });
 }
 
 // Save last opened file
 async function saveLastOpened(path) {
-  const tx = db.transaction('lastOpened', 'readwrite');
-  const store = tx.objectStore('lastOpened');
-  await store.put({ key: 'file', path, ts: Date.now() });
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('lastOpened', 'readwrite');
+    const store = tx.objectStore('lastOpened');
+    const request = store.put({ key: 'file', path, ts: Date.now() });
+
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
 }
 
 // Get last opened file
 async function getLastOpened() {
-  const tx = db.transaction('lastOpened', 'readonly');
-  const store = tx.objectStore('lastOpened');
-  const result = await store.get('file');
-  return result ? result.path : null;
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('lastOpened', 'readonly');
+    const store = tx.objectStore('lastOpened');
+    const request = store.get('file');
+
+    request.onsuccess = () => {
+      const result = request.result;
+      resolve(result ? result.path : null);
+    };
+
+    request.onerror = () => reject(request.error);
+  });
 }
 
 // Error handling utilities
@@ -180,25 +206,105 @@ async function fetchRaw(path) {
   }
 }
 
+// Copy code to clipboard
+async function copyCodeToClipboard(codeElement, button) {
+  try {
+    const code = codeElement.textContent;
+    await navigator.clipboard.writeText(code);
+
+    // Change button text to "Copied!"
+    button.textContent = 'Copied!';
+
+    // Reset to "Copy" after 2 seconds
+    setTimeout(() => {
+      button.textContent = 'Copy';
+    }, 2000);
+  } catch (error) {
+    console.error('Failed to copy code:', error);
+  }
+}
+
+// Add copy button to code blocks
+function addCopyButtons(contentDiv) {
+  const codeBlocks = contentDiv.querySelectorAll('pre > code');
+
+  codeBlocks.forEach((codeElement) => {
+    const pre = codeElement.parentElement;
+
+    // Skip if already has wrapper
+    if (pre.parentElement.classList.contains('code-block-wrapper')) {
+      return;
+    }
+
+    // Create wrapper
+    const wrapper = document.createElement('div');
+    wrapper.className = 'code-block-wrapper';
+
+    // Create copy button
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'copy-btn';
+    copyBtn.textContent = 'Copy';
+    copyBtn.title = 'Copy code';
+
+    // Add click event
+    copyBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      await copyCodeToClipboard(codeElement, copyBtn);
+    });
+
+    // Wrap code block
+    pre.parentNode.insertBefore(wrapper, pre);
+    wrapper.appendChild(copyBtn);
+    wrapper.appendChild(pre);
+  });
+}
+
 // Render markdown
 async function renderMarkdown(content) {
+  // Configure marked with custom renderer to add IDs to headings
+  const renderer = new marked.Renderer();
+  const originalHeading = renderer.heading.bind(renderer);
+
+  renderer.heading = function(text, level, raw) {
+    // Generate ID from heading text (slug format)
+    const id = raw
+      .toLowerCase()
+      .replace(/[^\w\s-]/g, '') // Remove special characters
+      .replace(/\s+/g, '-')      // Replace spaces with hyphens
+      .replace(/-+/g, '-')       // Replace multiple hyphens with single hyphen
+      .trim();
+
+    return `<h${level} id="${id}">${text}</h${level}>\n`;
+  };
+
   // Configure marked options
   marked.setOptions({
     breaks: true,
     gfm: true,
-    headerIds: true,
-    mangle: false
+    renderer: renderer
   });
 
   // Parse markdown
   const rawHtml = marked.parse(content);
 
-  // Sanitize HTML with DOMPurify
-  const cleanHtml = DOMPurify.sanitize(rawHtml);
+  // Sanitize HTML with DOMPurify - allow Highlight.js classes and heading IDs
+  const cleanHtml = DOMPurify.sanitize(rawHtml, {
+    ADD_ATTR: ['class', 'data-language', 'data-highlighted', 'id'],
+    ADD_TAGS: ['span']
+  });
 
   // Set content
   const contentDiv = document.getElementById('markdown-content');
   contentDiv.innerHTML = cleanHtml;
+
+  // Apply syntax highlighting to code blocks
+  const codeBlocks = contentDiv.querySelectorAll('pre code');
+  codeBlocks.forEach((block) => {
+    // Skip mermaid blocks
+    if (!block.classList.contains('language-mermaid')) {
+      hljs.highlightElement(block);
+    }
+  });
 
   // Render mermaid diagrams
   const mermaidBlocks = contentDiv.querySelectorAll('code.language-mermaid');
@@ -215,6 +321,83 @@ async function renderMarkdown(content) {
   // Re-render mermaid
   await mermaid.run({
     querySelector: '.mermaid'
+  });
+
+  // Add copy buttons to code blocks
+  addCopyButtons(contentDiv);
+
+  // Add anchor links to headings
+  addHeadingAnchors(contentDiv);
+}
+
+// Copy heading link to clipboard
+async function copyHeadingLink(heading, anchorLink) {
+  try {
+    // Get current file path from breadcrumb
+    const breadcrumb = document.getElementById('breadcrumb');
+    if (!breadcrumb) {
+      console.error('Breadcrumb element not found');
+      return;
+    }
+
+    const currentPath = breadcrumb.textContent.trim();
+    if (!currentPath || currentPath === '문서를 선택하세요') {
+      console.error('No document loaded');
+      return;
+    }
+
+    console.log('Current path:', currentPath);
+    console.log('Heading ID:', heading.id);
+
+    // Build full URL with anchor
+    const encodedPath = currentPath.split('/').map(seg => encodeURIComponent(seg)).join('/');
+    const fullUrl = `${window.location.origin}/doc/${encodedPath}#${heading.id}`;
+
+    console.log('Copying URL:', fullUrl);
+
+    // Copy to clipboard
+    await navigator.clipboard.writeText(fullUrl);
+
+    // Update URL
+    const newUrl = `/doc/${encodedPath}#${heading.id}`;
+    window.history.pushState({ path: currentPath, hash: heading.id }, '', newUrl);
+
+    console.log('URL updated to:', newUrl);
+
+    // Visual feedback
+    const originalIcon = anchorLink.innerHTML;
+    anchorLink.innerHTML = '✓';
+    setTimeout(() => {
+      anchorLink.innerHTML = originalIcon;
+    }, 1500);
+  } catch (error) {
+    console.error('Failed to copy heading link:', error);
+  }
+}
+
+// Add anchor links to headings
+function addHeadingAnchors(contentDiv) {
+  const headings = contentDiv.querySelectorAll('h1, h2, h3, h4, h5, h6');
+
+  headings.forEach((heading) => {
+    // Skip if heading doesn't have an id
+    if (!heading.id) return;
+
+    // Create anchor link icon
+    const anchorLink = document.createElement('span');
+    anchorLink.className = 'heading-anchor';
+    anchorLink.innerHTML = '🔗';
+    anchorLink.title = 'Copy link to this section';
+
+    // Add to heading
+    heading.appendChild(anchorLink);
+
+    // Make entire heading clickable
+    heading.style.cursor = 'pointer';
+    heading.addEventListener('click', async (e) => {
+      e.preventDefault();
+      await copyHeadingLink(heading, anchorLink);
+    });
   });
 }
 
@@ -289,8 +472,14 @@ async function buildTree(data, container, currentPath = '', level = 0) {
     fileIcon.className = 'tree-icon';
     fileIcon.textContent = '📄';
 
+    // Remove .md extension from display name
+    let displayName = file.name;
+    if (displayName.endsWith('.md')) {
+      displayName = displayName.slice(0, -3);
+    }
+
     const nameSpan = document.createElement('span');
-    nameSpan.textContent = file.name;
+    nameSpan.textContent = displayName;
 
     item.appendChild(fileIcon);
     item.appendChild(nameSpan);
@@ -355,8 +544,49 @@ async function toggleDirectory(dirPath, wrapper, childrenContainer, expandIcon, 
   }
 }
 
+// Expand folder path to make file visible in tree
+async function expandPathToFile(filePath) {
+  // Parse path to get parent folders
+  const parts = filePath.split('/');
+  parts.pop(); // Remove filename
+
+  if (parts.length === 0) {
+    // File is at root level, no expansion needed
+    return;
+  }
+
+  // Expand each parent folder sequentially
+  let currentPath = '';
+  for (const part of parts) {
+    currentPath = currentPath ? `${currentPath}/${part}` : part;
+
+    // Find the folder wrapper in DOM
+    const wrapper = document.querySelector(`.tree-item-wrapper[data-path="${currentPath}"]`);
+    if (!wrapper) {
+      console.warn(`Folder not found in tree: ${currentPath}`);
+      continue;
+    }
+
+    // Check if already expanded
+    const childrenContainer = wrapper.querySelector('.tree-children');
+    if (childrenContainer && childrenContainer.style.display === 'none') {
+      // Need to expand
+      const dirItem = wrapper.querySelector('.tree-item.directory');
+      const expandIcon = dirItem.querySelector('.expand-icon');
+
+      if (dirItem && expandIcon) {
+        // Simulate click to expand
+        dirItem.click();
+
+        // Wait for DOM to update
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+  }
+}
+
 // Load file and render
-async function loadFile(path) {
+async function loadFile(path, hash = '', updateUrl = true) {
   try {
     // Update breadcrumb
     document.getElementById('breadcrumb').textContent = path;
@@ -372,6 +602,23 @@ async function loadFile(path) {
     const activeItem = document.querySelector(`.tree-item[data-path="${path}"]`);
     if (activeItem) {
       activeItem.classList.add('active');
+    }
+
+    // Update URL if requested
+    if (updateUrl) {
+      // Encode each path segment, but keep / separator
+      const encodedPath = path.split('/').map(seg => encodeURIComponent(seg)).join('/');
+      const newUrl = `/doc/${encodedPath}${hash ? '#' + hash : ''}`;
+      window.history.pushState({ path, hash }, '', newUrl);
+    }
+
+    // Scroll to anchor if provided
+    if (hash) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+      const targetElement = document.getElementById(hash);
+      if (targetElement) {
+        targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     }
 
     // Save last opened
@@ -413,11 +660,50 @@ async function init() {
       }
     });
 
-    // Load last opened file if exists
-    const lastOpened = await getLastOpened();
-    if (lastOpened) {
-      await loadFile(lastOpened);
+    // Check URL for document path
+    const pathname = window.location.pathname;
+    const hash = window.location.hash.substring(1); // Remove '#'
+    let pathFromUrl = null;
+
+    if (pathname.startsWith('/doc/')) {
+      // Extract path from /doc/... URL and decode each segment
+      const rawPath = pathname.substring(5); // Remove '/doc/'
+      pathFromUrl = rawPath.split('/').map(seg => decodeURIComponent(seg)).join('/');
     }
+
+    if (pathFromUrl) {
+      // Load file from URL (highest priority)
+      try {
+        await expandPathToFile(pathFromUrl);
+        await loadFile(pathFromUrl, hash, false); // Don't update URL (already set)
+      } catch (error) {
+        console.error('Failed to load file from URL:', error);
+        // Fallback to welcome screen
+      }
+    } else {
+      // Fallback to last opened file
+      const lastOpened = await getLastOpened();
+      if (lastOpened) {
+        try {
+          await expandPathToFile(lastOpened);
+          await loadFile(lastOpened, '', true); // Update URL
+        } catch (error) {
+          console.warn('Failed to load last opened file:', error.message);
+        }
+      }
+    }
+
+    // Handle browser back/forward buttons
+    window.addEventListener('popstate', async (event) => {
+      if (event.state && event.state.path) {
+        try {
+          await expandPathToFile(event.state.path);
+          await loadFile(event.state.path, event.state.hash || '', false);
+        } catch (error) {
+          console.error('Failed to load file from history:', error);
+        }
+      }
+    });
   } catch (error) {
     console.error('Initialization error:', error);
     const userMessage = ErrorHandler.getUserMessage(error);

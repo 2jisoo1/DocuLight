@@ -41,17 +41,33 @@ body {
 }
 
 .sidebar-header {
-  padding: 1rem;
+  padding: 0.5rem 1rem;
   border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  height: 49px;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .sidebar-header h1 {
-  font-size: 1.25rem;
+  font-size: 0.95rem;
   font-weight: 600;
   color: var(--text-primary);
+  line-height: 1.2;
+  margin: 0;
+  padding: 0;
+}
+
+.content-header {
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+  background-color: #ffffff;
+  height: 49px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
 }
 
 .icon-btn {
@@ -150,14 +166,15 @@ body {
 }
 
 .content-header {
-  padding: 1rem 1.5rem;
+  padding: 0.75rem 1.5rem;
   border-bottom: 1px solid var(--border-color);
-  background-color: var(--bg-secondary);
+  background-color: #ffffff;
 }
 
 .breadcrumb {
-  font-size: 0.9rem;
-  color: var(--text-secondary);
+  font-size: 0.95rem;
+  color: #24292f;
+  font-weight: 600;
 }
 
 .markdown-content {
@@ -251,6 +268,39 @@ body {
   margin-bottom: 1rem;
   font-weight: 600;
   line-height: 1.25;
+  position: relative;
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+
+/* Heading Anchor Links */
+.heading-anchor {
+  margin-left: 0.5rem;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  text-decoration: none !important;
+  font-size: 0.8em;
+  color: inherit;
+  cursor: pointer;
+}
+
+.markdown-content h1:hover .heading-anchor,
+.markdown-content h2:hover .heading-anchor,
+.markdown-content h3:hover .heading-anchor,
+.markdown-content h4:hover .heading-anchor,
+.markdown-content h5:hover .heading-anchor,
+.markdown-content h6:hover .heading-anchor {
+  opacity: 1;
+}
+
+/* Heading hover effect - pastel blue color */
+.markdown-content h1:hover,
+.markdown-content h2:hover,
+.markdown-content h3:hover,
+.markdown-content h4:hover,
+.markdown-content h5:hover,
+.markdown-content h6:hover {
+  color: #4A90E2;
 }
 
 .markdown-content h1 { font-size: 2rem; border-bottom: 2px solid var(--border-color); padding-bottom: 0.5rem; }
@@ -283,6 +333,13 @@ body {
   margin-bottom: 0.5rem;
 }
 
+/* Code Block Wrapper */
+.code-block-wrapper {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+/* Inline code */
 .markdown-content code {
   background-color: var(--bg-secondary);
   padding: 0.2rem 0.4rem;
@@ -291,17 +348,49 @@ body {
   font-size: 0.9em;
 }
 
+/* Code blocks */
 .markdown-content pre {
-  background-color: var(--bg-secondary);
   padding: 1rem;
-  border-radius: 4px;
+  border-radius: 3px;
   overflow-x: auto;
-  margin-bottom: 1rem;
+  margin-bottom: 0;
+  background-color: #f6f8fa !important;
+  border: 1px solid #d0d7de;
 }
 
 .markdown-content pre code {
-  background: none;
+  background: none !important;
   padding: 0;
+  border-radius: 3px;
+}
+
+/* Copy Button */
+.copy-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background-color: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  color: #57606a;
+  font-size: 0.7rem;
+  font-weight: 500;
+  z-index: 10;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(4px);
+}
+
+.copy-btn:hover {
+  background-color: rgba(255, 255, 255, 0.9);
+  border-color: rgba(0, 0, 0, 0.2);
+  color: #24292f;
+}
+
+.copy-btn:active {
+  background-color: rgba(255, 255, 255, 1);
+  transform: scale(0.98);
 }
 
 .markdown-content blockquote {
