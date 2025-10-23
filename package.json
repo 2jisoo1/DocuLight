@@ -1,0 +1,37 @@
+{
+  "name": "doclight",
+  "version": "0.1.0",
+  "description": "Lightweight Markdown Document Viewer & Manager",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "nodemon src/app.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "markdown",
+    "documentation",
+    "viewer",
+    "file-manager"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "ejs": "^3.1.9",
+    "json5": "^2.2.3",
+    "multer": "^1.4.5-lts.1",
+    "archiver": "^6.0.1",
+    "adm-zip": "^0.5.10",
+    "async-lock": "^1.4.1",
+    "ignore": "^5.3.0",
+    "winston": "^3.11.0",
+    "winston-daily-rotate-file": "^4.7.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

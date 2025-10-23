@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/style.css">
+  <!-- Marked.js for Markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@11.0.0/marked.min.js"></script>
+  <!-- Mermaid.js for diagrams -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <!-- DOMPurify for XSS protection -->
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <!-- Sidebar: File Tree -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <h1>DocLight</h1>
+        <button id="refresh-btn" class="icon-btn" title="새로고침">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+          </svg>
+        </button>
+      </div>
+      <div class="tree-container" id="tree-container">
+        <!-- Tree will be loaded here -->
+      </div>
+    </aside>
+
+    <!-- Main Content: Markdown Viewer -->
+    <main class="main-content">
+      <div class="content-header">
+        <div class="breadcrumb" id="breadcrumb">
+          <span>문서를 선택하세요</span>
+        </div>
+      </div>
+      <div class="markdown-content" id="markdown-content">
+        <div class="welcome">
+          <h1>환영합니다</h1>
+          <p>좌측 트리에서 Markdown 문서를 선택하여 열람하세요.</p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>
