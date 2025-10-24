@@ -61,6 +61,24 @@ const TOOLS = [
     }
   },
   {
+    name: 'list_full_tree',
+    description: 'Recursively list all documents and directories starting from a path',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Starting directory path (default: /)',
+          default: '/'
+        },
+        maxDepth: {
+          type: 'integer',
+          description: 'Optional maximum depth (0 = only this directory). If omitted, full depth.'
+        }
+      }
+    }
+  },
+  {
     name: 'read_document',
     description: 'Read a markdown document',
     inputSchema: {
@@ -137,6 +155,48 @@ async function executeTool(config, logger, name, args) {
           {
             type: 'text',
             text: `# Documents at ${result.path}\n\n${output}`
+          }
+        ]
+      };
+    }
+
+    case 'list_full_tree': {
+      const { getFullTreeData } = require('./api-ctrl');
+      const startPath = args.path || '/';
+      const result = await getFullTreeData(config, logger, startPath, { maxDepth: args.maxDepth });
+
+      // 포맷 함수
+      function formatTree(node, indent = '') {
+        let lines = [];
+        for (const dir of node.dirs) {
+          lines.push(`${indent}📁 ${dir.name}/`);
+          lines = lines.concat(formatTree(dir, indent + '  '));
+        }
+        for (const file of node.files) {
+          lines.push(`${indent}📄 ${file.name}`);
+        }
+        return lines;
+      }
+
+      const lines = formatTree(result.root);
+      // 대규모 트리 출력 제한 (안전장치)
+      //const MAX_LINES = 5000;
+      let outputText;
+      //if (lines.length > MAX_LINES) {
+      //  outputText = lines.slice(0, MAX_LINES).join('\n') + `\n... (truncated ${lines.length - MAX_LINES} more lines)`;
+      //} else {
+        outputText = lines.join('\n');
+      //}
+
+      const header = `# Full Tree at ${result.startPath}\n\n` +
+        `Stats: Directories=${result.stats.totalDirs}, Files=${result.stats.totalFiles}` +
+        (typeof args.maxDepth === 'number' ? `, MaxDepth=${args.maxDepth}` : '') + '\n\n';
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: header + outputText
           }
         ]
       };
