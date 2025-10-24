@@ -16,7 +16,8 @@ function createApiRouter(config) {
   router.get('/raw', getRaw);
 
   // Protected routes (authentication required)
-  const auth = authMiddleware(config);
+  // Do not capture `config` at module/router creation time; auth middleware reads runtime config from req.app.locals
+  const auth = authMiddleware();
 
   router.post('/upload', auth, upload, uploadFile);
   router.delete('/entry', auth, deleteEntry);

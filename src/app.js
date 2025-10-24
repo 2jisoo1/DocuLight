@@ -42,7 +42,9 @@ app.use(express.static(path.join(__dirname, '../public')));
 // Dynamic wrappers for middleware that depend on config/logger so they reflect runtime updates
 app.use((req, res, next) => {
   try {
-    const mw = createIpWhitelist(req.app.locals.config || {});
+    // createIpWhitelist reads runtime config from req.app.locals internally —
+    // do not pass a captured config object here to avoid accidental module-level capture.
+    const mw = createIpWhitelist();
     return mw(req, res, next);
   } catch (e) {
     (req.app && req.app.locals && req.app.locals.logger || console).warn('IP whitelist middleware error', e && e.message);
