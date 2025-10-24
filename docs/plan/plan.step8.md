@@ -764,3 +764,29 @@ Step 8 완료 후:
 **작성일**: 2025-10-25
 **버전**: 1.0.0
 **상태**: 계획 단계
+
+---
+
+## 운영 가이드 (핫 리로드 요약)
+
+실제 구현은 `src/app.js`의 `start()`/`stop()`/`restart()` API, `src/utils/config-watcher.js`(파일 감시자), 그리고 `src/utils/backup-utils.js`(백업/복원)를 중심으로 동작합니다. 아래는 운영자·개발자를 위한 핵심 안내입니다.
+
+- 변경 감지: watcher가 `config.json5` 변경을 감지합니다. 안정성 확보를 위해 polling(usePolling: true)과 awaitWriteFinish를 사용합니다.
+- 검증: 변경 시 `loadConfig()`로 새 구성을 검증합니다. 검증 실패 시 자동 복원 절차가 실행됩니다.
+- 적용: 검증 성공 시 `app.restart()`로 안전한 stop→start를 수행하며, API 라우터를 재마운트하여 런타임 참조가 갱신됩니다.
+- 백업/롤백: 정상 시작 시 `config.json5.bak`에 백업을 생성합니다. 재시작 실패 시 자동 복원하고 단 한 차례 재시작을 시도합니다.
+
+운영 체크리스트
+- 변경 전: `git diff config.json5`로 변경 내용 검토
+- 변경 적용: 파일 저장 후 로그와 `server:restart` 이벤트를 확인
+- 이상 시: `config.json5.bak`로 복원 후 `node src/app.js` 또는 `npm start`로 수동 시작
+
+개발자 규칙 (핵심)
+1. 모듈 최상단에서 `loadConfig()`를 바로 호출해 전역 변수로 저장하지 마세요. (예: `const cfg = loadConfig();`)
+2. 런타임에서 항상 `req.app.locals.config` 또는 `app.locals.config`를 통해 구성에 접근하세요.
+3. 라우터/미들웨어 팩토리에서 config를 캡처할 경우 라우터 재마운트나 요청-레벨 팩토리를 사용하세요.
+
+도구
+- 감사 스크립트: `scripts/audit-config-capture.js` — 코드베이스에서 모듈-레벨 구성 캡처 패턴을 찾아 경고합니다.
+- 통합 테스트: `test/test-start-stop.js`, `test/test-watcher-restart.js`
+

@@ -202,6 +202,32 @@ pm2 logs doclight
 pm2 restart doclight
 ```
 
+## Config Hot-Reload (운영 가이드)
+
+DocLight는 `config.json5` 변경 시 안전하게 설정을 반영하기 위한 Hot-Reload 기능을 제공합니다. 운영 환경에서 아래 절차와 도구를 사용하세요.
+
+1. 변경 전: `git diff config.json5`로 변경 내용 검토.
+2. 변경 적용: 파일을 저장하면 내부 감시자가 변경을 감지하고 검증 후 `app.restart()`를 시도합니다.
+3. 모니터링: 로그(`logs/`)와 `server:restart` 이벤트를 확인합니다.
+4. 문제 발생 시: 백업(`config.json5.bak`)으로 복원하고 수동으로 서버를 시작합니다.
+
+유용한 명령 및 스크립트
+
+```powershell
+# 감사 스크립트: 코드베이스에서 모듈-레벨 config 캡처 패턴 검토
+node scripts/audit-config-capture.js
+
+# 통합 테스트(개발용)
+node test/test-start-stop.js
+node test/test-watcher-restart.js
+```
+
+개발자 규칙
+
+- 모듈 로드 시점에서 `loadConfig()` 호출로 구성을 캡처하지 마세요. 대신 런타임에서 `req.app.locals.config`를 읽도록 코드를 작성하세요.
+- 중요한 변경(포트, SSL)은 자동 재시작으로 인해 연결이 끊어질 수 있으므로 배포 전략을 사용하세요.
+
+
 ## 개발
 
 ### 개발 환경 실행
