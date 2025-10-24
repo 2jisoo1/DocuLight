@@ -3,8 +3,10 @@
  * Validates X-API-Key header for protected routes
  */
 function authMiddleware(config) {
+  // Return middleware that reads API key from runtime config (req.app.locals.config)
   return (req, res, next) => {
     const providedKey = req.header('X-API-Key');
+    const runtimeConfig = (req && req.app && req.app.locals && req.app.locals.config) || config || {};
 
     if (!providedKey) {
       return res.status(401).json({
@@ -15,7 +17,7 @@ function authMiddleware(config) {
       });
     }
 
-    if (providedKey !== config.apiKey) {
+    if (providedKey !== runtimeConfig.apiKey) {
       return res.status(401).json({
         error: {
           code: 'UNAUTHORIZED',

@@ -8,7 +8,7 @@ const { downloadFile, downloadDirectory } = require('../controllers/download-con
 
 function createApiRouter(config) {
   const router = express.Router();
-  const upload = configureUpload(config);
+  const upload = configureUpload();
 
   // Public routes (no authentication required)
   router.get('/tree/full', getFullTree);  // Get complete recursive tree structure
@@ -18,7 +18,7 @@ function createApiRouter(config) {
   // Protected routes (authentication required)
   const auth = authMiddleware(config);
 
-  router.post('/upload', auth, upload.single('file'), uploadFile);
+  router.post('/upload', auth, upload, uploadFile);
   router.delete('/entry', auth, deleteEntry);
   router.get('/download/file', auth, downloadFile);
   router.get('/download/dir', auth, downloadDirectory);

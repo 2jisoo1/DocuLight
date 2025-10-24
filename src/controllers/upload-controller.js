@@ -8,15 +8,27 @@ const lockManager = require('../utils/lock-manager');
 /**
  * Configure multer for file uploads
  */
-function configureUpload(config) {
-  const storage = multer.memoryStorage();
+function configureUpload() {
+  // Return a middleware that creates a multer instance per-request using runtime config
+  return (req, res, next) => {
+    try {
+      const cfg = (req && req.app && req.app.locals && req.app.locals.config) || {};
+      const maxUploadMB = (typeof cfg.maxUploadMB === 'number' ? cfg.maxUploadMB : 10);
+      const storage = multer.memoryStorage();
 
-  return multer({
-    storage,
-    limits: {
-      fileSize: config.maxUploadMB * 1024 * 1024
+      const upload = multer({
+        storage,
+        limits: {
+          fileSize: maxUploadMB * 1024 * 1024
+        }
+      });
+
+      // Call the single-file handler
+      return upload.single('file')(req, res, next);
+    } catch (e) {
+      return next(e);
     }
-  });
+  };
 }
 
 /**

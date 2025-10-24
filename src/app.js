@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const https = require('https');
 const path = require('path');
+const fs = require('fs');
 const { loadConfig } = require('./utils/config-loader');
 const { createLogger } = require('./utils/logger');
 const { loadSSLOptions } = require('./utils/ssl-validator');
@@ -12,26 +13,22 @@ const createApiRouter = require('./routes/api');
 const createMcpRouter = require('./routes/mcp');
 const { getDocumentation } = require('./controllers/doc-controller');
 const { getIndexConfig } = require('./controllers/config-controller');
+const backupUtils = require('./utils/backup-utils');
+const { createConfigWatcher } = require('./utils/config-watcher');
 
-// Load configuration
+// Runtime state
 let config;
-try {
-  config = loadConfig();
-  console.log('Configuration loaded successfully');
-} catch (error) {
-  console.error('Failed to load configuration:', error.message);
-  process.exit(1);
-}
-
-// Create logger
-const logger = createLogger(config);
+let logger;
+let server = null;
+let isStarting = false;
+let isStopping = false;
+let restartLock = false;
+let apiMounted = false;
 
 // Create Express app
 const app = express();
 
-// Store config and logger in app.locals for access in routes
-app.locals.config = config;
-app.locals.logger = logger;
+// app.locals will be populated by start()
 
 // Set view engine
 app.set('view engine', 'ejs');
@@ -42,129 +39,314 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '../public')));
 
-// IP 화이트리스트 미들웨어 (가장 먼저 적용)
-app.use(createIpWhitelist(config));
+// Dynamic wrappers for middleware that depend on config/logger so they reflect runtime updates
+app.use((req, res, next) => {
+  try {
+    const mw = createIpWhitelist(req.app.locals.config || {});
+    return mw(req, res, next);
+  } catch (e) {
+    (req.app && req.app.locals && req.app.locals.logger || console).warn('IP whitelist middleware error', e && e.message);
+    return next();
+  }
+});
 
-app.use(requestLogger(logger));
+app.use((req, res, next) => {
+  try {
+    const lg = req.app.locals.logger || console;
+    const mw = requestLogger(lg);
+    return mw(req, res, next);
+  } catch (e) {
+    (req.app && req.app.locals && req.app.locals.logger || console).warn('Request logger middleware error', e && e.message);
+    return next();
+  }
+});
 
 // Documentation portal routes (must be before /api router)
-// These routes handle /api/doc and /mcp/doc
 app.get('/api/doc', (req, res) => {
-  res.render('doc-viewer', {
-    title: 'API Documentation - DocLight',
-    docType: 'api'
-  });
+  res.render('doc-viewer', { title: 'API Documentation - DocLight', docType: 'api' });
 });
 
 app.get('/mcp/doc', (req, res) => {
-  res.render('doc-viewer', {
-    title: 'MCP Server Documentation - DocLight',
-    docType: 'mcp'
-  });
+  res.render('doc-viewer', { title: 'MCP Server Documentation - DocLight', docType: 'mcp' });
 });
 
 // Documentation API endpoints (return JSON)
-app.get('/api/documentation/:docType', (req, res, next) => {
-  getDocumentation(req, res, next);
-});
+app.get('/api/documentation/:docType', (req, res, next) => getDocumentation(req, res, next));
 
 // Config API endpoints
 app.get('/api/config/index', getIndexConfig);
 
-// Routes
-app.use('/api', createApiRouter(config));
-app.use(createMcpRouter());
-
-// Main page
+// Main page (use runtime config)
 app.get('/', (req, res) => {
+  const cfg = req.app.locals.config || {};
   res.render('index', {
     title: 'DocLight - Markdown Viewer',
-    uiTitle: config.ui.title,
-    uiIcon: config.ui.icon
+    uiTitle: (cfg.ui && cfg.ui.title) || 'DocLight',
+    uiIcon: (cfg.ui && cfg.ui.icon) || '/images/icon.png'
   });
 });
 
 // Document viewer route (for clean URLs)
 app.get('/doc/*', (req, res) => {
+  const cfg = req.app.locals.config || {};
   res.render('index', {
     title: 'DocLight - Markdown Viewer',
-    uiTitle: config.ui.title,
-    uiIcon: config.ui.icon
+    uiTitle: (cfg.ui && cfg.ui.title) || 'DocLight',
+    uiIcon: (cfg.ui && cfg.ui.icon) || '/images/icon.png'
   });
 });
 
 // Health check endpoint
 app.get('/healthz', (req, res) => {
-  res.status(200).json({
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime()
-  });
+  res.status(200).json({ status: 'OK', timestamp: new Date().toISOString(), uptime: process.uptime() });
 });
 
 // 404 handler
 app.use((req, res) => {
-  res.status(404).json({
-    error: {
-      code: 'NOT_FOUND',
-      message: 'Route not found'
-    }
-  });
+  res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Route not found' } });
 });
 
-// Error handler (must be last)
-app.use(errorHandler(logger));
+// Error handler (must be last) - dynamic wrapper
+app.use((err, req, res, next) => {
+  const lg = (req && req.app && req.app.locals && req.app.locals.logger) || console;
+  const handler = errorHandler(lg);
+  return handler(err, req, res, next);
+});
 
-// Start server
-const PORT = config.port || 3000;
+// Start the server (exposed API)
+async function start(options = {}) {
+  if (isStarting) return { success: false, error: 'Start already in progress' };
+  isStarting = true;
 
-let server;
+  try {
+    // Load config
+    const cfg = loadConfig();
+    config = cfg;
 
-if (config.ssl && config.ssl.enabled) {
-  // HTTPS 서버
-  const sslOptions = loadSSLOptions(config.ssl);
-  server = https.createServer(sslOptions, app);
+    // Create logger
+    logger = createLogger(cfg);
+    app.locals.config = cfg;
+    app.locals.logger = logger;
 
-  server.listen(PORT, () => {
-    logger.info('DocLight HTTPS server started', {
-      port: PORT,
-      docsRoot: config.docsRoot,
-      ssl: true
+    // Mount API routers once using the loaded config
+    // Unmount previous API router if present (so new config is applied)
+    try {
+      if (app.locals && app.locals.apiLayer) {
+        const stack = app._router && app._router.stack;
+        const idx = stack ? stack.indexOf(app.locals.apiLayer) : -1;
+        if (idx !== -1) {
+          stack.splice(idx, 1);
+        }
+        delete app.locals.apiLayer;
+        apiMounted = false;
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    // Mount API router (always remount to reflect latest config)
+    const apiRouter = createApiRouter(cfg);
+    app.use('/api', apiRouter);
+    // capture the mounted layer so we can remove it on next start
+    try {
+      const stack = app._router && app._router.stack;
+      if (stack && stack.length > 0) {
+        // find layer with handle === apiRouter from the end
+        for (let i = stack.length - 1; i >= 0; i--) {
+          const layer = stack[i];
+          if (layer && layer.handle === apiRouter) {
+            app.locals.apiLayer = layer;
+            apiMounted = true;
+            break;
+          }
+        }
+      }
+    } catch (e) { /* ignore */ }
+
+    // Ensure MCP router is mounted once
+    if (!app.locals.mcpMounted) {
+      app.use(createMcpRouter());
+      app.locals.mcpMounted = true;
+    }
+
+    const PORT = cfg.port || 3000;
+
+    if (cfg.ssl && cfg.ssl.enabled) {
+      const sslOptions = loadSSLOptions(cfg.ssl);
+      server = https.createServer(sslOptions, app);
+    } else {
+      server = http.createServer(app);
+    }
+
+    await new Promise((resolve, reject) => {
+      server.once('error', (err) => reject(err));
+      server.listen(PORT, () => resolve());
     });
 
-    console.log(`\n✅ DocLight Server Started (HTTPS)`);
-    console.log(`   📂 Docs: ${config.docsRoot}`);
-    console.log(`   🔒 SSL: Enabled`);
-    console.log(`   🌐 URL: https://localhost:${PORT}\n`);
-  });
-} else {
-  // HTTP 서버
-  server = http.createServer(app);
+    logger.info('DocLight server started', { port: PORT, docsRoot: cfg.docsRoot, ssl: !!(cfg.ssl && cfg.ssl.enabled) });
 
-  server.listen(PORT, () => {
-    logger.info('DocLight HTTP server started', {
-      port: PORT,
-      docsRoot: config.docsRoot,
-      ssl: false
-    });
+    // On first successful start, delete any existing .bak (as requested) and then create a fresh backup
+    const configPath = path.join(process.cwd(), 'config.json5');
+    const backupPath = path.join(process.cwd(), 'config.json5.bak');
+    try {
+      if (!start._hasStarted) {
+        try { backupUtils.removeBackup(backupPath); } catch (e) { /* ignore */ }
+      }
+      // create atomic-ish backup
+      backupUtils.createBackup(configPath, backupPath);
+    } catch (e) {
+      logger.warn('Failed to create config backup', { error: e && e.message });
+    }
 
-    console.log(`\n✅ DocLight Server Started (HTTP)`);
-    console.log(`   📂 Docs: ${config.docsRoot}`);
-    console.log(`   ⚠️  SSL: Disabled`);
-    console.log(`   🌐 URL: http://localhost:${PORT}\n`);
-  });
+    start._hasStarted = true;
+    isStarting = false;
+    app.emit('server:started', { config: cfg });
+
+    // Start config watcher (use requested stabilityThreshold and pollInterval)
+    try {
+      if (!app.locals.configWatcher) {
+  app.locals.configWatcher = createConfigWatcher(app, { stabilityThreshold: 1000, pollInterval: 5000, usePolling: true });
+        app.locals.configWatcher.start();
+      }
+    } catch (e) {
+      (logger || console).warn('Failed to start config watcher', e && e.message);
+    }
+    return { success: true };
+  } catch (err) {
+    isStarting = false;
+    (logger || console).error('Failed to start server', err && err.message);
+    return { success: false, error: err && err.message };
+  }
 }
 
-// Graceful shutdown
-const shutdown = () => {
-  logger.info('Shutting down gracefully');
-  server.close(() => {
-    logger.info('Server closed');
-    process.exit(0);
+// Stop the server (exposed API)
+async function stop(timeoutMs = 60000) {
+  if (!server) return { success: true };
+  if (isStopping) return { success: false, error: 'Stop already in progress' };
+  isStopping = true;
+
+  const result = await new Promise((resolve) => {
+    let finished = false;
+
+    server.close((err) => {
+      if (finished) return;
+      finished = true;
+      server = null;
+      isStopping = false;
+      app.emit('server:stopped', { reason: err ? err.message : 'stopped' });
+      if (err) {
+        (logger || console).error('Error while closing server', err && err.message);
+        resolve({ success: false, error: err && err.message });
+      } else {
+        (logger || console).info('Server closed');
+        resolve({ success: true });
+      }
+    });
+
+    setTimeout(() => {
+      if (finished) return;
+      finished = true;
+      isStopping = false;
+      (logger || console).warn('Timed out while closing server');
+      resolve({ success: false, error: 'timeout' });
+    }, timeoutMs);
   });
+
+  // Stop watcher when server stopped
+  try {
+    if (app.locals && app.locals.configWatcher) {
+      app.locals.configWatcher.close();
+      delete app.locals.configWatcher;
+    }
+  } catch (e) { /* ignore */ }
+
+  return result;
+}
+
+// Restart helper with single automatic restore attempt on failure
+async function restart() {
+  if (restartLock) return { success: false, error: 'Restart already in progress' };
+  restartLock = true;
+  try {
+    const log = (app && app.locals && app.locals.logger) || logger || console;
+    log.info && log.info('Restart requested');
+
+    const stopRes = await stop();
+    log.debug && log.debug('Restart: stop result', stopRes);
+
+    const result = await start();
+    log.debug && log.debug('Restart: start result', result);
+    if (result.success) {
+      restartLock = false;
+      log.info && log.info('Restart completed successfully');
+      app.emit && app.emit('server:restart:success', { restored: false });
+      return { success: true };
+    }
+
+    // start failed - attempt restore from backup once
+    const backupPath = path.join(process.cwd(), 'config.json5.bak');
+    const configPath = path.join(process.cwd(), 'config.json5');
+
+    log.warn && log.warn('Restart: initial start failed, attempting restore from backup', { error: result.error });
+
+    if (fs.existsSync(backupPath)) {
+      try {
+        backupUtils.restoreBackup(backupPath, configPath);
+        log.info && log.info('Restart: Restored config from backup after failed restart');
+      } catch (e) {
+        log.error && log.error('Restart: Failed to restore backup config', e && (e.stack || e.message));
+        restartLock = false;
+        app.emit && app.emit('server:restart:failed', { error: result.error, restored: false });
+        return { success: false, error: result.error };
+      }
+
+      // try start again
+      const retry = await start();
+      restartLock = false;
+      log.debug && log.debug('Restart: retry start result', retry);
+      if (retry.success) {
+        app.emit && app.emit('server:restart:success', { error: result.error, restored: true });
+        return { success: true, restored: true };
+      }
+      app.emit && app.emit('server:restart:failed', { error: retry.error, restored: false });
+      return { success: false, error: retry.error };
+    }
+
+    restartLock = false;
+    app.emit && app.emit('server:restart:failed', { error: result.error, restored: false });
+    return { success: false, error: result.error };
+  } catch (e) {
+    const log = (app && app.locals && app.locals.logger) || logger || console;
+    log.error && log.error('Restart: unexpected error', e && (e.stack || e.message));
+    restartLock = false;
+    return { success: false, error: e && e.message };
+  }
+}
+
+// Expose APIs on app for external control
+app.start = start;
+app.stop = stop;
+app.restart = restart;
+
+// Graceful shutdown on signals
+const shutdown = async () => {
+  (logger || console).info('Shutting down gracefully');
+  await stop();
+  process.exit(0);
 };
 
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
+
+// Auto-start when executed directly
+if (require.main === module) {
+  (async () => {
+    const res = await start();
+    if (!res.success) {
+      (console || logger).error('Failed to start server when executed directly:', res.error);
+      process.exit(1);
+    }
+  })();
+}
 
 module.exports = app;

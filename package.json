@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test:startstop": "node test/test-start-stop.js",
+    "test:watcher": "node test/test-watcher-restart.js"
   },
   "keywords": [
     "markdown",
@@ -28,6 +30,9 @@
     "puppeteer": "^24.26.0",
     "winston": "^3.11.0",
     "winston-daily-rotate-file": "^4.7.1"
+  },
+  "optionalDependencies": {
+    "chokidar": "^3.5.3"
   },
   "devDependencies": {
     "nodemon": "^3.0.2",

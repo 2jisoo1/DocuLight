@@ -171,10 +171,10 @@ function loadConfig() {
     const validation = validateSSL(config.ssl);
 
     if (!validation.valid) {
-      console.error('\n❌ SSL Validation Failed:\n');
-      validation.errors.forEach(err => console.error(`  • ${err}`));
-      console.error('');
-      process.exit(1);
+      const msg = '\n❌ SSL Validation Failed:\n' + validation.errors.map(e => `  • ${e}`).join('\n');
+      console.error(msg);
+      // Throw an error instead of exiting the process so callers can handle rollback/restart
+      throw new Error('SSL Validation Failed: ' + validation.errors.join('; '));
     }
 
     console.log('✅ SSL certificates validated successfully');
