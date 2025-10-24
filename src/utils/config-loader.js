@@ -1,6 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 const JSON5 = require('json5');
+const { validateIpPattern } = require('./ip-matcher.js');
+const { validateSSL } = require('./ssl-validator.js');
 
 /**
  * Load and validate configuration from config.json5
@@ -60,6 +62,11 @@ function loadConfig() {
   config.logDir = config.logDir || './logs';
   config.logLevel = config.logLevel || 'info';
 
+  // Set defaults for UI settings
+  config.ui = config.ui || {};
+  config.ui.title = config.ui.title || 'DocLight';
+  config.ui.icon = config.ui.icon || '/images/icon.png';
+
   // Validate maxUploadMB range
   if (config.maxUploadMB < 1 || config.maxUploadMB > 1000) {
     console.warn(
@@ -98,6 +105,40 @@ function loadConfig() {
   // Store resolved absolute paths
   config.docsRoot = docsRoot;
   config.logDir = logDir;
+
+  // Security 설정 검증
+  if (config.security) {
+    if (config.security.allows) {
+      if (!Array.isArray(config.security.allows)) {
+        throw new Error('security.allows must be an array');
+      }
+
+      // 각 IP 패턴 검증
+      for (const pattern of config.security.allows) {
+        if (!validateIpPattern(pattern)) {
+          throw new Error(`Invalid IP pattern: ${pattern}`);
+        }
+      }
+
+      console.log(`IP whitelist enabled: ${config.security.allows.length} patterns`);
+    }
+  }
+
+  // SSL 설정 검증
+  if (config.ssl && config.ssl.enabled) {
+    console.log('SSL/TLS enabled, validating certificates...');
+
+    const validation = validateSSL(config.ssl);
+
+    if (!validation.valid) {
+      console.error('\n❌ SSL Validation Failed:\n');
+      validation.errors.forEach(err => console.error(`  • ${err}`));
+      console.error('');
+      process.exit(1);
+    }
+
+    console.log('✅ SSL certificates validated successfully');
+  }
 
   return config;
 }

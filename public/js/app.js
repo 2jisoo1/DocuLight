@@ -714,5 +714,99 @@ async function init() {
   }
 }
 
+// Initialize resizer
+function initResizer() {
+  const resizer = document.getElementById('resizer');
+  const sidebar = document.querySelector('.sidebar');
+  let isResizing = false;
+  let startX = 0;
+  let startWidth = 0;
+
+  resizer.addEventListener('mousedown', (e) => {
+    isResizing = true;
+    startX = e.clientX;
+    startWidth = sidebar.offsetWidth;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    resizer.classList.add('resizing');
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!isResizing) return;
+
+    const delta = e.clientX - startX;
+    const newWidth = startWidth + delta;
+    const minWidth = 100;
+    const maxWidth = window.innerWidth - 100;
+
+    if (newWidth >= minWidth && newWidth <= maxWidth) {
+      sidebar.style.width = `${newWidth}px`;
+      localStorage.setItem('sidebarWidth', newWidth);
+    }
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (isResizing) {
+      isResizing = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      resizer.classList.remove('resizing');
+    }
+  });
+
+  // Restore saved width
+  const savedWidth = localStorage.getItem('sidebarWidth');
+  if (savedWidth) {
+    sidebar.style.width = `${savedWidth}px`;
+  }
+}
+
+// Initialize mobile menu
+function initMobileMenu() {
+  const menuBtn = document.getElementById('mobile-menu-btn');
+  const overlay = document.getElementById('mobile-overlay');
+  const sidebar = document.querySelector('.sidebar');
+
+  if (!menuBtn || !overlay || !sidebar) return;
+
+  // Toggle menu
+  menuBtn.addEventListener('click', () => {
+    sidebar.classList.add('open');
+    overlay.classList.add('active');
+  });
+
+  // Close menu when clicking overlay
+  overlay.addEventListener('click', () => {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('active');
+  });
+
+  // Close menu on file selection (mobile only)
+  const originalLoadFile = window.loadFile;
+  window.loadFile = async function(...args) {
+    await originalLoadFile.apply(this, args);
+    if (window.innerWidth <= 768) {
+      sidebar.classList.remove('open');
+      overlay.classList.remove('active');
+    }
+  };
+}
+
+// Close mobile menu on popstate
+window.addEventListener('popstate', () => {
+  if (window.innerWidth <= 768) {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.getElementById('mobile-overlay');
+    if (sidebar && overlay) {
+      sidebar.classList.remove('open');
+      overlay.classList.remove('active');
+    }
+  }
+});
+
 // Start application when DOM is ready
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => {
+  init();
+  initResizer();
+  initMobileMenu();
+});

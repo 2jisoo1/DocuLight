@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><%= title %></title>
+  <link rel="icon" type="image/png" href="<%= uiIcon %>">
   <link rel="stylesheet" href="/css/style.css">
   <!-- Highlight.js for syntax highlighting -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
@@ -16,11 +17,17 @@
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
 </head>
 <body>
+  <!-- Mobile Overlay -->
+  <div class="mobile-overlay" id="mobile-overlay"></div>
+
   <div class="container">
     <!-- Sidebar: File Tree -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
-        <h1>DocLight</h1>
+        <div class="sidebar-title">
+          <img src="<%= uiIcon %>" alt="icon" class="sidebar-icon" onerror="this.style.display='none'">
+          <h1 title="<%= uiTitle %>"><%= uiTitle %></h1>
+        </div>
         <button id="refresh-btn" class="icon-btn" title="새로고침">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
@@ -32,9 +39,19 @@
       </div>
     </aside>
 
+    <!-- Resizer -->
+    <div class="resizer" id="resizer"></div>
+
     <!-- Main Content: Markdown Viewer -->
     <main class="main-content">
       <div class="content-header">
+        <button id="mobile-menu-btn" class="mobile-menu-btn" aria-label="Toggle menu">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
         <div class="breadcrumb" id="breadcrumb">
           <span>문서를 선택하세요</span>
         </div>

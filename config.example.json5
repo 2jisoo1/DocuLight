@@ -14,6 +14,17 @@
   // Port number for the server
   port: 3000,
 
+  // UI customization
+  ui: {
+    // Sidebar title (default: "DocLight")
+    title: "DocLight",
+
+    // Icon path (default: "/images/icon.png")
+    // Absolute path (starts with /): relative to public directory
+    // Relative path (no / or starts with .): relative to docsRoot
+    icon: "/images/icon.png"
+  },
+
   // Files and directories to exclude (gitignore-compatible patterns)
   excludes: [
     "**/.git/",
@@ -28,5 +39,28 @@
   logDir: "./logs",
 
   // Log level: 'error' | 'warn' | 'info' | 'debug'
-  logLevel: "info"
+  logLevel: "info",
+
+  // Security settings (optional)
+  security: {
+    // IP whitelist patterns (optional)
+    // If not specified, all IPs are allowed
+    allows: [
+      "127.0.0.1",           // Exact IP
+      "::1",                 // IPv6 localhost
+      "10.0.1.*",            // Wildcard: 10.0.1.0-255
+      "10.0.100-200.*",      // Range: 10.0.100.0-255 ~ 10.0.200.0-255
+      "192.168.1.0/24"       // CIDR notation
+    ]
+  },
+
+  // SSL/TLS configuration (optional)
+  // If enabled, server runs on HTTPS
+  // If disabled or not specified, server runs on HTTP
+  ssl: {
+    enabled: false,
+    cert: "/path/to/cert.pem",
+    key: "/path/to/key.pem",
+    ca: "/path/to/ca.pem"  // Optional: CA certificate
+  }
 }

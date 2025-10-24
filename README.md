@@ -159,10 +159,12 @@ curl -H "X-API-Key: your-api-key" \
 
 ## 보안
 
-- **API 키 인증**: 쓰기/삭제/다운로드 작업에 API 키 필요
+- **API 키 인증**: 쓰기/삭제/다운로드 작업에 API 키 필요 (X-API-Key 헤더)
 - **경로 검증**: 루트 디렉터리 외부 접근 차단
 - **XSS 방지**: DOMPurify를 통한 HTML sanitization
 - **제외 규칙**: 민감한 파일/디렉터리 필터링
+- **IP 화이트리스트**: 허용된 IP 대역만 접근 가능 (선택적)
+- **SSL/TLS 지원**: HTTPS 암호화 통신 (선택적)
 
 ## 로그
 
@@ -210,6 +212,52 @@ npm run dev
 
 Nodemon이 파일 변경을 감지하여 자동으로 서버를 재시작합니다.
 
+## 고급 기능
+
+### IP 화이트리스트
+
+특정 IP 대역만 서버에 접근하도록 제한:
+
+```json5
+// config.json5
+{
+  security: {
+    allows: [
+      "127.0.0.1",        // 정확한 IP
+      "10.0.1.*",         // 와일드카드: 10.0.1.0-255
+      "10.0.100-200.*",   // 범위: 10.0.100.0-255 ~ 10.0.200.0-255
+      "192.168.1.0/24"    // CIDR 표기법
+    ]
+  }
+}
+```
+
+### SSL/TLS (HTTPS)
+
+HTTPS로 서버 실행:
+
+```json5
+// config.json5
+{
+  ssl: {
+    enabled: true,
+    cert: "/path/to/cert.pem",
+    key: "/path/to/key.pem",
+    ca: "/path/to/ca.pem"  // 선택적
+  }
+}
+```
+
+테스트용 자체 서명 인증서 생성:
+```bash
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+```
+
+### MCP 서버
+
+Claude Desktop과 통합하여 문서를 관리할 수 있습니다.
+자세한 내용은 `doclight-mcp-server/README.md`를 참조하세요.
+
 ## 라이선스
 
 ISC
@@ -218,3 +266,4 @@ ISC
 
 - [SRS (Software Requirements Specification)](docs/srs.md)
 - [SDS (System Design Specification)](docs/sds.md)
+- [MCP Server Documentation](doclight-mcp-server/README.md)
