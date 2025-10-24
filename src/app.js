@@ -10,6 +10,8 @@ const requestLogger = require('./middleware/request-logger');
 const errorHandler = require('./middleware/error-handler');
 const createApiRouter = require('./routes/api');
 const createMcpRouter = require('./routes/mcp');
+const { getDocumentation } = require('./controllers/doc-controller');
+const { getIndexConfig } = require('./controllers/config-controller');
 
 // Load configuration
 let config;
@@ -44,6 +46,30 @@ app.use(express.static(path.join(__dirname, '../public')));
 app.use(createIpWhitelist(config));
 
 app.use(requestLogger(logger));
+
+// Documentation portal routes (must be before /api router)
+// These routes handle /api/doc and /mcp/doc
+app.get('/api/doc', (req, res) => {
+  res.render('doc-viewer', {
+    title: 'API Documentation - DocLight',
+    docType: 'api'
+  });
+});
+
+app.get('/mcp/doc', (req, res) => {
+  res.render('doc-viewer', {
+    title: 'MCP Server Documentation - DocLight',
+    docType: 'mcp'
+  });
+});
+
+// Documentation API endpoints (return JSON)
+app.get('/api/documentation/:docType', (req, res, next) => {
+  getDocumentation(req, res, next);
+});
+
+// Config API endpoints
+app.get('/api/config/index', getIndexConfig);
 
 // Routes
 app.use('/api', createApiRouter(config));

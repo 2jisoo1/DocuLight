@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="icon" type="image/png" href="/images/icon.svg">
+
+  <!-- Highlight.js for syntax highlighting -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+  <!-- Marked.js for Markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@11.0.0/marked.min.js"></script>
+
+  <!-- DOMPurify for XSS protection -->
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+
+  <!-- Mermaid.js for diagrams -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      color: #24292e;
+      background-color: #ffffff;
+      padding: 0;
+      margin: 0;
+    }
+
+    .doc-container {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 45px;
+      background: #fff;
+      min-height: 100vh;
+    }
+
+    .doc-header {
+      padding-bottom: 20px;
+      margin-bottom: 30px;
+      border-bottom: 1px solid #e1e4e8;
+    }
+
+    .doc-header h1 {
+      font-size: 32px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .doc-meta {
+      color: #586069;
+      font-size: 14px;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 100px 20px;
+      color: #586069;
+    }
+
+    .loading-spinner {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #0366d6;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .error {
+      background-color: #f85149;
+      color: white;
+      padding: 16px;
+      border-radius: 6px;
+      margin: 20px 0;
+    }
+
+    /* GitHub-style markdown rendering */
+    .markdown-body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      word-wrap: break-word;
+    }
+
+    .markdown-body h1,
+    .markdown-body h2 {
+      padding-bottom: 0.3em;
+      border-bottom: 1px solid #eaecef;
+    }
+
+    .markdown-body h1 {
+      font-size: 2em;
+      margin-top: 24px;
+      margin-bottom: 16px;
+      font-weight: 600;
+    }
+
+    .markdown-body h2 {
+      font-size: 1.5em;
+      margin-top: 24px;
+      margin-bottom: 16px;
+      font-weight: 600;
+    }
+
+    .markdown-body h3 {
+      font-size: 1.25em;
+      margin-top: 24px;
+      margin-bottom: 16px;
+      font-weight: 600;
+    }
+
+    .markdown-body p {
+      margin-top: 0;
+      margin-bottom: 16px;
+    }
+
+    .markdown-body a {
+      color: #0366d6;
+      text-decoration: none;
+    }
+
+    .markdown-body a:hover {
+      text-decoration: underline;
+    }
+
+    .markdown-body code {
+      padding: 0.2em 0.4em;
+      margin: 0;
+      font-size: 85%;
+      background-color: rgba(27, 31, 35, 0.05);
+      border-radius: 3px;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    }
+
+    .markdown-body pre {
+      padding: 16px;
+      overflow: auto;
+      font-size: 85%;
+      line-height: 1.45;
+      background-color: #f6f8fa;
+      border-radius: 6px;
+      margin-bottom: 16px;
+    }
+
+    .markdown-body pre code {
+      display: inline;
+      padding: 0;
+      margin: 0;
+      overflow: visible;
+      line-height: inherit;
+      word-wrap: normal;
+      background-color: transparent;
+      border: 0;
+    }
+
+    .markdown-body table {
+      border-spacing: 0;
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 0;
+      margin-bottom: 16px;
+    }
+
+    .markdown-body table th {
+      font-weight: 600;
+      padding: 6px 13px;
+      border: 1px solid #d0d7de;
+      background-color: #f6f8fa;
+    }
+
+    .markdown-body table td {
+      padding: 6px 13px;
+      border: 1px solid #d0d7de;
+    }
+
+    .markdown-body table tr {
+      background-color: #fff;
+      border-top: 1px solid #d0d7de;
+    }
+
+    .markdown-body table tr:nth-child(2n) {
+      background-color: #f6f8fa;
+    }
+
+    .markdown-body blockquote {
+      padding: 0 1em;
+      color: #57606a;
+      border-left: 0.25em solid #d0d7de;
+      margin-top: 0;
+      margin-bottom: 16px;
+    }
+
+    .markdown-body ul,
+    .markdown-body ol {
+      padding-left: 2em;
+      margin-top: 0;
+      margin-bottom: 16px;
+    }
+
+    .markdown-body li {
+      margin-top: 0.25em;
+    }
+
+    .markdown-body hr {
+      height: 0.25em;
+      padding: 0;
+      margin: 24px 0;
+      background-color: #e1e4e8;
+      border: 0;
+    }
+
+    /* Mermaid diagram styles */
+    .markdown-body .mermaid {
+      display: flex;
+      justify-content: center;
+      margin: 16px 0;
+      padding: 16px;
+      background-color: #f6f8fa;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    .markdown-body .mermaid svg {
+      max-width: 100%;
+      height: auto;
+    }
+
+    @media (max-width: 767px) {
+      .doc-container {
+        padding: 20px;
+      }
+
+      .doc-header h1 {
+        font-size: 24px;
+      }
+
+      .markdown-body {
+        font-size: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="doc-container">
+    <div class="doc-header">
+      <h1 id="doc-title">Loading...</h1>
+      <div class="doc-meta" id="doc-meta"></div>
+    </div>
+
+    <div id="loading" class="loading">
+      <div class="loading-spinner"></div>
+      <p>Loading documentation...</p>
+    </div>
+
+    <div id="error" class="error" style="display: none;"></div>
+
+    <div id="content" class="markdown-body" style="display: none;"></div>
+  </div>
+
+  <script>
+    const DOC_TYPE = '<%= docType %>';
+
+    // Initialize Mermaid
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'default',
+      securityLevel: 'loose',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif'
+    });
+
+    // Configure marked options
+    marked.setOptions({
+      gfm: true,
+      breaks: false,
+      highlight: function(code, lang) {
+        if (lang && hljs.getLanguage(lang)) {
+          try {
+            return hljs.highlight(code, { language: lang }).value;
+          } catch (err) {}
+        }
+        return hljs.highlightAuto(code).value;
+      }
+    });
+
+    // Fetch and render documentation
+    async function loadDocumentation() {
+      const loadingEl = document.getElementById('loading');
+      const errorEl = document.getElementById('error');
+      const contentEl = document.getElementById('content');
+      const titleEl = document.getElementById('doc-title');
+      const metaEl = document.getElementById('doc-meta');
+
+      try {
+        const response = await fetch(`/api/documentation/${DOC_TYPE}`);
+
+        if (!response.ok) {
+          throw new Error(`Failed to load documentation: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Update title
+        const docTitle = DOC_TYPE === 'api' ? 'API Documentation' : 'MCP Server Documentation';
+        titleEl.textContent = docTitle;
+        document.title = `${docTitle} - DocLight`;
+
+        // Update meta
+        const modified = new Date(data.modified).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+        metaEl.textContent = `Last updated: ${modified} • ${(data.size / 1024).toFixed(1)} KB`;
+
+        // Render markdown
+        const rawHtml = marked.parse(data.content);
+        const cleanHtml = DOMPurify.sanitize(rawHtml);
+        contentEl.innerHTML = cleanHtml;
+
+        // Show content
+        loadingEl.style.display = 'none';
+        contentEl.style.display = 'block';
+
+        // Highlight code blocks
+        document.querySelectorAll('pre code').forEach((block) => {
+          hljs.highlightElement(block);
+        });
+
+        // Render Mermaid diagrams
+        document.querySelectorAll('pre code.language-mermaid').forEach((block) => {
+          const pre = block.parentElement;
+          const mermaidDiv = document.createElement('div');
+          mermaidDiv.className = 'mermaid';
+          mermaidDiv.textContent = block.textContent;
+          pre.replaceWith(mermaidDiv);
+        });
+
+        // Initialize Mermaid rendering
+        await mermaid.run({
+          querySelector: '.mermaid'
+        });
+
+      } catch (error) {
+        console.error('Error loading documentation:', error);
+
+        loadingEl.style.display = 'none';
+        errorEl.style.display = 'block';
+        errorEl.textContent = `Error: ${error.message}`;
+      }
+    }
+
+    // Load documentation on page load
+    document.addEventListener('DOMContentLoaded', loadDocumentation);
+  </script>
+</body>
+</html>

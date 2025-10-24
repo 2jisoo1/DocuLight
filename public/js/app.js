@@ -107,10 +107,10 @@ const ErrorHandler = {
     contentDiv.innerHTML = `
       <div class="error-message">
         <div class="error-icon">⚠️</div>
-        <h2>오류 발생</h2>
+        <h2>Error Occurred</h2>
         <p class="error-main">${message}</p>
         ${details ? `<p class="error-details">${details}</p>` : ''}
-        <button class="error-retry-btn" onclick="location.reload()">다시 시도</button>
+        <button class="error-retry-btn" onclick="location.reload()">Retry</button>
       </div>
     `;
   },
@@ -131,24 +131,24 @@ const ErrorHandler = {
   // Get user-friendly error message
   getUserMessage(error, context = '') {
     if (this.isNetworkError(error)) {
-      return '네트워크 연결을 확인해주세요.';
+      return 'Please check your network connection.';
     }
     if (this.isTimeoutError(error)) {
-      return '요청 시간이 초과되었습니다. 다시 시도해주세요.';
+      return 'Request timed out. Please try again.';
     }
     if (error.message.includes('404')) {
-      return context ? `${context}을(를) 찾을 수 없습니다.` : '요청한 리소스를 찾을 수 없습니다.';
+      return context ? `${context} not found.` : 'Requested resource not found.';
     }
     if (error.message.includes('403')) {
-      return '접근 권한이 없습니다.';
+      return 'Access forbidden.';
     }
     if (error.message.includes('401')) {
-      return '인증이 필요합니다.';
+      return 'Authentication required.';
     }
     if (error.message.includes('500')) {
-      return '서버 오류가 발생했습니다.';
+      return 'Server error occurred.';
     }
-    return '요청을 처리하는 중 오류가 발생했습니다.';
+    return 'An error occurred while processing the request.';
   }
 };
 
@@ -625,9 +625,51 @@ async function loadFile(path, hash = '', updateUrl = true) {
     await saveLastOpened(path);
   } catch (error) {
     console.error('Failed to load file:', error);
-    const userMessage = ErrorHandler.getUserMessage(error, '파일');
+    const userMessage = ErrorHandler.getUserMessage(error, 'File');
     ErrorHandler.showError(userMessage, error.message);
   }
+}
+
+// Check if index file is configured
+async function checkIndexFile() {
+  try {
+    const response = await fetch('/api/config/index');
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const data = await response.json();
+    return data.indexFile; // Returns null if no index configured
+  } catch (error) {
+    console.warn('Failed to check index file:', error.message);
+    return null;
+  }
+}
+
+// Show welcome screen programmatically
+function showWelcomeScreen() {
+  const contentDiv = document.getElementById('markdown-content');
+  const breadcrumb = document.getElementById('breadcrumb');
+
+  // Update breadcrumb
+  breadcrumb.innerHTML = '<span>Select a document</span>';
+
+  // Show simple welcome screen
+  contentDiv.innerHTML = `
+    <div class="welcome">
+      <div class="welcome-header">
+        <h1>Welcome to DocLight</h1>
+        <p class="welcome-subtitle">A lightweight Markdown documentation viewer and management system</p>
+      </div>
+    </div>
+  `;
+
+  // Clear active state from tree
+  document.querySelectorAll('.tree-item').forEach(item => {
+    item.classList.remove('active');
+  });
+
+  // Clear URL
+  window.history.pushState({}, '', '/');
 }
 
 // Initialize application
@@ -644,13 +686,13 @@ async function init() {
     // Refresh button
     document.getElementById('refresh-btn').addEventListener('click', async () => {
       try {
-        container.innerHTML = '<div class="loading">로딩 중...</div>';
+        container.innerHTML = '<div class="loading">Loading...</div>';
         const treeData = await fetchTree('/');
         container.innerHTML = '';
         await buildTree(treeData, container);
       } catch (error) {
         console.error('Failed to refresh tree:', error);
-        const userMessage = ErrorHandler.getUserMessage(error, '디렉터리 트리');
+        const userMessage = ErrorHandler.getUserMessage(error, 'Directory tree');
         container.innerHTML = `
           <div class="tree-error">
             <p>${userMessage}</p>
@@ -659,6 +701,41 @@ async function init() {
         `;
       }
     });
+
+    // Sidebar header click - navigate to welcome or index
+    const sidebarTitle = document.querySelector('.sidebar-title');
+    if (sidebarTitle) {
+      sidebarTitle.addEventListener('click', async () => {
+        // Check if index file is configured
+        const indexFile = await checkIndexFile();
+        if (indexFile) {
+          // Navigate to index file
+          try {
+            await expandPathToFile(indexFile);
+            await loadFile(indexFile, '', true);
+          } catch (error) {
+            console.warn('Failed to load index file:', error.message);
+            showWelcomeScreen();
+          }
+        } else {
+          // Show welcome screen
+          showWelcomeScreen();
+        }
+      });
+
+      // Add keyboard navigation support (Enter key)
+      sidebarTitle.addEventListener('keydown', async (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          sidebarTitle.click();
+        }
+      });
+
+      // Make it focusable for keyboard navigation
+      sidebarTitle.setAttribute('tabindex', '0');
+      sidebarTitle.setAttribute('role', 'button');
+      sidebarTitle.setAttribute('aria-label', 'Navigate to home');
+    }
 
     // Check URL for document path
     const pathname = window.location.pathname;
@@ -681,14 +758,35 @@ async function init() {
         // Fallback to welcome screen
       }
     } else {
-      // Fallback to last opened file
-      const lastOpened = await getLastOpened();
-      if (lastOpened) {
+      // Check for configured index file (second priority)
+      const indexFile = await checkIndexFile();
+      if (indexFile) {
         try {
-          await expandPathToFile(lastOpened);
-          await loadFile(lastOpened, '', true); // Update URL
+          await expandPathToFile(indexFile);
+          await loadFile(indexFile, '', true); // Update URL
         } catch (error) {
-          console.warn('Failed to load last opened file:', error.message);
+          console.warn('Failed to load configured index file:', error.message);
+          // Fallback to last opened file
+          const lastOpened = await getLastOpened();
+          if (lastOpened) {
+            try {
+              await expandPathToFile(lastOpened);
+              await loadFile(lastOpened, '', true); // Update URL
+            } catch (error) {
+              console.warn('Failed to load last opened file:', error.message);
+            }
+          }
+        }
+      } else {
+        // Fallback to last opened file (third priority)
+        const lastOpened = await getLastOpened();
+        if (lastOpened) {
+          try {
+            await expandPathToFile(lastOpened);
+            await loadFile(lastOpened, '', true); // Update URL
+          } catch (error) {
+            console.warn('Failed to load last opened file:', error.message);
+          }
         }
       }
     }
@@ -708,7 +806,7 @@ async function init() {
     console.error('Initialization error:', error);
     const userMessage = ErrorHandler.getUserMessage(error);
     ErrorHandler.showError(
-      '애플리케이션을 초기화하는 중 오류가 발생했습니다.',
+      'An error occurred while initializing the application.',
       `${userMessage}\n${error.message}`
     );
   }

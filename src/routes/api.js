@@ -1,6 +1,6 @@
 const express = require('express');
 const authMiddleware = require('../middleware/auth');
-const { getTree } = require('../controllers/tree-controller');
+const { getTree, getFullTree } = require('../controllers/tree-controller');
 const { getRaw } = require('../controllers/raw-controller');
 const { configureUpload, uploadFile } = require('../controllers/upload-controller');
 const { deleteEntry } = require('../controllers/delete-controller');
@@ -11,7 +11,8 @@ function createApiRouter(config) {
   const upload = configureUpload(config);
 
   // Public routes (no authentication required)
-  router.get('/tree', getTree);
+  router.get('/tree/full', getFullTree);  // Get complete recursive tree structure
+  router.get('/tree', getTree);           // Get single directory tree
   router.get('/raw', getRaw);
 
   // Protected routes (authentication required)
