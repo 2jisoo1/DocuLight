@@ -89,7 +89,7 @@ MCP Server에 전체 트리 조회와 새로운 API 기능을 추가합니다.
 
 #### 2.1 doclight_get_full_tree 도구
 ```javascript
-// doclight-mcp-server/src/tools/get-full-tree.js
+// doclight-mcp-server/src/tools/list_full_tree.js
 {
   name: "doclight_get_full_tree",
   description: "문서 디렉터리의 전체 트리 구조를 재귀적으로 조회합니다",
@@ -166,7 +166,7 @@ const tools = {
   doclight_create: require('./tools/create'),
   doclight_update: require('./tools/update'),
   doclight_delete: require('./tools/delete'),
-  doclight_get_full_tree: require('./tools/get-full-tree'),    // 신규
+  doclight_get_full_tree: require('./tools/list_full_tree'),    // 신규
   doclight_get_config: require('./tools/get-config'),           // 신규
   doclight_search: require('./tools/search')                    // 신규
 };

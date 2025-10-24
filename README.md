@@ -264,6 +264,6 @@ ISC
 
 ## 참고 문서
 
-- [SRS (Software Requirements Specification)](docs/srs.md)
-- [SDS (System Design Specification)](docs/sds.md)
+- [SRS (Software Requirements Specification)](docs/plan/srs.md)
+- [SDS (System Design Specification)](docs/plan/sds.md)
 - [MCP Server Documentation](doclight-mcp-server/README.md)
