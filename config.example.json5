@@ -78,4 +78,12 @@
     key: "/path/to/key.pem",
     ca: "/path/to/ca.pem"  // Optional: CA certificate
   }
+
+  // Hot-reload options (optional)
+  // hotReload.allowPortSslAutoRestart: when true, watcher will attempt an automatic restart even if port or SSL config changed.
+  // Default: false (recommended) — port/SSL changes often require external coordination (load-balancer, certificates).
+  // Example:
+  // hotReload: {
+  //   allowPortSslAutoRestart: false
+  // }
 }

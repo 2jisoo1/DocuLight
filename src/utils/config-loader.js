@@ -164,6 +164,11 @@ function loadConfig() {
     }
   }
 
+  // Hot-reload related defaults
+  config.hotReload = config.hotReload || {};
+  // Whether allow automatic restart when port/SSL change
+  config.hotReload.allowPortSslAutoRestart = !!config.hotReload.allowPortSslAutoRestart;
+
   // SSL 설정 검증
   if (config.ssl && config.ssl.enabled) {
     console.log('SSL/TLS enabled, validating certificates...');

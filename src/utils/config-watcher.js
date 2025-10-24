@@ -15,6 +15,9 @@ function createConfigWatcher(app, options = {}) {
   const stabilityThreshold = options.stabilityThreshold || 1000;
   const pollInterval = typeof options.pollInterval === 'number' ? options.pollInterval : 5000;
   const usePolling = !!options.usePolling;
+  // Whether to allow automatic restart when port or SSL settings change.
+  // Default: false (manual restart required) because changing port/SSL may require external coordination.
+  const allowPortSslAutoRestart = !!options.allowPortSslAutoRestart;
 
   let watcher = null;
   let lastHash = null;
@@ -78,11 +81,15 @@ function createConfigWatcher(app, options = {}) {
       || (newCfg.ssl && newCfg.ssl.certPath) !== (currentCfg.ssl && currentCfg.ssl.certPath)
       || (newCfg.ssl && newCfg.ssl.keyPath) !== (currentCfg.ssl && currentCfg.ssl.keyPath);
 
-    // If only port/ssl changed, log and skip automatic restart
+    // If only port/ssl changed, either skip or allow automatic restart based on option
     if (portChanged || sslChanged) {
-      logger.warn('Config change detected that requires manual restart (port/SSL change). No automatic restart performed.', { portChanged, sslChanged });
-      lastHash = h;
-      return;
+      if (!allowPortSslAutoRestart) {
+        logger.warn('Config change detected that requires manual restart (port/SSL change). No automatic restart performed.', { portChanged, sslChanged });
+        lastHash = h;
+        return;
+      } else {
+        logger.warn('Config change includes port/SSL change — proceeding with automatic restart because allowPortSslAutoRestart=true', { portChanged, sslChanged });
+      }
     }
 
     // Otherwise attempt restart via app.restart()

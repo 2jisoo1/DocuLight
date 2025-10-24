@@ -207,7 +207,9 @@ async function start(options = {}) {
     // Start config watcher (use requested stabilityThreshold and pollInterval)
     try {
       if (!app.locals.configWatcher) {
-  app.locals.configWatcher = createConfigWatcher(app, { stabilityThreshold: 1000, pollInterval: 5000, usePolling: true });
+        // Allow configuring whether port/SSL changes should trigger automatic restart via config.hotReload.allowPortSslAutoRestart
+        const allowPortSslAutoRestart = !!(cfg.hotReload && cfg.hotReload.allowPortSslAutoRestart);
+        app.locals.configWatcher = createConfigWatcher(app, { stabilityThreshold: 1000, pollInterval: 5000, usePolling: true, allowPortSslAutoRestart });
         app.locals.configWatcher.start();
       }
     } catch (e) {
