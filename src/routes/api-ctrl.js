@@ -342,5 +342,104 @@ module.exports = {
   getTreeData,
   getRawContent,
   uploadFileData,
-  deleteEntryData
+  deleteEntryData,
+  getFullTreeData
 };
+
+/**
+ * 전체 재귀 트리 조회 (데이터 전용)
+ * @param {Object} config 애플리케이션 설정
+ * @param {Object} logger 로거
+ * @param {string} startPath 시작 경로 (기본 '/')
+ * @param {Object} options 옵션 { maxDepth?: number }
+ * @returns {Promise<Object>} 재귀 트리 + 통계
+ */
+async function getFullTreeData(config, logger, startPath = '/', options = {}) {
+  const { maxDepth } = options;
+
+  // 시작 경로 검증 및 절대 경로 변환
+  const absoluteStart = validatePath(config.docsRoot, startPath);
+  const stats = await fs.stat(absoluteStart);
+  if (!stats.isDirectory()) {
+    const error = new Error('NOT_FOUND: Start path is not a directory');
+    error.code = 'NOT_FOUND';
+    throw error;
+  }
+
+  const ig = ignore().add(config.excludes);
+
+  // 내부 재귀 함수
+  async function buildRecursive(rootPath, currentAbsolute, currentRelative, depth) {
+    // 깊이 제한 체크
+    if (typeof maxDepth === 'number' && depth > maxDepth) {
+      return { dirs: [], files: [] };
+    }
+
+    const entries = await fs.readdir(currentAbsolute, { withFileTypes: true });
+    const dirs = [];
+    const files = [];
+
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue; // 숨김 파일 제외
+
+      const entryAbsolute = path.join(currentAbsolute, entry.name);
+      const relativePath = path.relative(config.docsRoot, entryAbsolute);
+
+      if (ig.ignores(relativePath)) continue; // 제외 규칙 적용
+
+      if (entry.isDirectory()) {
+        const subTree = await buildRecursive(rootPath, entryAbsolute, '/' + relativePath.replace(/\\/g, '/'), depth + 1);
+        dirs.push({
+          name: entry.name,
+          path: '/' + relativePath.replace(/\\/g, '/'),
+          type: 'directory',
+          ...subTree
+        });
+      } else if (entry.isFile()) {
+        const fileStats = await fs.stat(entryAbsolute);
+        files.push({
+          name: entry.name,
+          path: '/' + relativePath.replace(/\\/g, '/'),
+          type: 'file',
+          size: fileStats.size
+        });
+      }
+    }
+
+    dirs.sort((a, b) => a.name.localeCompare(b.name));
+    files.sort((a, b) => a.name.localeCompare(b.name));
+    return { dirs, files };
+  }
+
+  // 통계 계산 헬퍼
+  function countFiles(tree) {
+    let count = tree.files.length;
+    for (const d of tree.dirs) count += countFiles(d);
+    return count;
+  }
+  function countDirs(tree) {
+    let count = tree.dirs.length;
+    for (const d of tree.dirs) count += countDirs(d);
+    return count;
+  }
+
+  const rootTree = await buildRecursive(config.docsRoot, absoluteStart, startPath, 0);
+  const totalFiles = countFiles(rootTree);
+  const totalDirs = countDirs(rootTree);
+
+  logger.info('Full tree data retrieved', {
+    startPath,
+    totalFiles,
+    totalDirs,
+    maxDepth: typeof maxDepth === 'number' ? maxDepth : 'unlimited'
+  });
+
+  return {
+    root: rootTree,
+    docsRoot: config.docsRoot,
+    startPath,
+    excludesApplied: true,
+    options: { maxDepth },
+    stats: { totalFiles, totalDirs }
+  };
+}
