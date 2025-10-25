@@ -2,9 +2,9 @@
   docsRoot: './test-source',
   apiKey: 'test-key-12345',
   maxUploadMB: 10,
-  port: 3000,
+  port: 4001,
   ui: {
-    title: 'DOC LIGHT [test-change]',
+    title: 'DOC LIGHT',
   },
   excludes: [
     '**/.git/',
@@ -17,5 +17,8 @@
     enabled: false,
     cert: '/tmp/doclight-cert.pem',
     key: '/tmp/doclight-key.pem',
+  },
+  hotReload: {
+    allowPortSslAutoRestart: true,
   },
 }
