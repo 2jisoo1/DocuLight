@@ -4,7 +4,7 @@
 
 ## 프로젝트 개요
 
-DocLight는 Node.js + Express + EJS로 구축된 경량 Markdown 문서 뷰어 및 관리 시스템입니다. Obsidian 스타일의 트리 탐색과 GitHub 스타일의 렌더링으로 Markdown 파일을 탐색, 열람, 관리할 수 있는 웹 기반 인터페이스를 제공합니다.
+DocuLight는 Node.js + Express + EJS로 구축된 경량 Markdown 문서 뷰어 및 관리 시스템입니다. Obsidian 스타일의 트리 탐색과 GitHub 스타일의 렌더링으로 Markdown 파일을 탐색, 열람, 관리할 수 있는 웹 기반 인터페이스를 제공합니다.
 
 ## 개발 명령어
 
@@ -116,7 +116,7 @@ cp config.example.json5 config.json5
 - `excludes`: [] (gitignore 스타일 패턴의 배열)
 - `logDir`: "./logs" (없으면 생성됨)
 - `logLevel`: "info" (error|warn|info|debug)
-- `ui.title`: "DocLight" (사이드바 제목)
+- `ui.title`: "DocuLight" (사이드바 제목)
 - `ui.icon`: "/images/icon.png" (아이콘 경로)
 
 전체 문서는 config.example.json5를 참조하세요.
@@ -172,7 +172,7 @@ curl -H "X-API-Key: your-api-key" -X DELETE "http://localhost:3000/api/entry?pat
 권장: 프로세스 관리에 PM2 사용
 ```bash
 npm install -g pm2
-pm2 start src/app.js --name doclight
+pm2 start src/app.js --name DocuLight
 pm2 save
 pm2 startup
 ```

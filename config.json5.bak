@@ -1,24 +1,32 @@
+// DocuLight Test Configuration
 {
-  docsRoot: './test-source',
-  apiKey: 'test-key-12345',
+  docsRoot: "./test-source",
+  apiKey: "test-key-12345",
   maxUploadMB: 10,
-  port: 4001,
+  port: 3000,
   ui: {
-    title: 'DOC LIGHT',
+    title: "DOCU LIGHT"
+    // icon: "icon.png"  // Optional: defaults to /images/icon.png if not specified
   },
   excludes: [
-    '**/.git/',
-    '**/.DS_Store',
-    '**/node_modules/',
+    "**/.git/",
+    "**/.DS_Store",
+    "**/node_modules/"
   ],
-  logDir: './logs',
-  logLevel: 'info',
+  logDir: "./logs",
+  logLevel: "info",
+
+  // SSL/TLS configuration
   ssl: {
     enabled: false,
-    cert: '/tmp/doclight-cert.pem',
-    key: '/tmp/doclight-key.pem',
-  },
+    cert: "/tmp/DocuLight-cert.pem",
+    key: "/tmp/DocuLight-key.pem"
+  }
+,
+  // Hot-reload options
   hotReload: {
-    allowPortSslAutoRestart: true,
-  },
+    // When true, watcher will attempt automatic restart even when port/SSL changed.
+    // Use with caution in production; default is false.
+    allowPortSslAutoRestart: true
+  }
 }

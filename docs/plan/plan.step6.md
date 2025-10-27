@@ -34,7 +34,7 @@
 ### 1.2 API Documentation Template
 
 ```markdown
-# DocLight API Documentation
+# DocuLight API Documentation
 
 Version: 1.0.0 | Last Updated: 2025-01-XX
 
@@ -51,7 +51,7 @@ Version: 1.0.0 | Last Updated: 2025-01-XX
 
 ## Introduction
 
-DocLight provides a RESTful API for managing Markdown documents. This API enables programmatic access to document operations including reading, uploading, deleting, and downloading files.
+DocuLight provides a RESTful API for managing Markdown documents. This API enables programmatic access to document operations including reading, uploading, deleting, and downloading files.
 
 **Base URL**: `http://localhost:3000/api` (or your configured domain)
 
@@ -163,7 +163,7 @@ curl "http://localhost:3000/api/raw?path=/README.md"
 **Response Example**:
 ```json
 {
-  "content": "# Welcome to DocLight\n\nThis is a Markdown viewer...",
+  "content": "# Welcome to DocuLight\n\nThis is a Markdown viewer...",
   "path": "/README.md",
   "size": 1024,
   "modified": "2025-01-20T10:30:00.000Z"
@@ -413,7 +413,7 @@ All errors follow a consistent JSON structure:
 
 ## Rate Limiting
 
-Currently, DocLight does not implement rate limiting. Consider implementing:
+Currently, DocuLight does not implement rate limiting. Consider implementing:
 
 - Request throttling per IP address
 - API key-based quotas
@@ -598,7 +598,7 @@ All file paths are validated to prevent directory traversal attacks:
 /api/raw?path=/../sensitive.md
 ```
 
-DocLight validates that all paths resolve within the configured `docsRoot` directory.
+DocuLight validates that all paths resolve within the configured `docsRoot` directory.
 
 ### IP Whitelisting
 
@@ -665,7 +665,7 @@ Enable HTTPS for production deployments:
 
 ## Support & Resources
 
-- **GitHub**: [DocLight Repository](https://github.com/your-org/doclight)
+- **GitHub**: [DocuLight Repository](https://github.com/your-org/DocuLight)
 - **MCP Integration**: See [MCP Documentation](/mcp/doc)
 - **Configuration Guide**: See README.md
 - **Issue Tracker**: GitHub Issues
@@ -687,7 +687,7 @@ Enable HTTPS for production deployments:
 
 **Content Overview**:
 - MCP (Model Context Protocol) introduction
-- DocLight MCP Server setup
+- DocuLight MCP Server setup
 - Integration guides for Claude Desktop, VS Code Copilot, and other MCP clients
 - Tool descriptions and usage examples
 - Troubleshooting guide
@@ -695,7 +695,7 @@ Enable HTTPS for production deployments:
 ### 2.2 MCP Documentation Template
 
 ```markdown
-# DocLight MCP Server Documentation
+# DocuLight MCP Server Documentation
 
 Version: 1.0.0 | Last Updated: 2025-01-XX
 
@@ -714,7 +714,7 @@ Version: 1.0.0 | Last Updated: 2025-01-XX
 
 ## Introduction
 
-The DocLight MCP Server enables AI assistants (like Claude, GitHub Copilot, and others) to interact with your DocLight documentation system through the Model Context Protocol (MCP).
+The DocuLight MCP Server enables AI assistants (like Claude, GitHub Copilot, and others) to interact with your DocuLight documentation system through the Model Context Protocol (MCP).
 
 **Key Benefits**:
 - AI assistants can read, create, update, and delete documents
@@ -725,14 +725,14 @@ The DocLight MCP Server enables AI assistants (like Claude, GitHub Copilot, and 
 **Architecture**:
 ```
 ┌─────────────┐     MCP Protocol     ┌──────────────────┐
-│  Claude /   │ ←──────────────────→ │ DocLight MCP     │
+│  Claude /   │ ←──────────────────→ │ DocuLight MCP     │
 │  Copilot    │   (stdio/JSON-RPC)   │ Server           │
 └─────────────┘                       └────────┬─────────┘
                                               │
                                      HTTP API │
                                               │
                                        ┌──────▼──────┐
-                                       │  DocLight   │
+                                       │  DocuLight   │
                                        │  Server     │
                                        └─────────────┘
 ```
@@ -777,15 +777,15 @@ MCP (Model Context Protocol) is an open protocol developed by Anthropic that ena
 ### Prerequisites
 
 - Node.js ≥ 18.0.0
-- DocLight server running
-- API key configured in DocLight
+- DocuLight server running
+- API key configured in DocuLight
 
 ### Installation Steps
 
-**1. Install DocLight MCP Server**:
+**1. Install DocuLight MCP Server**:
 
 ```bash
-cd doclight-mcp-server
+cd DocuLight-mcp-server
 npm install
 ```
 
@@ -797,8 +797,8 @@ cp .env.example .env
 
 Edit `.env`:
 ```bash
-DOCLIGHT_URL=http://localhost:3000
-DOCLIGHT_API_KEY=your-api-key-here
+DocuLight_URL=http://localhost:3000
+DocuLight_API_KEY=your-api-key-here
 ```
 
 **3. Test Installation**:
@@ -809,7 +809,7 @@ npm start
 
 You should see:
 ```
-DocLight MCP server running on stdio
+DocuLight MCP server running on stdio
 ```
 
 ---
@@ -820,17 +820,17 @@ DocLight MCP server running on stdio
 
 | Variable | Required | Description | Example |
 |----------|----------|-------------|---------|
-| `DOCLIGHT_URL` | ✅ Yes | DocLight server URL | `http://localhost:3000` |
-| `DOCLIGHT_API_KEY` | ✅ Yes | API key from config.json5 | `abc123...` |
+| `DocuLight_URL` | ✅ Yes | DocuLight server URL | `http://localhost:3000` |
+| `DocuLight_API_KEY` | ✅ Yes | API key from config.json5 | `abc123...` |
 
 ### Configuration File
 
 Alternatively, create `.env` from template:
 
 ```bash
-# DocLight Server Configuration
-DOCLIGHT_URL=http://localhost:3000
-DOCLIGHT_API_KEY=your-api-key-here
+# DocuLight Server Configuration
+DocuLight_URL=http://localhost:3000
+DocuLight_API_KEY=your-api-key-here
 
 # Optional: Logging level
 LOG_LEVEL=info
@@ -855,12 +855,12 @@ Claude Desktop supports MCP servers natively.
 ```json
 {
   "mcpServers": {
-    "doclight": {
+    "DocuLight": {
       "command": "node",
-      "args": ["/absolute/path/to/doclight-mcp-server/src/index.js"],
+      "args": ["/absolute/path/to/DocuLight-mcp-server/src/index.js"],
       "env": {
-        "DOCLIGHT_URL": "http://localhost:3000",
-        "DOCLIGHT_API_KEY": "your-api-key"
+        "DocuLight_URL": "http://localhost:3000",
+        "DocuLight_API_KEY": "your-api-key"
       }
     }
   }
@@ -878,10 +878,10 @@ Claude Desktop supports MCP servers natively.
 
 Ask Claude:
 ```
-"Can you list the documents in DocLight?"
+"Can you list the documents in DocuLight?"
 ```
 
-Claude should use the `doclight_list` tool and show your documents.
+Claude should use the `DocuLight_list` tool and show your documents.
 
 ---
 
@@ -896,12 +896,12 @@ GitHub Copilot is adding MCP support. Configuration will be similar to Claude De
 ```json
 {
   "copilot.mcp.servers": {
-    "doclight": {
+    "DocuLight": {
       "command": "node",
-      "args": ["/absolute/path/to/doclight-mcp-server/src/index.js"],
+      "args": ["/absolute/path/to/DocuLight-mcp-server/src/index.js"],
       "env": {
-        "DOCLIGHT_URL": "http://localhost:3000",
-        "DOCLIGHT_API_KEY": "your-api-key"
+        "DocuLight_URL": "http://localhost:3000",
+        "DocuLight_API_KEY": "your-api-key"
       }
     }
   }
@@ -931,12 +931,12 @@ Continue.dev is an open-source VS Code extension with MCP support.
 {
   "models": [...],
   "mcpServers": {
-    "doclight": {
+    "DocuLight": {
       "command": "node",
-      "args": ["/absolute/path/to/doclight-mcp-server/src/index.js"],
+      "args": ["/absolute/path/to/DocuLight-mcp-server/src/index.js"],
       "env": {
-        "DOCLIGHT_URL": "http://localhost:3000",
-        "DOCLIGHT_API_KEY": "your-api-key"
+        "DocuLight_URL": "http://localhost:3000",
+        "DocuLight_API_KEY": "your-api-key"
       }
     }
   }
@@ -945,7 +945,7 @@ Continue.dev is an open-source VS Code extension with MCP support.
 
 **Usage**:
 - Open Continue sidebar in VS Code
-- Ask: "List documents in DocLight"
+- Ask: "List documents in DocuLight"
 - Continue will automatically use MCP tools
 
 ---
@@ -963,10 +963,10 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 // Create transport
 const transport = new StdioClientTransport({
   command: 'node',
-  args: ['/path/to/doclight-mcp-server/src/index.js'],
+  args: ['/path/to/DocuLight-mcp-server/src/index.js'],
   env: {
-    DOCLIGHT_URL: 'http://localhost:3000',
-    DOCLIGHT_API_KEY: 'your-api-key'
+    DocuLight_URL: 'http://localhost:3000',
+    DocuLight_API_KEY: 'your-api-key'
   }
 });
 
@@ -987,7 +987,7 @@ console.log('Available tools:', tools);
 
 // Call tool
 const result = await client.callTool({
-  name: 'doclight_list',
+  name: 'DocuLight_list',
   arguments: { path: '/' }
 });
 console.log('Documents:', result);
@@ -1000,7 +1000,7 @@ await client.close();
 
 ## Available Tools
 
-### 1. doclight_list
+### 1. DocuLight_list
 
 **Description**: List all documents in a directory
 
@@ -1028,7 +1028,7 @@ await client.close();
 
 ---
 
-### 2. doclight_read
+### 2. DocuLight_read
 
 **Description**: Read the content of a document
 
@@ -1054,7 +1054,7 @@ This guide will help you...
 
 ---
 
-### 3. doclight_create
+### 3. DocuLight_create
 
 **Description**: Create a new document
 
@@ -1083,11 +1083,11 @@ Successfully created/updated: guide/new-doc.md
 
 ---
 
-### 4. doclight_update
+### 4. DocuLight_update
 
 **Description**: Update an existing document (same as create - overwrites)
 
-**Input Schema**: Same as `doclight_create`
+**Input Schema**: Same as `DocuLight_create`
 
 **Behavior**:
 - If file exists → overwrites content
@@ -1095,7 +1095,7 @@ Successfully created/updated: guide/new-doc.md
 
 ---
 
-### 5. doclight_delete
+### 5. DocuLight_delete
 
 **Description**: Delete a document
 
@@ -1127,11 +1127,11 @@ Successfully deleted: guide/old-doc.md
 
 **User**: "Show me all documents in the guide folder"
 
-**Claude**: [Internally uses `doclight_list` tool]
+**Claude**: [Internally uses `DocuLight_list` tool]
 
 ```json
 {
-  "name": "doclight_list",
+  "name": "DocuLight_list",
   "arguments": {
     "path": "/guide"
   }
@@ -1155,11 +1155,11 @@ Successfully deleted: guide/old-doc.md
 
 **User**: "Read the getting-started.md file in the guide folder"
 
-**Claude**: [Uses `doclight_read` tool]
+**Claude**: [Uses `DocuLight_read` tool]
 
 ```json
 {
-  "name": "doclight_read",
+  "name": "DocuLight_read",
   "arguments": {
     "path": "/guide/getting-started.md"
   }
@@ -1168,9 +1168,9 @@ Successfully deleted: guide/old-doc.md
 
 **Response**:
 ```markdown
-# Getting Started with DocLight
+# Getting Started with DocuLight
 
-DocLight is a lightweight Markdown viewer...
+DocuLight is a lightweight Markdown viewer...
 
 ## Installation
 
@@ -1186,11 +1186,11 @@ DocLight is a lightweight Markdown viewer...
 
 **User**: "Create a new troubleshooting guide at guide/troubleshooting.md with common issues and solutions"
 
-**Claude**: [Generates content and uses `doclight_create` tool]
+**Claude**: [Generates content and uses `DocuLight_create` tool]
 
 ```json
 {
-  "name": "doclight_create",
+  "name": "DocuLight_create",
   "arguments": {
     "path": "/guide/troubleshooting.md",
     "content": "# Troubleshooting Guide\n\n## Common Issues\n\n### Server Won't Start\n\n**Symptom**: Error when running `npm start`\n\n**Solution**:\n1. Check Node.js version (≥18 required)\n2. Verify config.json5 exists\n3. Check port availability\n\n### API Key Invalid\n\n**Symptom**: 401 Unauthorized responses\n\n**Solution**:\n1. Verify X-API-Key header\n2. Check config.json5 apiKey matches\n3. Ensure no whitespace in key\n..."
@@ -1211,11 +1211,11 @@ I've created a comprehensive troubleshooting guide with common issues and soluti
 
 **User**: "Update the API reference to add the new download endpoint"
 
-**Claude**: [Reads existing file, generates updated content, uses `doclight_update` tool]
+**Claude**: [Reads existing file, generates updated content, uses `DocuLight_update` tool]
 
 ```json
 {
-  "name": "doclight_update",
+  "name": "DocuLight_update",
   "arguments": {
     "path": "/guide/api-reference.md",
     "content": "[Updated content with new download endpoint section]"
@@ -1229,11 +1229,11 @@ I've created a comprehensive troubleshooting guide with common issues and soluti
 
 **User**: "Delete the old migration guide, it's no longer needed"
 
-**Claude**: [Uses `doclight_delete` tool]
+**Claude**: [Uses `DocuLight_delete` tool]
 
 ```json
 {
-  "name": "doclight_delete",
+  "name": "DocuLight_delete",
   "arguments": {
     "path": "/guide/migration-v1.md"
   }
@@ -1251,25 +1251,25 @@ Successfully deleted: guide/migration-v1.md
 
 ### MCP Server Not Connecting
 
-**Symptom**: Claude/Copilot doesn't show DocLight tools
+**Symptom**: Claude/Copilot doesn't show DocuLight tools
 
 **Solutions**:
 1. **Check absolute paths**:
    ```bash
    # Get absolute path
    pwd
-   # Use in config: /full/path/to/doclight-mcp-server/src/index.js
+   # Use in config: /full/path/to/DocuLight-mcp-server/src/index.js
    ```
 
 2. **Verify environment variables**:
    ```bash
    # Test manually
-   DOCLIGHT_URL=http://localhost:3000 \
-   DOCLIGHT_API_KEY=your-key \
+   DocuLight_URL=http://localhost:3000 \
+   DocuLight_API_KEY=your-key \
    node src/index.js
    ```
 
-3. **Check DocLight server is running**:
+3. **Check DocuLight server is running**:
    ```bash
    curl http://localhost:3000/healthz
    ```
@@ -1289,17 +1289,17 @@ Successfully deleted: guide/migration-v1.md
 **Solutions**:
 1. **Verify API key matches config.json5**:
    ```bash
-   # DocLight config
+   # DocuLight config
    cat config.json5 | grep apiKey
 
    # MCP .env
-   cat .env | grep DOCLIGHT_API_KEY
+   cat .env | grep DocuLight_API_KEY
    ```
 
 2. **Check for whitespace**:
    ```bash
    # Trim whitespace
-   DOCLIGHT_API_KEY=$(echo "your-key" | tr -d '[:space:]')
+   DocuLight_API_KEY=$(echo "your-key" | tr -d '[:space:]')
    ```
 
 3. **Regenerate API key**:
@@ -1323,7 +1323,7 @@ Successfully deleted: guide/migration-v1.md
 2. **List directory first**:
    ```
    User: "List files in /guide"
-   Claude: [Uses doclight_list to verify path]
+   Claude: [Uses DocuLight_list to verify path]
    ```
 
 3. **Check docsRoot configuration**:
@@ -1344,9 +1344,9 @@ Successfully deleted: guide/migration-v1.md
    curl -v http://localhost:3000/api/tree
    ```
 
-2. **Verify firewall rules** if DocLight is remote
+2. **Verify firewall rules** if DocuLight is remote
 
-3. **Check DOCLIGHT_URL format**:
+3. **Check DocuLight_URL format**:
    - ✅ Correct: `http://localhost:3000`
    - ❌ Wrong: `http://localhost:3000/` (trailing slash)
    - ❌ Wrong: `localhost:3000` (missing protocol)
@@ -1371,7 +1371,7 @@ Successfully deleted: guide/migration-v1.md
    }
    ```
 
-2. **Restart DocLight server** after config change
+2. **Restart DocuLight server** after config change
 
 3. **Split large documents** into smaller files
 
@@ -1389,8 +1389,8 @@ Successfully deleted: guide/migration-v1.md
    ```
 
 2. **Verify required arguments**:
-   - `doclight_read`: requires `path`
-   - `doclight_create`: requires `path` and `content`
+   - `DocuLight_read`: requires `path`
+   - `DocuLight_create`: requires `path` and `content`
 
 3. **Test with curl** first:
    ```bash
@@ -1416,27 +1416,27 @@ const transport = new HttpTransport({
 });
 ```
 
-### Multiple DocLight Instances
+### Multiple DocuLight Instances
 
-Connect to multiple DocLight servers:
+Connect to multiple DocuLight servers:
 
 ```json
 {
   "mcpServers": {
-    "doclight-prod": {
+    "DocuLight-prod": {
       "command": "node",
       "args": ["/path/to/index.js"],
       "env": {
-        "DOCLIGHT_URL": "https://docs.company.com",
-        "DOCLIGHT_API_KEY": "prod-key"
+        "DocuLight_URL": "https://docs.company.com",
+        "DocuLight_API_KEY": "prod-key"
       }
     },
-    "doclight-dev": {
+    "DocuLight-dev": {
       "command": "node",
       "args": ["/path/to/index.js"],
       "env": {
-        "DOCLIGHT_URL": "http://localhost:3000",
-        "DOCLIGHT_API_KEY": "dev-key"
+        "DocuLight_URL": "http://localhost:3000",
+        "DocuLight_API_KEY": "dev-key"
       }
     }
   }
@@ -1451,7 +1451,7 @@ Connect to multiple DocLight servers:
    - Rotate keys regularly
 
 2. **Network Security**:
-   - Use HTTPS for production DocLight servers
+   - Use HTTPS for production DocuLight servers
    - Implement IP whitelisting
    - Consider VPN for remote access
 
@@ -1474,11 +1474,11 @@ Connect to multiple DocLight servers:
 
 - **MCP Servers List**: [GitHub - awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers)
 - **Continue.dev Docs**: [https://continue.dev/docs](https://continue.dev/docs)
-- **DocLight GitHub**: [Your repository]
+- **DocuLight GitHub**: [Your repository]
 
 ### Support
 
-- **GitHub Issues**: [DocLight Issues](https://github.com/your-org/doclight/issues)
+- **GitHub Issues**: [DocuLight Issues](https://github.com/your-org/DocuLight/issues)
 - **API Documentation**: [/api/doc](/api/doc)
 - **Discord Community**: [Your Discord server]
 
@@ -1706,7 +1706,7 @@ app.use(createMcpRouter());
 // Main page
 app.get('/', (req, res) => {
   res.render('index', {
-    title: 'DocLight - Markdown Viewer',
+    title: 'DocuLight - Markdown Viewer',
     uiTitle: config.ui.title,
     uiIcon: config.ui.icon
   });
@@ -1715,7 +1715,7 @@ app.get('/', (req, res) => {
 // Document viewer route (for clean URLs)
 app.get('/doc/*', (req, res) => {
   res.render('index', {
-    title: 'DocLight - Markdown Viewer',
+    title: 'DocuLight - Markdown Viewer',
     uiTitle: config.ui.title,
     uiIcon: config.ui.icon
   });
@@ -1743,7 +1743,7 @@ app.get('/mcp/doc', (req, res) => {
 // NEW: Documentation viewer routes (rendered as clean page)
 app.get('/:docType(api|mcp)/doc', (req, res) => {
   res.render('doc-viewer', {
-    title: `${req.params.docType.toUpperCase()} Documentation - DocLight`,
+    title: `${req.params.docType.toUpperCase()} Documentation - DocuLight`,
     docType: req.params.docType
   });
 });
@@ -1781,13 +1781,13 @@ if (config.ssl && config.ssl.enabled) {
   server = https.createServer(sslOptions, app);
 
   server.listen(PORT, () => {
-    logger.info('DocLight HTTPS server started', {
+    logger.info('DocuLight HTTPS server started', {
       port: PORT,
       docsRoot: config.docsRoot,
       ssl: true
     });
 
-    console.log(`\n✅ DocLight Server Started (HTTPS)`);
+    console.log(`\n✅ DocuLight Server Started (HTTPS)`);
     console.log(`   📂 Docs: ${config.docsRoot}`);
     console.log(`   🔒 SSL: Enabled`);
     console.log(`   🌐 URL: https://localhost:${PORT}\n`);
@@ -1797,13 +1797,13 @@ if (config.ssl && config.ssl.enabled) {
   server = http.createServer(app);
 
   server.listen(PORT, () => {
-    logger.info('DocLight HTTP server started', {
+    logger.info('DocuLight HTTP server started', {
       port: PORT,
       docsRoot: config.docsRoot,
       ssl: false
     });
 
-    console.log(`\n✅ DocLight Server Started (HTTP)`);
+    console.log(`\n✅ DocuLight Server Started (HTTP)`);
     console.log(`   📂 Docs: ${config.docsRoot}`);
     console.log(`   ⚠️  SSL: Disabled`);
     console.log(`   🌐 URL: http://localhost:${PORT}\n`);
@@ -2122,7 +2122,7 @@ module.exports = app;
         // Update title
         const docTitle = DOC_TYPE === 'api' ? 'API Documentation' : 'MCP Server Documentation';
         titleEl.textContent = docTitle;
-        document.title = `${docTitle} - DocLight`;
+        document.title = `${docTitle} - DocuLight`;
 
         // Update meta
         const modified = new Date(data.modified).toLocaleDateString('en-US', {

@@ -1,6 +1,6 @@
-# DocLight API - cURL 사용 예제
+# DocuLight API - cURL 사용 예제
 
-이 문서는 DocLight REST API를 cURL 명령어로 테스트하는 방법을 제공합니다.
+이 문서는 DocuLight REST API를 cURL 명령어로 테스트하는 방법을 제공합니다.
 
 ## 사전 준비
 
@@ -793,7 +793,7 @@ Invoke-WebRequest -Uri "http://localhost:3000/api/entry?path=/test.md" -Method D
 API_BASE="http://localhost:3000/api"
 API_KEY="your-api-key-here"
 
-echo "=== DocLight API Test ==="
+echo "=== DocuLight API Test ==="
 
 # 1. 트리 조회
 echo -e "\n1. Testing tree endpoint..."
@@ -852,8 +852,194 @@ echo -e "\n=== Test Complete ==="
 
 ---
 
+---
+
+## 13. MCP API 예제
+
+DocuLight는 AI 에이전트를 위한 MCP (Model Context Protocol) API도 제공합니다.
+
+### 13.1 도구 목록 조회
+
+```bash
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/list"
+  }' | jq '.result.tools[].name'
+```
+
+**예상 응답:**
+```
+"list_documents"
+"list_full_tree"
+"read_document"
+"create_document"
+"delete_document"
+"DocuLight_get_config"
+"DocuLight_search"
+```
+
+---
+
+### 13.2 설정 조회 (민감값 마스킹)
+
+```bash
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/call",
+    "params": {
+      "name": "DocuLight_get_config",
+      "arguments": {
+        "section": "all"
+      }
+    }
+  }' | jq '.result.content[0].text'
+```
+
+UI 설정만 조회:
+
+```bash
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 3,
+    "method": "tools/call",
+    "params": {
+      "name": "DocuLight_get_config",
+      "arguments": {
+        "section": "ui"
+      }
+    }
+  }'
+```
+
+---
+
+### 13.3 문서 검색
+
+"installation" 키워드 검색:
+
+```bash
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 4,
+    "method": "tools/call",
+    "params": {
+      "name": "DocuLight_search",
+      "arguments": {
+        "query": "installation",
+        "limit": 5
+      }
+    }
+  }'
+```
+
+특정 디렉토리 내에서만 검색:
+
+```bash
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 5,
+    "method": "tools/call",
+    "params": {
+      "name": "DocuLight_search",
+      "arguments": {
+        "query": "api",
+        "limit": 10,
+        "path": "/guide"
+      }
+    }
+  }' | jq '.result.content[0].text'
+```
+
+**예상 응답:**
+```markdown
+# Search Results for "api"
+
+**Statistics**: 3 matches in 8 files scanned (42ms)
+
+## 1. /guide/setup.md
+
+**Line 15**: API configuration
+
+```
+## Configuration
+
+API configuration is in config.json5
+```
+
+...
+```
+
+---
+
+### 13.4 MCP 완전한 워크플로우
+
+문서 검색 → 읽기 → 수정 → 저장:
+
+```bash
+#!/bin/bash
+
+# 1. "configuration" 검색
+echo "1. Searching for 'configuration'..."
+curl -s -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "DocuLight_search",
+      "arguments": {"query": "configuration", "limit": 3}
+    }
+  }' | jq -r '.result.content[0].text'
+
+# 2. 첫 번째 결과 파일 읽기
+echo -e "\n2. Reading document..."
+curl -s -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/call",
+    "params": {
+      "name": "read_document",
+      "arguments": {"path": "/guide/setup.md"}
+    }
+  }' | jq -r '.result.content[0].text'
+
+# 3. 설정 확인
+echo -e "\n3. Checking current config..."
+curl -s -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 3,
+    "method": "tools/call",
+    "params": {
+      "name": "DocuLight_get_config",
+      "arguments": {"section": "ui"}
+    }
+  }' | jq -r '.result.content[0].text'
+
+echo -e "\n=== MCP Workflow Complete ==="
+```
+
+---
+
 ## 추가 리소스
 
-- [DocLight API 문서](./api.md) - 전체 API 참조 문서
+- [DocuLight API 문서](./api.md) - 전체 REST API 참조 문서
+- [DocuLight MCP 문서](./mcp.md) - MCP (AI 에이전트용) API 참조 문서
 - [cURL 공식 문서](https://curl.se/docs/manual.html)
 - [jq 매뉴얼](https://stedolan.github.io/jq/manual/)

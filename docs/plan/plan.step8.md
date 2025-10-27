@@ -1,8 +1,8 @@
-# DocLight Step 8 구현 계획
+# DocuLight Step 8 구현 계획
 
 ## 개요
 
-Step 8에서는 DocLight의 고급 기능들을 추가하여 사용자 경험과 개발자 편의성을 크게 향상시킵니다.
+Step 8에서는 DocuLight의 고급 기능들을 추가하여 사용자 경험과 개발자 편의성을 크게 향상시킵니다.
 
 **예상 소요 시간**: 12-16시간
 
@@ -87,11 +87,11 @@ MCP Server에 전체 트리 조회와 새로운 API 기능을 추가합니다.
 
 ### 구현 내용
 
-#### 2.1 doclight_get_full_tree 도구
+#### 2.1 DocuLight_get_full_tree 도구
 ```javascript
-// doclight-mcp-server/src/tools/list_full_tree.js
+// DocuLight-mcp-server/src/tools/list_full_tree.js
 {
-  name: "doclight_get_full_tree",
+  name: "DocuLight_get_full_tree",
   description: "문서 디렉터리의 전체 트리 구조를 재귀적으로 조회합니다",
   inputSchema: {
     type: "object",
@@ -116,11 +116,11 @@ async function getFullTree(args, config) {
 
 #### 2.2 새로운 API 도구 추가
 
-**doclight_get_config**
+**DocuLight_get_config**
 ```javascript
 {
-  name: "doclight_get_config",
-  description: "현재 DocLight 설정 정보를 조회합니다",
+  name: "DocuLight_get_config",
+  description: "현재 DocuLight 설정 정보를 조회합니다",
   inputSchema: {
     type: "object",
     properties: {
@@ -134,10 +134,10 @@ async function getFullTree(args, config) {
 }
 ```
 
-**doclight_search**
+**DocuLight_search**
 ```javascript
 {
-  name: "doclight_search",
+  name: "DocuLight_search",
   description: "문서 내용에서 키워드를 검색합니다",
   inputSchema: {
     type: "object",
@@ -159,16 +159,16 @@ async function getFullTree(args, config) {
 
 #### 2.3 MCP 도구 목록 업데이트
 ```javascript
-// doclight-mcp-server/src/index.js
+// DocuLight-mcp-server/src/index.js
 const tools = {
-  doclight_list: require('./tools/list'),
-  doclight_read: require('./tools/read'),
-  doclight_create: require('./tools/create'),
-  doclight_update: require('./tools/update'),
-  doclight_delete: require('./tools/delete'),
-  doclight_get_full_tree: require('./tools/list_full_tree'),    // 신규
-  doclight_get_config: require('./tools/get-config'),           // 신규
-  doclight_search: require('./tools/search')                    // 신규
+  DocuLight_list: require('./tools/list'),
+  DocuLight_read: require('./tools/read'),
+  DocuLight_create: require('./tools/create'),
+  DocuLight_update: require('./tools/update'),
+  DocuLight_delete: require('./tools/delete'),
+  DocuLight_get_full_tree: require('./tools/list_full_tree'),    // 신규
+  DocuLight_get_config: require('./tools/get-config'),           // 신규
+  DocuLight_search: require('./tools/search')                    // 신규
 };
 ```
 
@@ -205,7 +205,7 @@ public/locales/
 ```json
 {
   "welcome": {
-    "title": "Welcome to DocLight",
+    "title": "Welcome to DocuLight",
     "subtitle": "A lightweight Markdown documentation viewer and management system"
   },
   "sidebar": {
@@ -229,7 +229,7 @@ public/locales/
 ```json
 {
   "welcome": {
-    "title": "DocLight에 오신 것을 환영합니다",
+    "title": "DocuLight에 오신 것을 환영합니다",
     "subtitle": "경량 Markdown 문서 뷰어 및 관리 시스템"
   },
   "sidebar": {
@@ -351,7 +351,7 @@ async function searchDocuments(req, res, next) {
         matches: [
           {
             line: 15,
-            content: "DocLight is a <mark>lightweight</mark> viewer",
+            content: "DocuLight is a <mark>lightweight</mark> viewer",
             context: "..."
           }
         ]

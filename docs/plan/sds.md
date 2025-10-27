@@ -1,7 +1,7 @@
 좋습니다. 지금까지의
 # 🧩 System Design Specification (SDS)
 
-## Project: **DocLight**
+## Project: **DocuLight**
 
 ### Subtitle: *Lightweight Markdown Document Viewer & Manager*
 

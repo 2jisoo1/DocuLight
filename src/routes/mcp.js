@@ -3,7 +3,10 @@ const {
   getTreeData,
   getRawContent,
   uploadFileData,
-  deleteEntryData
+  deleteEntryData,
+  getFullTreeData,
+  getConfig,
+  searchDocuments
 } = require('./api-ctrl');
 
 /**
@@ -122,6 +125,45 @@ const TOOLS = [
         }
       },
       required: ['path']
+    }
+  },
+  {
+    name: 'DocuLight_get_config',
+    description: 'Get current runtime configuration with sensitive values masked',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        section: {
+          type: 'string',
+          description: 'Configuration section to retrieve (ui, security, ssl, all)',
+          default: 'all',
+          enum: ['ui', 'security', 'ssl', 'all']
+        }
+      }
+    }
+  },
+  {
+    name: 'DocuLight_search',
+    description: 'Search for documents containing specific text',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Search query (minimum 2 characters)'
+        },
+        limit: {
+          type: 'integer',
+          description: 'Maximum number of results to return (1-100)',
+          default: 10
+        },
+        path: {
+          type: 'string',
+          description: 'Search within directory (default: /)',
+          default: '/'
+        }
+      },
+      required: ['query']
     }
   }
 ];
@@ -245,6 +287,61 @@ async function executeTool(config, logger, name, args) {
       };
     }
 
+    case 'DocuLight_get_config': {
+      const configResult = await getConfig(config, logger, args.section || 'all');
+
+      // JSON 포맷으로 출력
+      let output = JSON.stringify(configResult, null, 2);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `# Configuration (section: ${args.section || 'all'})\n\n\`\`\`json\n${output}\n\`\`\``
+          }
+        ]
+      };
+    }
+
+    case 'DocuLight_search': {
+      const searchResult = await searchDocuments(
+        config,
+        logger,
+        args.query,
+        {
+          limit: args.limit || 10,
+          path: args.path || '/'
+        }
+      );
+
+      // 결과 포맷팅
+      let output = `# Search Results for "${searchResult.query}"\n\n`;
+      output += `**Statistics**: ${searchResult.total} matches in ${searchResult.filesScanned} files scanned (${searchResult.duration})\n\n`;
+
+      if (searchResult.results.length === 0) {
+        output += '(No matches found)';
+      } else {
+        for (let i = 0; i < searchResult.results.length; i++) {
+          const fileResult = searchResult.results[i];
+          output += `## ${i + 1}. ${fileResult.path}\n\n`;
+
+          for (const match of fileResult.matches) {
+            output += `**Line ${match.line}**: ${match.content}\n\n`;
+            output += '```\n' + match.context + '\n```\n\n';
+          }
+        }
+      }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: output
+          }
+        ]
+      };
+    }
+
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -296,7 +393,7 @@ function createMcpRouter() {
               tools: {}
             },
             serverInfo: {
-              name: 'doclight',
+              name: 'DocuLight',
               version: '1.0.0'
             }
           }));

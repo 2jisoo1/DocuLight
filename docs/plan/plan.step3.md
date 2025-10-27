@@ -1,4 +1,4 @@
-# DocLight Phase 3: URL 라우팅 및 UI 개선
+# DocuLight Phase 3: URL 라우팅 및 UI 개선
 
 **작성일**: 2025-10-23
 **우선순위**: P1

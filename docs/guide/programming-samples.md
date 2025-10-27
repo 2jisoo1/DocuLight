@@ -260,7 +260,7 @@ fi
 
 ## Testing Instructions
 
-1. Open this file in the DocLight viewer
+1. Open this file in the DocuLight viewer
 2. Check if syntax highlighting is applied to all code blocks
 3. Verify that the copy button (📋) appears on each code block
 4. Test copying code by clicking the copy button

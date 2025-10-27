@@ -1,4 +1,4 @@
-d# DocLight Phase 4: 반응형 UI 및 사용자 설정
+d# DocuLight Phase 4: 반응형 UI 및 사용자 설정
 
 **작성일**: 2025-10-24
 **우선순위**: P1
@@ -16,7 +16,7 @@ d# DocLight Phase 4: 반응형 UI 및 사용자 설정
 
 ### 1. 사이드바 제목 설정 기능
 
-**현재 상태**: 하드코딩된 "DocLight" 제목
+**현재 상태**: 하드코딩된 "DocuLight" 제목
 
 **변경 후**: 설정 파일에서 제목 변경 가능
 
@@ -41,8 +41,8 @@ d# DocLight Phase 4: 반응형 UI 및 사용자 설정
 // src/app.js
 app.get('/', (req, res) => {
   res.render('index', {
-    title: 'DocLight - Markdown Viewer',
-    uiTitle: config.ui?.title || 'DocLight',
+    title: 'DocuLight - Markdown Viewer',
+    uiTitle: config.ui?.title || 'DocuLight',
     uiIcon: config.ui?.icon || '/images/icon.png'
   });
 });
@@ -348,7 +348,7 @@ if (savedWidth) {
 ### Step 1: 설정 파일 확장
 - [ ] config.example.json5에 ui 섹션 추가
 - [ ] config-loader.js에서 ui 설정 읽기
-- [ ] 기본값 설정 (title: "DocLight", icon: "/images/icon.png")
+- [ ] 기본값 설정 (title: "DocuLight", icon: "/images/icon.png")
 
 ### Step 2: 서버에서 UI 설정 전달
 - [ ] app.js에서 EJS에 uiTitle, uiIcon 전달
@@ -526,7 +526,7 @@ if (savedWidth) {
 ### Before (현재)
 ```
 ┌────────┬─────────────────┐
-│DocLight│ 문서 경로        │
+│DocuLight│ 문서 경로        │
 ├────────┼─────────────────┤
 │ 트리   │                 │
 │        │   뷰어           │

@@ -30,7 +30,7 @@
 
   // UI Configuration
   ui: {
-    title: "DocLight",
+    title: "DocuLight",
     icon: "/images/icon.svg",
 
     // NEW: Index file paths
@@ -137,10 +137,10 @@ function resolveDocPath(docPath) {
 <div class="welcome">
   <div class="welcome-logo">
     <svg width="80" height="80" viewBox="0 0 24 24">
-      <!-- DocLight icon SVG -->
+      <!-- DocuLight icon SVG -->
     </svg>
   </div>
-  <h1>Welcome to DocLight</h1>
+  <h1>Welcome to DocuLight</h1>
   <p class="welcome-subtitle">A lightweight Markdown documentation viewer</p>
   <div class="welcome-actions">
     <div class="welcome-card">
@@ -301,7 +301,7 @@ function showWelcomeScreen() {
       <div class="welcome-logo">
         <svg>...</svg>
       </div>
-      <h1>Welcome to DocLight</h1>
+      <h1>Welcome to DocuLight</h1>
       <p class="welcome-subtitle">A lightweight Markdown documentation viewer</p>
       <div class="welcome-actions">
         <!-- Welcome cards -->
@@ -568,12 +568,12 @@ router.get('/tree', getTree);           // Existing: Partial tree
 
 ### 7.2 MCP Tool for Full Tree
 
-**File**: `doclight-mcp-server/src/tools/list.js`
+**File**: `DocuLight-mcp-server/src/tools/list.js`
 
 **Enhanced Function**:
 ```javascript
 export async function listDocuments(config, path) {
-  const client = new DocLightClient(config.baseUrl, config.apiKey);
+  const client = new DocuLightClient(config.baseUrl, config.apiKey);
 
   try {
     let result;
@@ -629,7 +629,7 @@ function formatFullTree(node, indent = 0) {
 }
 ```
 
-**Update Client**: `doclight-mcp-server/src/client.js`
+**Update Client**: `DocuLight-mcp-server/src/client.js`
 ```javascript
 /**
  * Get full directory tree
@@ -763,7 +763,7 @@ fs.watch(configPath, (eventType) => {
   apiKey: "your-api-key",
 
   ui: {
-    title: "DocLight",
+    title: "DocuLight",
     icon: "/images/icon.svg"
     // No indexFile specified - show welcome screen
   }
@@ -820,10 +820,10 @@ curl http://localhost:3000/api/tree/full | jq
 # }
 
 # Test 2: MCP full tree
-echo '{"name":"doclight_list","arguments":{}}' | \
-  DOCLIGHT_URL=http://localhost:3000 \
-  DOCLIGHT_API_KEY=your-key \
-  node doclight-mcp-server/src/index.js
+echo '{"name":"DocuLight_list","arguments":{}}' | \
+  DocuLight_URL=http://localhost:3000 \
+  DocuLight_API_KEY=your-key \
+  node DocuLight-mcp-server/src/index.js
 ```
 
 ---
@@ -838,7 +838,7 @@ echo '{"name":"doclight_list","arguments":{}}' | \
 - [ ] `/api/config/index` returns correct index file path
 - [ ] `/api/tree/full` returns complete tree structure
 - [ ] Custom API/MCP index files load correctly
-- [ ] MCP `doclight_list` tool supports full tree
+- [ ] MCP `DocuLight_list` tool supports full tree
 - [ ] All features work with hot config reload
 
 ---

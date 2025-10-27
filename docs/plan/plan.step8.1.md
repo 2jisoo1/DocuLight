@@ -1,4 +1,4 @@
-# DocLight Step 8.1: Config Hot Reload — 재시작(백업/복원) 기반 플랜
+# DocuLight Step 8.1: Config Hot Reload — 재시작(백업/복원) 기반 플랜
 
 작성일: 2025-10-25
 

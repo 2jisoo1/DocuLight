@@ -21,14 +21,14 @@
 ### 1.1 프로젝트 구조
 
 ```
-doclight-mcp-server/
+DocuLight-mcp-server/
 ├── package.json
 ├── .env.example
 ├── README.md
 └── src/
     ├── index.js          # MCP 서버 메인
     ├── config.js         # 설정 로드
-    ├── client.js         # DocLight API 클라이언트
+    ├── client.js         # DocuLight API 클라이언트
     └── tools/
         ├── list.js       # 문서 목록 조회
         ├── read.js       # 문서 읽기
@@ -39,17 +39,17 @@ doclight-mcp-server/
 
 ### 1.2 package.json
 
-**파일**: `doclight-mcp-server/package.json`
+**파일**: `DocuLight-mcp-server/package.json`
 
 ```json
 {
-  "name": "doclight-mcp-server",
+  "name": "DocuLight-mcp-server",
   "version": "1.0.0",
-  "description": "MCP server for DocLight document management",
+  "description": "MCP server for DocuLight document management",
   "type": "module",
   "main": "src/index.js",
   "bin": {
-    "doclight-mcp": "src/index.js"
+    "DocuLight-mcp": "src/index.js"
   },
   "scripts": {
     "start": "node src/index.js",
@@ -61,14 +61,14 @@ doclight-mcp-server/
     "dotenv": "^16.3.1",
     "form-data": "^4.0.0"
   },
-  "keywords": ["mcp", "doclight", "markdown", "documentation"],
+  "keywords": ["mcp", "DocuLight", "markdown", "documentation"],
   "license": "MIT"
 }
 ```
 
 ### 1.3 MCP 서버 메인
 
-**파일**: `doclight-mcp-server/src/index.js`
+**파일**: `DocuLight-mcp-server/src/index.js`
 
 ```javascript
 #!/usr/bin/env node
@@ -91,7 +91,7 @@ const config = loadConfig();
 // MCP 서버 초기화
 const server = new Server(
   {
-    name: 'doclight-mcp-server',
+    name: 'DocuLight-mcp-server',
     version: '1.0.0',
   },
   {
@@ -106,8 +106,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
       {
-        name: 'doclight_list',
-        description: 'List all documents in DocLight repository',
+        name: 'DocuLight_list',
+        description: 'List all documents in DocuLight repository',
         inputSchema: {
           type: 'object',
           properties: {
@@ -120,8 +120,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         }
       },
       {
-        name: 'doclight_read',
-        description: 'Read a document from DocLight',
+        name: 'DocuLight_read',
+        description: 'Read a document from DocuLight',
         inputSchema: {
           type: 'object',
           properties: {
@@ -134,8 +134,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         }
       },
       {
-        name: 'doclight_create',
-        description: 'Create a new document in DocLight',
+        name: 'DocuLight_create',
+        description: 'Create a new document in DocuLight',
         inputSchema: {
           type: 'object',
           properties: {
@@ -152,7 +152,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         }
       },
       {
-        name: 'doclight_update',
+        name: 'DocuLight_update',
         description: 'Update an existing document (same as create - overwrites)',
         inputSchema: {
           type: 'object',
@@ -170,8 +170,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         }
       },
       {
-        name: 'doclight_delete',
-        description: 'Delete a document from DocLight',
+        name: 'DocuLight_delete',
+        description: 'Delete a document from DocuLight',
         inputSchema: {
           type: 'object',
           properties: {
@@ -193,17 +193,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   try {
     switch (name) {
-      case 'doclight_list':
+      case 'DocuLight_list':
         return await listDocuments(config, args.path || '/');
 
-      case 'doclight_read':
+      case 'DocuLight_read':
         return await readDocument(config, args.path);
 
-      case 'doclight_create':
-      case 'doclight_update':
+      case 'DocuLight_create':
+      case 'DocuLight_update':
         return await createDocument(config, args.path, args.content);
 
-      case 'doclight_delete':
+      case 'DocuLight_delete':
         return await deleteDocument(config, args.path);
 
       default:
@@ -226,7 +226,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('DocLight MCP server running on stdio');
+  console.error('DocuLight MCP server running on stdio');
 }
 
 main().catch((error) => {
@@ -235,15 +235,15 @@ main().catch((error) => {
 });
 ```
 
-### 1.4 DocLight API 클라이언트
+### 1.4 DocuLight API 클라이언트
 
-**파일**: `doclight-mcp-server/src/client.js`
+**파일**: `DocuLight-mcp-server/src/client.js`
 
 ```javascript
 import axios from 'axios';
 import FormData from 'form-data';
 
-export class DocLightClient {
+export class DocuLightClient {
   constructor(baseUrl, apiKey) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
     this.apiKey = apiKey;
@@ -344,13 +344,13 @@ export class DocLightClient {
 
 ### 1.5 Tool 구현
 
-**파일**: `doclight-mcp-server/src/tools/list.js`
+**파일**: `DocuLight-mcp-server/src/tools/list.js`
 
 ```javascript
-import { DocLightClient } from '../client.js';
+import { DocuLightClient } from '../client.js';
 
 export async function listDocuments(config, path) {
-  const client = new DocLightClient(config.baseUrl, config.apiKey);
+  const client = new DocuLightClient(config.baseUrl, config.apiKey);
 
   try {
     const result = await client.getTree(path);
@@ -386,13 +386,13 @@ export async function listDocuments(config, path) {
 }
 ```
 
-**파일**: `doclight-mcp-server/src/tools/read.js`
+**파일**: `DocuLight-mcp-server/src/tools/read.js`
 
 ```javascript
-import { DocLightClient } from '../client.js';
+import { DocuLightClient } from '../client.js';
 
 export async function readDocument(config, path) {
-  const client = new DocLightClient(config.baseUrl, config.apiKey);
+  const client = new DocuLightClient(config.baseUrl, config.apiKey);
 
   try {
     const result = await client.readFile(path);
@@ -411,13 +411,13 @@ export async function readDocument(config, path) {
 }
 ```
 
-**파일**: `doclight-mcp-server/src/tools/create.js`
+**파일**: `DocuLight-mcp-server/src/tools/create.js`
 
 ```javascript
-import { DocLightClient } from '../client.js';
+import { DocuLightClient } from '../client.js';
 
 export async function createDocument(config, path, content) {
-  const client = new DocLightClient(config.baseUrl, config.apiKey);
+  const client = new DocuLightClient(config.baseUrl, config.apiKey);
 
   try {
     const result = await client.createFile(path, content);
@@ -436,20 +436,20 @@ export async function createDocument(config, path, content) {
 }
 ```
 
-**파일**: `doclight-mcp-server/src/tools/update.js`
+**파일**: `DocuLight-mcp-server/src/tools/update.js`
 
 ```javascript
 // update는 create와 동일 (덮어쓰기)
 export { createDocument as updateDocument } from './create.js';
 ```
 
-**파일**: `doclight-mcp-server/src/tools/delete.js`
+**파일**: `DocuLight-mcp-server/src/tools/delete.js`
 
 ```javascript
-import { DocLightClient } from '../client.js';
+import { DocuLightClient } from '../client.js';
 
 export async function deleteDocument(config, path) {
-  const client = new DocLightClient(config.baseUrl, config.apiKey);
+  const client = new DocuLightClient(config.baseUrl, config.apiKey);
 
   try {
     const result = await client.deleteFile(path);
@@ -470,7 +470,7 @@ export async function deleteDocument(config, path) {
 
 ### 1.6 설정 로더
 
-**파일**: `doclight-mcp-server/src/config.js`
+**파일**: `DocuLight-mcp-server/src/config.js`
 
 ```javascript
 import { config as dotenvConfig } from 'dotenv';
@@ -478,15 +478,15 @@ import { config as dotenvConfig } from 'dotenv';
 dotenvConfig();
 
 export function loadConfig() {
-  const baseUrl = process.env.DOCLIGHT_URL;
-  const apiKey = process.env.DOCLIGHT_API_KEY;
+  const baseUrl = process.env.DocuLight_URL;
+  const apiKey = process.env.DocuLight_API_KEY;
 
   if (!baseUrl) {
-    throw new Error('Missing DOCLIGHT_URL environment variable');
+    throw new Error('Missing DocuLight_URL environment variable');
   }
 
   if (!apiKey) {
-    throw new Error('Missing DOCLIGHT_API_KEY environment variable');
+    throw new Error('Missing DocuLight_API_KEY environment variable');
   }
 
   return {
@@ -498,22 +498,22 @@ export function loadConfig() {
 
 ### 1.7 환경 변수 예시
 
-**파일**: `doclight-mcp-server/.env.example`
+**파일**: `DocuLight-mcp-server/.env.example`
 
 ```bash
-# DocLight Server Configuration
-DOCLIGHT_URL=http://localhost:3000
-DOCLIGHT_API_KEY=your-api-key-here
+# DocuLight Server Configuration
+DocuLight_URL=http://localhost:3000
+DocuLight_API_KEY=your-api-key-here
 ```
 
 ### 1.8 MCP Server README
 
-**파일**: `doclight-mcp-server/README.md`
+**파일**: `DocuLight-mcp-server/README.md`
 
 ```markdown
-# DocLight MCP Server
+# DocuLight MCP Server
 
-Model Context Protocol server for DocLight document management.
+Model Context Protocol server for DocuLight document management.
 
 ## Installation
 
@@ -528,10 +528,10 @@ npm install
 cp .env.example .env
 ```
 
-2. Edit `.env` with your DocLight server URL and API key:
+2. Edit `.env` with your DocuLight server URL and API key:
 ```bash
-DOCLIGHT_URL=http://localhost:3000
-DOCLIGHT_API_KEY=your-api-key-here
+DocuLight_URL=http://localhost:3000
+DocuLight_API_KEY=your-api-key-here
 ```
 
 ## Usage
@@ -554,12 +554,12 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 ```json
 {
   "mcpServers": {
-    "doclight": {
+    "DocuLight": {
       "command": "node",
-      "args": ["/absolute/path/to/doclight-mcp-server/src/index.js"],
+      "args": ["/absolute/path/to/DocuLight-mcp-server/src/index.js"],
       "env": {
-        "DOCLIGHT_URL": "http://localhost:3000",
-        "DOCLIGHT_API_KEY": "your-api-key"
+        "DocuLight_URL": "http://localhost:3000",
+        "DocuLight_API_KEY": "your-api-key"
       }
     }
   }
@@ -568,23 +568,23 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 
 ## Available Tools
 
-- `doclight_list` - List documents in a directory
-- `doclight_read` - Read a document
-- `doclight_create` - Create a new document
-- `doclight_update` - Update an existing document
-- `doclight_delete` - Delete a document
+- `DocuLight_list` - List documents in a directory
+- `DocuLight_read` - Read a document
+- `DocuLight_create` - Create a new document
+- `DocuLight_update` - Update an existing document
+- `DocuLight_delete` - Delete a document
 
 ## Example Usage in Claude
 
 ```
-User: "DocLight에 있는 문서 목록 보여줘"
-Claude: [Uses doclight_list tool]
+User: "DocuLight에 있는 문서 목록 보여줘"
+Claude: [Uses DocuLight_list tool]
 
 User: "guide/getting-started.md 파일 읽어줘"
-Claude: [Uses doclight_read tool]
+Claude: [Uses DocuLight_read tool]
 
 User: "새 문서 만들어줘: docs/api.md"
-Claude: [Uses doclight_create tool]
+Claude: [Uses DocuLight_create tool]
 ```
 ```
 
@@ -1009,13 +1009,13 @@ if (config.ssl && config.ssl.enabled) {
   server = https.createServer(sslOptions, app);
 
   server.listen(PORT, () => {
-    logger.info('DocLight HTTPS server started', {
+    logger.info('DocuLight HTTPS server started', {
       port: PORT,
       docsRoot: config.docsRoot,
       ssl: true
     });
 
-    console.log(`\n✅ DocLight Server Started (HTTPS)`);
+    console.log(`\n✅ DocuLight Server Started (HTTPS)`);
     console.log(`   📂 Docs: ${config.docsRoot}`);
     console.log(`   🔒 SSL: Enabled`);
     console.log(`   🌐 URL: https://localhost:${PORT}\n`);
@@ -1025,13 +1025,13 @@ if (config.ssl && config.ssl.enabled) {
   server = http.createServer(app);
 
   server.listen(PORT, () => {
-    logger.info('DocLight HTTP server started', {
+    logger.info('DocuLight HTTP server started', {
       port: PORT,
       docsRoot: config.docsRoot,
       ssl: false
     });
 
-    console.log(`\n✅ DocLight Server Started (HTTP)`);
+    console.log(`\n✅ DocuLight Server Started (HTTP)`);
     console.log(`   📂 Docs: ${config.docsRoot}`);
     console.log(`   ⚠️  SSL: Disabled`);
     console.log(`   🌐 URL: http://localhost:${PORT}\n`);
@@ -1061,7 +1061,7 @@ export default app;
 
 ```bash
 # 1. 설치
-cd doclight-mcp-server
+cd DocuLight-mcp-server
 npm install
 
 # 2. 환경 변수 설정
@@ -1077,7 +1077,7 @@ echo '{
   "id":2,
   "method":"tools/call",
   "params":{
-    "name":"doclight_list",
+    "name":"DocuLight_list",
     "arguments":{"path":"/"}
   }
 }' | npm start
@@ -1088,7 +1088,7 @@ echo '{
   "id":3,
   "method":"tools/call",
   "params":{
-    "name":"doclight_read",
+    "name":"DocuLight_read",
     "arguments":{"path":"/README.md"}
   }
 }' | npm start
@@ -1131,7 +1131,7 @@ openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -node
 
 # 3. 서버 시작
 npm start
-# Expected: "DocLight Server Started (HTTPS)"
+# Expected: "DocuLight Server Started (HTTPS)"
 
 # 4. HTTPS 접근
 curl -k https://localhost:3000/api/tree
@@ -1149,19 +1149,19 @@ curl http://localhost:3000/api/tree
 ### 생성할 파일
 
 **MCP Server (11개)**:
-1. `doclight-mcp-server/package.json`
-2. `doclight-mcp-server/.env.example`
-3. `doclight-mcp-server/README.md`
-4. `doclight-mcp-server/src/index.js`
-5. `doclight-mcp-server/src/config.js`
-6. `doclight-mcp-server/src/client.js`
-7. `doclight-mcp-server/src/tools/list.js`
-8. `doclight-mcp-server/src/tools/read.js`
-9. `doclight-mcp-server/src/tools/create.js`
-10. `doclight-mcp-server/src/tools/update.js`
-11. `doclight-mcp-server/src/tools/delete.js`
+1. `DocuLight-mcp-server/package.json`
+2. `DocuLight-mcp-server/.env.example`
+3. `DocuLight-mcp-server/README.md`
+4. `DocuLight-mcp-server/src/index.js`
+5. `DocuLight-mcp-server/src/config.js`
+6. `DocuLight-mcp-server/src/client.js`
+7. `DocuLight-mcp-server/src/tools/list.js`
+8. `DocuLight-mcp-server/src/tools/read.js`
+9. `DocuLight-mcp-server/src/tools/create.js`
+10. `DocuLight-mcp-server/src/tools/update.js`
+11. `DocuLight-mcp-server/src/tools/delete.js`
 
-**DocLight Server (4개)**:
+**DocuLight Server (4개)**:
 1. `src/utils/ip-matcher.js` - **NEW**
 2. `src/middleware/ip-whitelist.js` - **NEW**
 3. `src/utils/ssl-validator.js` - **NEW**
@@ -1181,7 +1181,7 @@ curl http://localhost:3000/api/tree
 1. ✅ 프로젝트 구조 생성
 2. ✅ package.json, .env.example 작성
 3. ✅ MCP SDK 통합 (index.js)
-4. ✅ DocLight 클라이언트 구현 (client.js)
+4. ✅ DocuLight 클라이언트 구현 (client.js)
 5. ✅ 5개 Tool 구현 (list, read, create, update, delete)
 6. ✅ 로컬 테스트
 7. ✅ Claude Desktop 연동 테스트
@@ -1210,7 +1210,7 @@ curl http://localhost:3000/api/tree
 
 ## 7. 성공 기준
 
-- [ ] MCP 서버가 DocLight API 호출 성공
+- [ ] MCP 서버가 DocuLight API 호출 성공
 - [ ] Claude Desktop에서 문서 목록 조회
 - [ ] Claude Desktop에서 문서 읽기
 - [ ] Claude Desktop에서 문서 생성/수정

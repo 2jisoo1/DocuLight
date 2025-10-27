@@ -1,6 +1,6 @@
 # 📘 Software Requirements Specification (SRS)
 
-## Project: **DocLight**
+## Project: **DocuLight**
 
 ### Subtitle: *Lightweight Markdown File Viewer & Manager*
 
@@ -10,7 +10,7 @@
 
 ### 1.1 목적
 
-**DocLight**는 사내 Markdown 문서를 쉽게 탐색, 열람, 관리하기 위한 경량 웹 서버입니다.
+**DocuLight**는 사내 Markdown 문서를 쉽게 탐색, 열람, 관리하기 위한 경량 웹 서버입니다.
 Markdown 파일(.md) 및 그 하위 구조를 브라우저에서 시각적으로 트리 형태로 표시하며,
 간단한 REST API를 통해 파일 업로드, 삭제, 다운로드가 가능합니다.
 
@@ -30,7 +30,7 @@ Markdown 파일(.md) 및 그 하위 구조를 브라우저에서 시각적으로
 
 | 구분         | 내용                                             |
 | ---------- | ---------------------------------------------- |
-| **시스템 이름** | DocLight                                       |
+| **시스템 이름** | DocuLight                                       |
 | **주요 기능**  | 문서 트리 탐색, Markdown 렌더링, 파일 업로드/다운로드/삭제, ZIP 관리 |
 | **대상 사용자** | 사내 문서 관리 담당자, 개발/기획/디자인 등 비개발자                 |
 | **운영 환경**  | Node.js 18 이상, Express + EJS                   |
@@ -234,7 +234,7 @@ Markdown 파일(.md) 및 그 하위 구조를 브라우저에서 시각적으로
 ### 7.1 IndexedDB (클라이언트)
 
 ```js
-database: "doclight"
+database: "DocuLight"
 store: "treeState"  // key: dirPath, value: { expanded: boolean, ts }
 store: "lastOpened" // key: "file", value: { path, ts }
 ```
@@ -271,8 +271,8 @@ store: "lastOpened" // key: "file", value: { path, ts }
 
 | 항목       | 내용                                 |
 | -------- | ---------------------------------- |
-| 실행       | `pm2 start app.js --name doclight` |
-| 로그       | `./log/doclight-YYYYMMDD.log`      |
+| 실행       | `pm2 start app.js --name DocuLight` |
+| 로그       | `./log/DocuLight-YYYYMMDD.log`      |
 | 백업       | 문서 루트 및 설정 파일 백업                   |
 | 장애 복구    | 로그 분석 후 수동 복원                      |
 | 업데이트     | zip 업로드로 문서 교체 가능                  |
@@ -334,7 +334,7 @@ store: "lastOpened" // key: "file", value: { path, ts }
 
 ---
 
-✅ **DocLight**는 단일 API 키 기반의 경량 Markdown 관리 서버로,
+✅ **DocuLight**는 단일 API 키 기반의 경량 Markdown 관리 서버로,
 명확한 경로 검증·덮어쓰기 정책·예외처리 규칙을 포함하여,
 사내 문서 관리의 표준화된 인터페이스를 제공합니다.
 
@@ -344,7 +344,7 @@ store: "lastOpened" // key: "file", value: { path, ts }
 
 * **모듈 사양서(각 JS 모듈별 인터페이스 + 시퀀스)**
 * **API 사전 (Request/Response/에러 예제 포함)**
-* **JSON5 설정 Schema 정의 (예: `doclight.config.schema.json`)**
+* **JSON5 설정 Schema 정의 (예: `DocuLight.config.schema.json`)**
   를 이어서 작성해드릴 수 있습니다.
 
 다음으로 어떤 문서를 원하시나요?

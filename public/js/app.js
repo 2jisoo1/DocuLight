@@ -1,4 +1,4 @@
-// DocLight Client Application
+// DocuLight Client Application
 
 // Initialize Mermaid
 mermaid.initialize({
@@ -7,7 +7,7 @@ mermaid.initialize({
 });
 
 // IndexedDB management
-const DB_NAME = 'doclight';
+const DB_NAME = 'DocuLight';
 const DB_VERSION = 1;
 let db;
 
@@ -349,8 +349,9 @@ async function copyHeadingLink(heading, anchorLink) {
     console.log('Current path:', currentPath);
     console.log('Heading ID:', heading.id);
 
-    // Build full URL with anchor
-    const encodedPath = currentPath.split('/').map(seg => encodeURIComponent(seg)).join('/');
+    // Build full URL with anchor (Clean URL: remove .md extension)
+    const cleanPath = currentPath.replace(/\.md$/, '');
+    const encodedPath = cleanPath.split('/').map(seg => encodeURIComponent(seg)).join('/');
     const fullUrl = `${window.location.origin}/doc/${encodedPath}#${heading.id}`;
 
     console.log('Copying URL:', fullUrl);
@@ -360,7 +361,11 @@ async function copyHeadingLink(heading, anchorLink) {
 
     // Update URL
     const newUrl = `/doc/${encodedPath}#${heading.id}`;
-    window.history.pushState({ path: currentPath, hash: heading.id }, '', newUrl);
+    window.history.pushState({
+      path: currentPath,
+      cleanPath: cleanPath,
+      hash: heading.id
+    }, '', newUrl);
 
     console.log('URL updated to:', newUrl);
 
@@ -606,10 +611,19 @@ async function loadFile(path, hash = '', updateUrl = true) {
 
     // Update URL if requested
     if (updateUrl) {
+      // Clean URL: remove .md extension
+      const cleanPath = path.replace(/\.md$/, '');
+
       // Encode each path segment, but keep / separator
-      const encodedPath = path.split('/').map(seg => encodeURIComponent(seg)).join('/');
+      const encodedPath = cleanPath.split('/').map(seg => encodeURIComponent(seg)).join('/');
       const newUrl = `/doc/${encodedPath}${hash ? '#' + hash : ''}`;
-      window.history.pushState({ path, hash }, '', newUrl);
+
+      // Save both paths in history state
+      window.history.pushState({
+        path: path,           // Real file path (e.g., '/guide/intro.md')
+        cleanPath: cleanPath, // Clean path for display (e.g., '/guide/intro')
+        hash: hash
+      }, '', newUrl);
     }
 
     // Scroll to anchor if provided
@@ -657,7 +671,7 @@ function showWelcomeScreen() {
   contentDiv.innerHTML = `
     <div class="welcome">
       <div class="welcome-header">
-        <h1>Welcome to DocLight</h1>
+        <h1>Welcome to DocuLight</h1>
         <p class="welcome-subtitle">A lightweight Markdown documentation viewer and management system</p>
       </div>
     </div>
@@ -746,6 +760,11 @@ async function init() {
       // Extract path from /doc/... URL and decode each segment
       const rawPath = pathname.substring(5); // Remove '/doc/'
       pathFromUrl = rawPath.split('/').map(seg => decodeURIComponent(seg)).join('/');
+
+      // Clean URL handling: add .md extension if not present
+      if (pathFromUrl && !pathFromUrl.endsWith('.md')) {
+        pathFromUrl = pathFromUrl + '.md';
+      }
     }
 
     if (pathFromUrl) {

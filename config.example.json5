@@ -1,4 +1,4 @@
-// DocLight Configuration File (JSON5 format)
+// DocuLight Configuration File (JSON5 format)
 // Copy this file to config.json5 and update with your settings
 {
   // Root directory for documents (absolute path recommended)
@@ -16,8 +16,8 @@
 
   // UI customization
   ui: {
-    // Sidebar title (default: "DocLight")
-    title: "DocLight",
+    // Sidebar title (default: "DocuLight")
+    title: "DocuLight",
 
     // Icon path (default: "/images/icon.png")
     // Absolute path (starts with /): relative to public directory

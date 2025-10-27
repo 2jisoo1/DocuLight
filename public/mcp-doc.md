@@ -1,1401 +1,1488 @@
-# DocLight MCP Server Documentation
+# DocuLight MCP API 문서
 
-Version: 1.0.0 | Last Updated: 2025-10-24
+## 개요
 
-## Table of Contents
+DocuLight는 Model Context Protocol (MCP) over HTTP를 지원하여 AI 에이전트가 문서 관리 작업을 수행할 수 있도록 합니다. MCP는 JSON-RPC 2.0 프로토콜을 기반으로 하며, SDK 없이 직접 구현되었습니다.
 
-1. [Introduction](#introduction)
-2. [What is MCP?](#what-is-mcp)
-3. [Installation](#installation)
-4. [Configuration](#configuration)
-5. [Integration Guides](#integration-guides)
-6. [Available Tools](#available-tools)
-7. [Usage Examples](#usage-examples)
-8. [Troubleshooting](#troubleshooting)
+### 기본 정보
 
----
-
-## Introduction
-
-The DocLight MCP Server enables AI assistants (like Claude, GitHub Copilot, and others) to interact with your DocLight documentation system through the Model Context Protocol (MCP).
-
-**Key Benefits**:
-- AI assistants can read, create, update, and delete documents
-- Natural language document management
-- Seamless integration with existing tools
-- No UI required for document operations
-
-**Architecture**:
-
-```mermaid
-flowchart TB
-    A["🤖 Claude / Copilot<br/>(AI Assistant)"]
-    B["⚙️ DocLight MCP Server"]
-    C["📚 DocLight Server<br/>(Document Storage)"]
-
-    A <-->|"MCP Protocol<br/>(stdio/JSON-RPC)"| B
-    B -->|"HTTP API<br/>(REST)"| C
-
-    style A fill:#e1f5ff,stroke:#0366d6,stroke-width:2px
-    style B fill:#fff3cd,stroke:#f0ad4e,stroke-width:2px
-    style C fill:#d4edda,stroke:#28a745,stroke-width:2px
-```
+- **프로토콜**: JSON-RPC 2.0
+- **엔드포인트**: `POST /mcp`
+- **Content-Type**: `application/json`
+- **MCP 버전**: 2024-11-05
+- **인증**: 불필요 (공개 엔드포인트)
 
 ---
 
-## What is MCP?
+## MCP 프로토콜 구조
 
-### Model Context Protocol Overview
-
-MCP (Model Context Protocol) is an open standard developed by Anthropic that defines how applications share context with large language models (LLMs). It enables AI assistants to securely interact with external systems and data sources.
-
-**Key Concepts**:
-
-| Concept | Description |
-|---------|-------------|
-| **Server** | Provides tools and resources to AI assistants |
-| **Client** | AI assistant or application that uses MCP servers |
-| **Tools** | Functions that servers expose to clients |
-| **Resources** | File-like data that servers can provide |
-| **Prompts** | Pre-written templates for common operations |
-| **Transport** | Communication mechanism (stdio, HTTP, WebSocket) |
-
-**How MCP Works**:
-1. MCP server connects to AI client via transport layer
-2. Client discovers available tools via `tools/list` request
-3. Client invokes tools via `tools/call` request with JSON-RPC
-4. Server executes operations and returns results
-5. Client presents results to user in natural language
-
-**MCP vs Traditional APIs**:
-
-| Aspect | Traditional API | MCP |
-|--------|----------------|-----|
-| Discovery | Manual documentation | Automatic via protocol |
-| Integration | Custom code required | Native AI integration |
-| Authentication | Various methods | Transport-specific |
-| Error Handling | HTTP status codes | Structured JSON responses |
-| Use Case | Direct programmatic access | AI-mediated interactions |
-
----
-
-## Installation
-
-### Prerequisites
-
-- Node.js ≥ 18.0.0
-- npm or yarn package manager
-- DocLight server running
-- API key configured in DocLight
-
-### Installation Steps
-
-**1. Navigate to MCP Server Directory**:
-
-```bash
-cd doclight-mcp-server
-```
-
-**2. Install Dependencies**:
-
-```bash
-npm install
-```
-
-This will install:
-- `@modelcontextprotocol/sdk` - MCP protocol implementation
-- `axios` - HTTP client for DocLight API
-- `dotenv` - Environment variable management
-- `form-data` - Multipart form data handling
-
-**3. Configure Environment Variables**:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env`:
-```bash
-DOCLIGHT_URL=http://localhost:3000
-DOCLIGHT_API_KEY=your-api-key-here
-```
-
-**4. Test Installation**:
-
-```bash
-npm start
-```
-
-Expected output:
-```
-DocLight MCP server running on stdio
-```
-
-Press Ctrl+C to stop the test.
-
----
-
-## Configuration
-
-### Environment Variables
-
-| Variable | Required | Description | Example |
-|----------|----------|-------------|---------|
-| `DOCLIGHT_URL` | ✅ Yes | DocLight server URL | `http://localhost:3000` |
-| `DOCLIGHT_API_KEY` | ✅ Yes | API key from config.json5 | `abc123...` |
-| `LOG_LEVEL` | No | Logging verbosity | `info` (default), `debug`, `error` |
-
-### Configuration Best Practices
-
-**1. API Key Security**:
-```bash
-# Generate secure API key
-openssl rand -hex 32
-```
-
-**2. URL Format**:
-- ✅ Correct: `http://localhost:3000`
-- ❌ Wrong: `http://localhost:3000/` (trailing slash)
-- ❌ Wrong: `localhost:3000` (missing protocol)
-
-**3. HTTPS for Production**:
-```bash
-DOCLIGHT_URL=https://docs.company.com
-```
-
----
-
-## Integration Guides
-
-### 1. Claude Desktop Integration
-
-Claude Desktop natively supports MCP servers through configuration files.
-
-#### Configuration File Location
-
-- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-- **Linux**: `~/.config/Claude/claude_desktop_config.json`
-
-#### Configuration Steps
-
-**Step 1: Find Absolute Path**
-
-Get the absolute path to your MCP server:
-
-```bash
-# On macOS/Linux
-cd doclight-mcp-server
-pwd
-# Example output: /Users/username/projects/doclight-mcp-server
-
-# On Windows (PowerShell)
-cd doclight-mcp-server
-(Get-Location).Path
-# Example output: C:\Users\username\projects\doclight-mcp-server
-```
-
-**Step 2: Create/Edit Configuration File**
+### JSON-RPC 2.0 요청 형식
 
 ```json
 {
-  "mcpServers": {
-    "doclight": {
-      "command": "node",
-      "args": ["/absolute/path/to/doclight-mcp-server/src/index.js"],
-      "env": {
-        "DOCLIGHT_URL": "http://localhost:3000",
-        "DOCLIGHT_API_KEY": "your-api-key"
-      }
-    }
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "method_name",
+  "params": {
+    // method-specific parameters
   }
 }
 ```
 
-**Important Notes**:
-- Use **absolute paths** (full path from root)
-- On Windows, use double backslashes: `C:\\Users\\...\\index.js` or forward slashes: `C:/Users/.../index.js`
-- Replace `your-api-key` with actual API key from DocLight config.json5
-- Ensure DocLight server is running before using MCP tools
+### JSON-RPC 2.0 응답 형식
 
-**Step 3: Restart Claude Desktop**
-
-1. Completely quit Claude Desktop (not just close the window)
-2. Reopen Claude Desktop
-3. Look for MCP server indicator in bottom-right corner of chat input
-
-#### Alternative: Desktop Extensions (2025 Method)
-
-**New Simplified Installation**:
-
-1. Open Claude Desktop
-2. Navigate to **Settings → Extensions**
-3. Click **"Browse extensions"**
-4. Search for "DocLight" (if published to extension directory)
-5. Click **"Install"**
-6. Configure environment variables in extension settings
-
-**Extension File Format**: `.mcpb` (MCP Bundle) or legacy `.dxt`
-
-**Note**: As of 2025, Anthropic is promoting Desktop Extensions as the preferred installation method. Check the Claude Desktop extension directory for available MCP servers.
-
-#### Verification
-
-Ask Claude:
-```
-"Can you list the documents in DocLight?"
-```
-
-Expected behavior:
-- Claude shows available MCP tools (hammer icon)
-- Uses `doclight_list` tool automatically
-- Returns formatted document tree
-
-If no response:
-- Check configuration file syntax (valid JSON)
-- Verify absolute path is correct
-- Ensure DocLight server is running
-- Check Claude Desktop logs: Menu → View → Toggle Developer Tools
-
----
-
-### 2. GitHub Copilot Integration (VS Code)
-
-GitHub Copilot added MCP support in VS Code version 1.99+.
-
-#### Prerequisites
-
-- Visual Studio Code 1.99 or later
-- GitHub Copilot extension installed
-- Active Copilot subscription (Free, Pro, or Pro+)
-
-#### Configuration Methods
-
-**Method 1: GitHub MCP Registry (Recommended)**
-
-1. Open VS Code
-2. Open Command Palette (Ctrl+Shift+P / Cmd+Shift+P)
-3. Type: `Copilot: Manage MCP Servers`
-4. Click `Browse GitHub MCP Registry`
-5. Search for "DocLight" (if published)
-6. Click `Add Server`
-
-**Method 2: Manual Configuration**
-
-**Configuration File Location**:
-- **macOS/Linux**: `~/.config/Code/User/settings.json`
-- **Windows**: `%APPDATA%\Code\User\settings.json`
-
-**Add to settings.json**:
-
+**성공 응답:**
 ```json
 {
-  "github.copilot.mcpServers": {
-    "doclight": {
-      "command": "node",
-      "args": ["/absolute/path/to/doclight-mcp-server/src/index.js"],
-      "env": {
-        "DOCLIGHT_URL": "http://localhost:3000",
-        "DOCLIGHT_API_KEY": "your-api-key"
-      }
-    }
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    // method-specific result
   }
 }
 ```
 
-#### Enterprise Policy Control
-
-**Organization Administrators**:
-
-GitHub Enterprise customers can control MCP access via policy settings:
-
-```
-Settings → Copilot → MCP servers in Copilot policy
-```
-
-Options:
-- **Enabled**: Members can use MCP servers
-- **Disabled** (default): MCP access blocked
-- **Allow list**: Whitelist specific MCP servers
-
-**Note**: Copilot Free, Pro, and Pro+ users are not affected by enterprise policies.
-
-#### Verification
-
-Open Copilot Chat in VS Code and ask:
-```
-@workspace List documents in DocLight
-```
-
-Expected behavior:
-- Copilot recognizes DocLight MCP server
-- Uses tools to fetch document list
-- Displays results in chat panel
-
----
-
-### 3. Continue.dev Extension
-
-Continue.dev is an open-source VS Code extension with comprehensive MCP support.
-
-#### Installation
-
-1. Install Continue extension from VS Code marketplace
-2. Click Continue icon in sidebar
-3. Click gear icon → Open Config
-
-#### Configuration
-
-**File**: `~/.continue/config.json`
-
+**에러 응답:**
 ```json
 {
-  "models": [
-    {
-      "model": "claude-3-5-sonnet-20241022",
-      "provider": "anthropic",
-      "apiKey": "your-anthropic-api-key"
-    }
-  ],
-  "mcpServers": {
-    "doclight": {
-      "command": "node",
-      "args": ["/absolute/path/to/doclight-mcp-server/src/index.js"],
-      "env": {
-        "DOCLIGHT_URL": "http://localhost:3000",
-        "DOCLIGHT_API_KEY": "your-api-key"
-      }
-    }
+  "jsonrpc": "2.0",
+  "id": 1,
+  "error": {
+    "code": -32600,
+    "message": "Invalid Request",
+    "data": "Additional error information"
   }
 }
 ```
 
-#### Usage
-
-1. Open Continue sidebar
-2. Type message: "List documents in DocLight"
-3. Continue automatically uses MCP tools
-4. Results appear in conversation
-
-**Advantages**:
-- Works with multiple LLM providers
-- Highly customizable
-- Active open-source community
-- Free and open-source
-
 ---
 
-### 4. Custom MCP Client Integration
+## MCP 메서드
 
-Build your own MCP client using the official SDK.
+### 1. initialize
 
-#### Installation
+MCP 서버를 초기화하고 서버 정보 및 기능을 조회합니다.
 
-```bash
-npm install @modelcontextprotocol/sdk
-```
-
-#### Example Implementation
-
-```javascript
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-
-// Create transport
-const transport = new StdioClientTransport({
-  command: 'node',
-  args: ['/path/to/doclight-mcp-server/src/index.js'],
-  env: {
-    DOCLIGHT_URL: 'http://localhost:3000',
-    DOCLIGHT_API_KEY: 'your-api-key'
-  }
-});
-
-// Create client
-const client = new Client({
-  name: 'my-mcp-client',
-  version: '1.0.0'
-}, {
-  capabilities: {}
-});
-
-// Connect
-await client.connect(transport);
-
-// List available tools
-const tools = await client.listTools();
-console.log('Available tools:', tools);
-
-// Call doclight_list tool
-const result = await client.callTool({
-  name: 'doclight_list',
-  arguments: { path: '/' }
-});
-console.log('Documents:', result);
-
-// Cleanup
-await client.close();
-```
-
-#### HTTP Transport (Future)
-
-DocLight MCP Server currently uses stdio transport. HTTP transport can be added:
-
-```javascript
-import { HttpClientTransport } from '@modelcontextprotocol/sdk/client/http.js';
-
-const transport = new HttpClientTransport({
-  url: 'http://localhost:3001/mcp',
-  headers: {
-    'Authorization': 'Bearer your-token'
-  }
-});
-```
-
----
-
-## Available Tools
-
-### Tool Overview
-
-DocLight MCP Server provides 5 core tools for document management:
-
-| Tool | Purpose | Input | Output |
-|------|---------|-------|--------|
-| `doclight_list` | List documents | `path` (optional) | Tree structure |
-| `doclight_read` | Read document | `path` (required) | Markdown content |
-| `doclight_create` | Create document | `path`, `content` | Confirmation |
-| `doclight_update` | Update document | `path`, `content` | Confirmation |
-| `doclight_delete` | Delete document | `path` (required) | Confirmation |
-
----
-
-### 1. doclight_list
-
-**Description**: List all documents in a directory
-
-**Input Schema**:
+**요청:**
 ```json
 {
-  "path": {
-    "type": "string",
-    "description": "Directory path (default: root)",
-    "default": "/"
-  }
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize"
 }
 ```
 
-**Example Input**:
+**응답:**
 ```json
 {
-  "path": "/guide"
-}
-```
-
-**Example Output**:
-```
-📁 guide
-  📄 getting-started.md
-  📄 configuration.md
-  📁 advanced
-    📄 performance.md
-    📄 security.md
-```
-
-**Use Cases**:
-- Browse documentation structure
-- Find specific documents
-- Verify directory contents
-
----
-
-### 2. doclight_read
-
-**Description**: Read the content of a document
-
-**Input Schema**:
-```json
-{
-  "path": {
-    "type": "string",
-    "description": "Document path (e.g., guide/getting-started.md)",
-    "required": true
-  }
-}
-```
-
-**Example Input**:
-```json
-{
-  "path": "/guide/getting-started.md"
-}
-```
-
-**Example Output**:
-```markdown
-# Getting Started with DocLight
-
-DocLight is a lightweight Markdown viewer...
-
-## Installation
-
-1. Clone the repository
-2. Install dependencies
-...
-```
-
-**Use Cases**:
-- Read documentation content
-- Extract information from files
-- Reference existing documentation
-
----
-
-### 3. doclight_create
-
-**Description**: Create a new document
-
-**Input Schema**:
-```json
-{
-  "path": {
-    "type": "string",
-    "description": "Document path (e.g., guide/new-doc.md)",
-    "required": true
-  },
-  "content": {
-    "type": "string",
-    "description": "Markdown content",
-    "required": true
-  }
-}
-```
-
-**Example Input**:
-```json
-{
-  "path": "/guide/troubleshooting.md",
-  "content": "# Troubleshooting\n\n## Common Issues\n\n..."
-}
-```
-
-**Example Output**:
-```
-Successfully created/updated: guide/troubleshooting.md
-```
-
-**Use Cases**:
-- Create new documentation
-- Generate documentation from conversations
-- Add new guides or tutorials
-
----
-
-### 4. doclight_update
-
-**Description**: Update an existing document (same as create - overwrites)
-
-**Behavior**:
-- If file exists → overwrites content
-- If file doesn't exist → creates new file
-
-**Input Schema**: Same as `doclight_create`
-
-**Example**:
-```json
-{
-  "path": "/guide/api.md",
-  "content": "# API Reference\n\n[Updated content]"
-}
-```
-
-**Use Cases**:
-- Update existing documentation
-- Fix errors in documents
-- Add new sections to files
-
----
-
-### 5. doclight_delete
-
-**Description**: Delete a document
-
-**Input Schema**:
-```json
-{
-  "path": {
-    "type": "string",
-    "description": "Document path to delete",
-    "required": true
-  }
-}
-```
-
-**Example Input**:
-```json
-{
-  "path": "/guide/old-doc.md"
-}
-```
-
-**Example Output**:
-```
-Successfully deleted: guide/old-doc.md
-```
-
-**Warning**: ⚠️ This operation is irreversible! Deleted files cannot be recovered unless backed up.
-
-**Use Cases**:
-- Remove outdated documentation
-- Clean up test files
-- Maintain documentation structure
-
----
-
-## Usage Examples
-
-### Example 1: Browsing Documentation
-
-**User Query**:
-> "Show me all documents in the guide folder"
-
-**MCP Flow**:
-1. AI assistant recognizes document listing request
-2. Invokes `doclight_list` tool
-3. Formats results for user
-
-**Tool Call**:
-```json
-{
-  "name": "doclight_list",
-  "arguments": {
-    "path": "/guide"
-  }
-}
-```
-
-**AI Response**:
-> Here are the documents in the guide folder:
->
-> 📁 guide
->   📄 getting-started.md
->   📄 configuration.md
->   📄 api-reference.md
->   📁 advanced
->     📄 performance.md
->     📄 security.md
->
-> Would you like me to read any of these files?
-
----
-
-### Example 2: Reading Documentation
-
-**User Query**:
-> "Read the getting-started.md file and summarize it"
-
-**MCP Flow**:
-1. Assistant invokes `doclight_read` tool
-2. Receives Markdown content
-3. Analyzes and summarizes content
-
-**Tool Call**:
-```json
-{
-  "name": "doclight_read",
-  "arguments": {
-    "path": "/guide/getting-started.md"
-  }
-}
-```
-
-**AI Response**:
-> I've read the getting-started guide. Here's a summary:
->
-> **Installation**:
-> - Clone repository
-> - Run `npm install`
-> - Configure `config.json5`
->
-> **First Steps**:
-> - Start server with `npm start`
-> - Access at http://localhost:3000
-> - Configure docsRoot and apiKey
->
-> The guide recommends starting with the configuration section before running the server.
-
----
-
-### Example 3: Creating Documentation
-
-**User Query**:
-> "Create a troubleshooting guide with solutions for common server errors"
-
-**MCP Flow**:
-1. Assistant generates documentation content
-2. Invokes `doclight_create` tool
-3. Confirms creation
-
-**Tool Call**:
-```json
-{
-  "name": "doclight_create",
-  "arguments": {
-    "path": "/guide/troubleshooting.md",
-    "content": "# Troubleshooting Guide\n\n## Server Won't Start\n\n**Symptom**: Error when running `npm start`\n\n**Solutions**:\n1. Check Node.js version (≥18 required)\n2. Verify config.json5 exists and is valid\n3. Check port availability\n\n## API Key Invalid\n\n**Symptom**: 401 Unauthorized responses\n\n**Solutions**:\n1. Verify X-API-Key header is present\n2. Check config.json5 apiKey matches\n3. Ensure no whitespace in key\n\n## Files Not Loading\n\n**Symptom**: 404 errors when opening documents\n\n**Solutions**:\n1. Verify docsRoot path is correct\n2. Check file permissions\n3. Ensure file has .md extension"
-  }
-}
-```
-
-**AI Response**:
-> ✅ I've created a comprehensive troubleshooting guide at `/guide/troubleshooting.md` with solutions for:
-> - Server startup issues
-> - API authentication problems
-> - File loading errors
->
-> You can view it in DocLight or ask me to read it back to you.
-
----
-
-### Example 4: Updating Documentation
-
-**User Query**:
-> "Update the API reference to include the new download endpoint"
-
-**MCP Flow**:
-1. Assistant reads existing API reference
-2. Generates updated content
-3. Invokes `doclight_update` tool
-
-**Tool Calls**:
-```json
-// First: Read existing content
-{
-  "name": "doclight_read",
-  "arguments": {
-    "path": "/guide/api-reference.md"
-  }
-}
-
-// Then: Update with new content
-{
-  "name": "doclight_update",
-  "arguments": {
-    "path": "/guide/api-reference.md",
-    "content": "[Existing content + new download endpoint section]"
-  }
-}
-```
-
-**AI Response**:
-> ✅ I've updated the API reference to include the new download endpoint. Added sections:
-> - `GET /api/download/file` - Download single file
-> - `GET /api/download/dir` - Download directory as ZIP
->
-> The documentation now includes examples and error codes for both endpoints.
-
----
-
-### Example 5: Deleting Documentation
-
-**User Query**:
-> "Delete the old migration guide, it's no longer relevant"
-
-**MCP Flow**:
-1. Assistant confirms which file to delete
-2. Invokes `doclight_delete` tool
-3. Confirms deletion
-
-**Tool Call**:
-```json
-{
-  "name": "doclight_delete",
-  "arguments": {
-    "path": "/guide/migration-v1.md"
-  }
-}
-```
-
-**AI Response**:
-> ✅ I've deleted `/guide/migration-v1.md`. The file has been permanently removed from DocLight.
->
-> ⚠️ Remember: This action cannot be undone. If you need the content later, you'll need to restore it from backups.
-
----
-
-### Example 6: Complex Workflow
-
-**User Query**:
-> "Review all documentation in /guide, identify outdated content, and create a summary report"
-
-**MCP Flow** (Multiple Tool Calls):
-
-```json
-// Step 1: List all documents
-{
-  "name": "doclight_list",
-  "arguments": { "path": "/guide" }
-}
-
-// Step 2-N: Read each document
-{
-  "name": "doclight_read",
-  "arguments": { "path": "/guide/getting-started.md" }
-}
-{
-  "name": "doclight_read",
-  "arguments": { "path": "/guide/configuration.md" }
-}
-// ... more reads ...
-
-// Final: Create summary report
-{
-  "name": "doclight_create",
-  "arguments": {
-    "path": "/reports/doc-review-2025-10-24.md",
-    "content": "# Documentation Review\n\n## Summary\n\n..."
-  }
-}
-```
-
-**AI Response**:
-> ✅ I've completed the documentation review. Here's what I found:
->
-> **Up-to-date** (3 files):
-> - getting-started.md
-> - configuration.md
-> - api-reference.md
->
-> **Needs Update** (2 files):
-> - migration-v1.md (mentions deprecated features)
-> - performance.md (outdated benchmarks)
->
-> I've created a detailed report at `/reports/doc-review-2025-10-24.md` with recommended updates for each file.
-
----
-
-## Troubleshooting
-
-### MCP Server Not Connecting
-
-**Symptom**: Claude/Copilot doesn't show DocLight tools
-
-**Solutions**:
-
-**1. Verify Absolute Paths**:
-```bash
-# Get absolute path (macOS/Linux)
-cd doclight-mcp-server
-pwd
-
-# Get absolute path (Windows PowerShell)
-cd doclight-mcp-server
-(Get-Location).Path
-```
-
-Use the full path in configuration:
-```json
-"args": ["/full/path/to/doclight-mcp-server/src/index.js"]
-```
-
-**2. Check Configuration Syntax**:
-```bash
-# Validate JSON syntax
-cat ~/.config/Claude/claude_desktop_config.json | python -m json.tool
-
-# On Windows
-type %APPDATA%\Claude\claude_desktop_config.json | python -m json.tool
-```
-
-**3. Verify Environment Variables**:
-```bash
-# Test MCP server manually
-cd doclight-mcp-server
-DOCLIGHT_URL=http://localhost:3000 \
-DOCLIGHT_API_KEY=your-key \
-node src/index.js
-```
-
-Expected output: `DocLight MCP server running on stdio`
-
-**4. Check DocLight Server**:
-```bash
-# Verify DocLight is running
-curl http://localhost:3000/healthz
-
-# Expected response:
-# {"status":"OK","timestamp":"...","uptime":123.45}
-```
-
-**5. Restart AI Client**:
-- **Claude Desktop**: Quit completely (Cmd+Q / Alt+F4), then restart
-- **VS Code**: Reload window (Ctrl+R / Cmd+R)
-
-**6. Check Logs**:
-- **Claude Desktop**: Menu → View → Toggle Developer Tools → Console tab
-- **VS Code**: View → Output → Select "GitHub Copilot" or "Continue"
-
----
-
-### Authentication Failures
-
-**Symptom**: "API error: 401 - Unauthorized"
-
-**Solutions**:
-
-**1. Verify API Key Matches**:
-```bash
-# Check DocLight config
-cat config.json5 | grep apiKey
-
-# Check MCP .env
-cat doclight-mcp-server/.env | grep DOCLIGHT_API_KEY
-```
-
-Keys must match exactly.
-
-**2. Check for Whitespace**:
-```bash
-# Trim whitespace in .env
-DOCLIGHT_API_KEY="$(echo 'your-key' | tr -d '[:space:]')"
-```
-
-**3. Regenerate API Key**:
-```bash
-# Generate new key
-openssl rand -hex 32
-
-# Update both:
-# 1. config.json5 (DocLight)
-# 2. .env (MCP Server)
-```
-
-**4. Verify Header Transmission**:
-
-Check MCP server logs for API requests:
-```bash
-LOG_LEVEL=debug npm start
-```
-
-Look for: `X-API-Key: abc123...`
-
----
-
-### Path Not Found Errors
-
-**Symptom**: "Failed to read document: File not found"
-
-**Solutions**:
-
-**1. Verify Path Format**:
-- ✅ Correct: `/guide/api.md`
-- ❌ Wrong: `guide/api.md` (missing leading slash)
-- ❌ Wrong: `/guide/api` (missing extension)
-
-**2. List Directory First**:
-
-Ask AI:
-```
-"List files in /guide"
-```
-
-This confirms:
-- Directory exists
-- Correct file names
-- Proper path structure
-
-**3. Check docsRoot Configuration**:
-```bash
-# Verify file exists on server
-ls -la /path/to/docsRoot/guide/api.md
-```
-
-**4. Check File Permissions**:
-```bash
-# Ensure DocLight server can read files
-chmod 644 /path/to/docsRoot/guide/*.md
-```
-
----
-
-### Connection Timeouts
-
-**Symptom**: MCP requests timeout or hang
-
-**Solutions**:
-
-**1. Check Network Connectivity**:
-```bash
-# Test DocLight API directly
-curl -v http://localhost:3000/api/tree
-```
-
-**2. Verify Firewall Rules**:
-- Allow localhost connections
-- Check port 3000 (or configured port) is open
-
-**3. Check DOCLIGHT_URL Format**:
-- ✅ Correct: `http://localhost:3000`
-- ❌ Wrong: `http://localhost:3000/` (trailing slash)
-- ❌ Wrong: `localhost:3000` (missing protocol)
-
-**4. Increase Timeout** (if modifying client):
-```javascript
-// In client.js
-axios({
-  // ...
-  timeout: 30000  // 30 seconds (default: 10s)
-})
-```
-
-**5. Check DocLight Server Logs**:
-```bash
-# Monitor DocLight logs
-tail -f logs/application-*.log
-```
-
-Look for incoming API requests and errors.
-
----
-
-### Large File Upload Failures
-
-**Symptom**: "Upload failed: Payload Too Large"
-
-**Solutions**:
-
-**1. Check maxUploadMB**:
-```json5
-// config.json5
-{
-  maxUploadMB: 10  // Increase if needed
-}
-```
-
-**2. Restart DocLight Server**:
-```bash
-# Apply new configuration
-npm start
-```
-
-**3. Split Large Documents**:
-
-Instead of one 50MB file, create multiple smaller files:
-```
-/guide/large-doc-part1.md
-/guide/large-doc-part2.md
-/guide/large-doc-part3.md
-```
-
-**4. Optimize Markdown Content**:
-- Remove unnecessary embedded images
-- Link to external images instead
-- Compress images before embedding
-
----
-
-### Tool Execution Errors
-
-**Symptom**: "Error: Failed to execute tool"
-
-**Solutions**:
-
-**1. Enable Debug Logging**:
-```bash
-LOG_LEVEL=debug npm start
-```
-
-**2. Verify Required Arguments**:
-
-| Tool | Required Arguments |
-|------|-------------------|
-| `doclight_list` | None (path optional) |
-| `doclight_read` | `path` |
-| `doclight_create` | `path`, `content` |
-| `doclight_update` | `path`, `content` |
-| `doclight_delete` | `path` |
-
-**3. Test with curl First**:
-```bash
-# Test read operation
-curl "http://localhost:3000/api/raw?path=/test.md"
-
-# Test upload operation
-curl -X POST \
-  -H "X-API-Key: your-key" \
-  -F "file=@test.md" \
-  "http://localhost:3000/api/upload?path=/"
-```
-
-**4. Check Error Messages**:
-
-MCP server returns detailed error messages:
-```json
-{
-  "content": [{
-    "type": "text",
-    "text": "Error: [Specific error description]"
-  }],
-  "isError": true
-}
-```
-
-Read error message carefully for clues.
-
----
-
-### VS Code MCP Configuration Issues
-
-**Symptom**: Copilot doesn't recognize MCP server
-
-**Solutions**:
-
-**1. Check VS Code Version**:
-```
-Help → About
-
-Required: VS Code 1.99 or later
-```
-
-**2. Verify Copilot Extension**:
-- Open Extensions (Ctrl+Shift+X)
-- Search "GitHub Copilot"
-- Ensure extension is installed and enabled
-- Check for updates
-
-**3. Check Enterprise Policy**:
-
-If using GitHub Enterprise:
-1. Go to organization settings
-2. Navigate to Copilot policies
-3. Ensure "MCP servers in Copilot" is enabled
-
-**4. Reload Window**:
-```
-Ctrl+Shift+P → Developer: Reload Window
-```
-
-**5. Check Settings**:
-```
-File → Preferences → Settings
-Search: "copilot mcp"
-Verify "GitHub Copilot: MCP Servers" setting exists
-```
-
----
-
-## Advanced Topics
-
-### Multiple DocLight Instances
-
-Connect to multiple DocLight servers simultaneously:
-
-```json
-{
-  "mcpServers": {
-    "doclight-prod": {
-      "command": "node",
-      "args": ["/path/to/index.js"],
-      "env": {
-        "DOCLIGHT_URL": "https://docs.company.com",
-        "DOCLIGHT_API_KEY": "prod-key"
-      }
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "protocolVersion": "2024-11-05",
+    "capabilities": {
+      "tools": {}
     },
-    "doclight-dev": {
-      "command": "node",
-      "args": ["/path/to/index.js"],
-      "env": {
-        "DOCLIGHT_URL": "http://localhost:3000",
-        "DOCLIGHT_API_KEY": "dev-key"
-      }
+    "serverInfo": {
+      "name": "DocuLight",
+      "version": "1.0.0"
     }
   }
 }
 ```
 
-**Usage**:
-```
-"List documents in doclight-prod"
-"Create a test file in doclight-dev"
-```
-
-AI assistant will route requests to the appropriate server.
-
----
-
-### Custom Transport Layer
-
-**Current**: stdio transport (stdin/stdout)
-**Future**: HTTP transport for remote servers
-
-**HTTP Transport Benefits**:
-- Remote server access
-- Load balancing
-- Authentication layers
-- Monitoring/logging
-
-**Implementation** (future):
-```javascript
-import { HttpServerTransport } from '@modelcontextprotocol/sdk/server/http.js';
-
-const transport = new HttpServerTransport({
-  port: 3001,
-  path: '/mcp',
-  authentication: {
-    type: 'bearer',
-    token: 'secure-token'
-  }
-});
-```
+**응답 필드:**
+- `protocolVersion`: MCP 프로토콜 버전
+- `capabilities`: 서버가 지원하는 기능
+  - `tools`: 도구(Tools) 기능 지원
+- `serverInfo`: 서버 정보
+  - `name`: 서버 이름
+  - `version`: 서버 버전
 
 ---
 
-### Security Best Practices
+### 2. tools/list
 
-**1. API Key Security**:
-```bash
-# Never commit API keys
-echo ".env" >> .gitignore
+사용 가능한 모든 MCP 도구 목록을 조회합니다.
 
-# Use environment variables
-export DOCLIGHT_API_KEY=$(cat .secrets/api-key)
-
-# Rotate keys regularly
-openssl rand -hex 32 > .secrets/new-key
-```
-
-**2. Network Security**:
-```json5
-// Use HTTPS in production
+**요청:**
+```json
 {
-  ssl: {
-    enabled: true,
-    cert: "/path/to/cert.pem",
-    key: "/path/to/key.pem"
-  }
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/list"
 }
 ```
 
-**3. IP Whitelisting**:
-```json5
+**응답:**
+```json
 {
-  security: {
-    allows: [
-      "127.0.0.1",           // localhost
-      "10.0.1.0/24",         // office network
-      "192.168.1.100"        // specific IP
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "tools": [
+      {
+        "name": "list_documents",
+        "description": "List all documents in a directory",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Directory path (default: root)",
+              "default": "/"
+            }
+          }
+        }
+      },
+      {
+        "name": "list_full_tree",
+        "description": "Recursively list all documents and directories starting from a path",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Starting directory path (default: /)",
+              "default": "/"
+            },
+            "maxDepth": {
+              "type": "integer",
+              "description": "Optional maximum depth (0 = only this directory). If omitted, full depth."
+            }
+          }
+        }
+      },
+      {
+        "name": "read_document",
+        "description": "Read a markdown document",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Document path (e.g., guide/getting-started.md)"
+            }
+          },
+          "required": ["path"]
+        }
+      },
+      {
+        "name": "create_document",
+        "description": "Create or update a markdown document",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Document path (e.g., guide/new-doc.md)"
+            },
+            "content": {
+              "type": "string",
+              "description": "Markdown content"
+            }
+          },
+          "required": ["path", "content"]
+        }
+      },
+      {
+        "name": "delete_document",
+        "description": "Delete a document or directory",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Document or directory path to delete"
+            }
+          },
+          "required": ["path"]
+        }
+      },
+      {
+        "name": "DocuLight_get_config",
+        "description": "Get current runtime configuration with sensitive values masked",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "section": {
+              "type": "string",
+              "description": "Configuration section to retrieve (ui, security, ssl, all)",
+              "default": "all",
+              "enum": ["ui", "security", "ssl", "all"]
+            }
+          }
+        }
+      },
+      {
+        "name": "DocuLight_search",
+        "description": "Search for documents containing specific text",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Search query (minimum 2 characters)"
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Maximum number of results to return (1-100)",
+              "default": 10
+            },
+            "path": {
+              "type": "string",
+              "description": "Search within directory (default: /)",
+              "default": "/"
+            }
+          },
+          "required": ["query"]
+        }
+      }
     ]
   }
 }
 ```
 
-**4. Access Control**:
-- Use separate API keys per environment
-- Limit MCP server permissions
-- Monitor API usage logs
-- Implement rate limiting (future feature)
+---
 
-**5. Audit Logging**:
-```bash
-# Monitor MCP operations
-tail -f logs/application-*.log | grep "MCP"
+### 3. tools/call
 
-# Track API access
-tail -f logs/application-*.log | grep "POST\|DELETE"
+특정 도구를 실행합니다.
+
+**요청 형식:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "tools/call",
+  "params": {
+    "name": "tool_name",
+    "arguments": {
+      // tool-specific arguments
+    }
+  }
+}
 ```
 
 ---
 
-## Resources
+## MCP 도구 (Tools)
 
-### Official Documentation
+### 도구 1: list_documents
 
-- **MCP Protocol Spec**: [https://modelcontextprotocol.io](https://modelcontextprotocol.io)
-- **MCP SDK**: [GitHub - @modelcontextprotocol/sdk](https://github.com/anthropics/mcp-sdk)
-- **Claude Desktop**: [https://claude.ai/download](https://claude.ai/download)
-- **GitHub Copilot MCP**: [GitHub Docs - Extending Copilot with MCP](https://docs.github.com/en/copilot/how-tos/context/model-context-protocol)
+특정 디렉토리의 바로 하위 항목(1 depth)만 조회합니다.
 
-### Community Resources
+**파라미터:**
+| 이름 | 타입 | 필수 | 기본값 | 설명 |
+|------|------|------|--------|------|
+| path | string | No | `/` | 조회할 디렉토리 경로 |
 
-- **MCP Servers List**: [GitHub - awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers)
-- **Continue.dev**: [https://continue.dev/docs](https://continue.dev/docs)
-- **MCP Development Guide**: [GitHub - cyanheads/model-context-protocol-resources](https://github.com/cyanheads/model-context-protocol-resources)
-
-### Support
-
-- **GitHub Issues**: [DocLight Repository Issues](https://github.com/your-org/doclight/issues)
-- **API Documentation**: [/api/doc](/api/doc)
-- **MCP Server Code**: `doclight-mcp-server/` directory
-- **Community Forum**: [Your forum link]
-
----
-
-## Changelog
-
-### Version 1.0.0 (2025-10-24)
-
-**Initial Release**:
-- ✅ Claude Desktop integration (stdio transport)
-- ✅ 5 core tools (list, read, create, update, delete)
-- ✅ X-API-Key authentication
-- ✅ Support for both macOS and Windows
-- ✅ Comprehensive error handling
-
-**Tested With**:
-- Claude Desktop 3.5 Sonnet
-- VS Code 1.99 + GitHub Copilot
-- Continue.dev extension
-
-**Upcoming Features**:
-- 🔜 HTTP transport support
-- 🔜 WebSocket transport for real-time updates
-- 🔜 Document search tool
-- 🔜 Batch operations (bulk create/update)
-- 🔜 MCP Resources (expose documents as resources)
-- 🔜 MCP Prompts (pre-written templates)
-- 🔜 Desktop Extension package (.mcpb file)
-
----
-
-## FAQ
-
-**Q: Do I need to restart my AI client after configuration changes?**
-A: Yes, always completely quit and restart Claude Desktop or reload VS Code window.
-
-**Q: Can I use MCP server with multiple AI assistants simultaneously?**
-A: Yes, stdio transport creates separate instances for each client. For HTTP transport (future), multiple clients can share one server.
-
-**Q: Does MCP server work offline?**
-A: MCP server itself works offline, but DocLight server must be accessible. For offline use, run DocLight locally.
-
-**Q: How do I update DocLight MCP server?**
-A:
-```bash
-cd doclight-mcp-server
-git pull  # if using git
-npm install  # update dependencies
+**요청 예시:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 10,
+  "method": "tools/call",
+  "params": {
+    "name": "list_documents",
+    "arguments": {
+      "path": "/guide"
+    }
+  }
+}
 ```
-Then restart AI clients.
 
-**Q: Can I customize tool names or behavior?**
-A: Yes, modify `src/index.js` and tool implementations in `src/tools/`. Restart after changes.
+**응답 예시:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 10,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "# Documents at /guide\n\n📁 chapter1/\n📁 chapter2/\n📄 intro.md\n📄 setup.md\n"
+      }
+    ]
+  }
+}
+```
 
-**Q: Does MCP server support file uploads with images?**
-A: Yes, but images must be embedded as base64 or referenced by URL in Markdown content.
+**출력 형식:**
+- 디렉토리: `📁 디렉토리명/`
+- 파일: `📄 파일명`
+- 알파벳순 정렬
+- 빈 디렉토리: `(Empty directory)`
 
-**Q: How do I uninstall MCP server?**
-A: Remove configuration from Claude/VS Code config file and restart client. Optionally delete `doclight-mcp-server/` directory.
-
-**Q: Is MCP server secure for production use?**
-A: Yes, with proper security measures:
-- Use HTTPS for DocLight
-- Implement IP whitelisting
-- Rotate API keys regularly
-- Monitor access logs
+**특징:**
+- 숨김 파일(`.`로 시작) 자동 제외
+- `config.json5`의 `excludes` 규칙 적용
+- 하위 디렉토리 내부는 표시하지 않음 (1 depth만)
 
 ---
 
-**MCP Server Version**: 1.0.0
-**Last Updated**: 2025-10-24
-**License**: MIT
-**Protocol**: Model Context Protocol v1.0
+### 도구 2: list_full_tree
+
+지정된 경로부터 모든 하위 디렉토리를 재귀적으로 조회합니다.
+
+**파라미터:**
+| 이름 | 타입 | 필수 | 기본값 | 설명 |
+|------|------|------|--------|------|
+| path | string | No | `/` | 시작 디렉토리 경로 |
+| maxDepth | integer | No | unlimited | 최대 깊이 (0 = 현재 디렉토리만) |
+
+**요청 예시 1 - 전체 트리:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 11,
+  "method": "tools/call",
+  "params": {
+    "name": "list_full_tree",
+    "arguments": {
+      "path": "/"
+    }
+  }
+}
+```
+
+**요청 예시 2 - 깊이 제한:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 12,
+  "method": "tools/call",
+  "params": {
+    "name": "list_full_tree",
+    "arguments": {
+      "path": "/guide",
+      "maxDepth": 2
+    }
+  }
+}
+```
+
+**응답 예시:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 11,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "# Full Tree at /\n\nStats: Directories=15, Files=42\n\n📁 docs/\n  📁 api/\n    📄 api.md\n    📄 mcp.md\n  📁 guide/\n    📄 intro.md\n📁 public/\n  📄 index.html\n📄 README.md\n"
+      }
+    ]
+  }
+}
+```
+
+**출력 형식:**
+- 헤더: 경로, 통계 정보 (디렉토리 수, 파일 수, maxDepth)
+- 계층 구조: 들여쓰기 2칸으로 깊이 표현
+- 디렉토리: `📁 디렉토리명/`
+- 파일: `📄 파일명`
+- 알파벳순 정렬
+
+**특징:**
+- 전체 문서 트리를 한 번에 조회 가능
+- `maxDepth` 지정 시 지정된 깊이까지만 탐색
+- 숨김 파일 및 제외 규칙 적용
+- 출력 라인 수 제한 없음 (주의: 매우 큰 트리는 응답이 클 수 있음)
+
+**성능 고려사항:**
+- 대규모 문서 트리의 경우 응답 시간이 길 수 있음
+- `maxDepth`를 적절히 설정하여 응답 크기 조절 권장
+- 전체 트리가 필요하지 않은 경우 `list_documents` 사용 권장
+
+---
+
+### 도구 3: read_document
+
+마크다운 파일의 원본 내용을 읽습니다.
+
+**파라미터:**
+| 이름 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| path | string | Yes | 읽을 파일 경로 (예: `/guide/intro.md`) |
+
+**요청 예시:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 20,
+  "method": "tools/call",
+  "params": {
+    "name": "read_document",
+    "arguments": {
+      "path": "/README.md"
+    }
+  }
+}
+```
+
+**응답 예시:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 20,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "# /README.md\n\n# DocuLight\n\nA lightweight documentation server...\n"
+      }
+    ]
+  }
+}
+```
+
+**출력 형식:**
+- 헤더: `# 파일경로`
+- 본문: 파일의 원본 마크다운 내용
+
+**제약사항:**
+- 마크다운 파일(`.md`)만 지원
+- 파일이 존재해야 함
+- 디렉토리는 읽을 수 없음
+
+**에러 케이스:**
+- `PATH_TRAVERSAL`: path 파라미터 누락
+- `NOT_FOUND`: 파일이 존재하지 않거나 디렉토리임
+- `UNSUPPORTED_TYPE`: `.md` 파일이 아님
+
+---
+
+### 도구 4: create_document
+
+마크다운 문서를 생성하거나 업데이트합니다.
+
+**파라미터:**
+| 이름 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| path | string | Yes | 생성/업데이트할 문서 경로 (예: `/guide/new-doc.md`) |
+| content | string | Yes | 마크다운 내용 |
+
+**요청 예시:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 30,
+  "method": "tools/call",
+  "params": {
+    "name": "create_document",
+    "arguments": {
+      "path": "/guide/getting-started.md",
+      "content": "# Getting Started\n\nWelcome to DocuLight!\n\n## Installation\n\n..."
+    }
+  }
+}
+```
+
+**응답 예시:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 30,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Successfully created/updated: /guide/getting-started.md"
+      }
+    ]
+  }
+}
+```
+
+**동작 방식:**
+- 경로에서 디렉토리 부분과 파일명을 자동 분리
+- 대상 디렉토리가 없으면 자동 생성
+- 기존 파일이 있으면 덮어쓰기
+- UTF-8 인코딩으로 저장
+- 디렉토리 단위 잠금으로 동시 수정 방지
+
+**경로 처리:**
+- 입력: `/guide/chapter1/lesson1.md`
+- 디렉토리: `/guide/chapter1`
+- 파일명: `lesson1.md`
+
+**특징:**
+- 중첩 디렉토리 자동 생성
+- 동시성 제어로 데이터 무결성 보장
+- 파일 시스템 보안 검증 (path traversal 방지)
+
+---
+
+### 도구 5: delete_document
+
+문서 또는 디렉토리를 삭제합니다.
+
+**파라미터:**
+| 이름 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| path | string | Yes | 삭제할 문서/디렉토리 경로 |
+
+**요청 예시:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 40,
+  "method": "tools/call",
+  "params": {
+    "name": "delete_document",
+    "arguments": {
+      "path": "/guide/old-doc.md"
+    }
+  }
+}
+```
+
+**응답 예시:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 40,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Successfully deleted: /guide/old-doc.md"
+      }
+    ]
+  }
+}
+```
+
+**동작 방식:**
+- 파일과 디렉토리 모두 삭제 가능
+- 디렉토리는 재귀적으로 삭제 (모든 하위 항목 포함)
+- 파일이 사용 중일 경우 최대 2회 재시도 (1초 간격)
+- 경로 잠금으로 동시 삭제 방지
+
+**재시도 로직:**
+- Windows에서 파일이 사용 중(`EBUSY`)일 경우 자동 재시도
+- 재시도 간격: 1초
+- 최대 재시도: 2회
+- 모든 재시도 실패 시 `FILE_BUSY` 에러
+
+**에러 케이스:**
+- `PATH_TRAVERSAL`: path 파라미터 누락
+- `NOT_FOUND`: 경로가 존재하지 않음
+- `FILE_BUSY`: 파일이 사용 중이어서 삭제 불가
+
+---
+
+### 도구 6: DocuLight_get_config
+
+현재 런타임 설정을 조회합니다. 민감한 정보(apiKey, passwords 등)는 자동으로 마스킹됩니다.
+
+**파라미터:**
+| 이름 | 타입 | 필수 | 기본값 | 설명 |
+|------|------|------|--------|------|
+| section | string | No | `all` | 조회할 설정 섹션 (`ui`, `security`, `ssl`, `all`) |
+
+**요청 예시:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 50,
+  "method": "tools/call",
+  "params": {
+    "name": "DocuLight_get_config",
+    "arguments": {
+      "section": "all"
+    }
+  }
+}
+```
+
+**응답 예시:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 50,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "# Configuration (section: all)\n\n```json\n{\n  \"docsRoot\": \"/path/to/docs\",\n  \"apiKey\": \"***\",\n  \"port\": 3000,\n  \"ui\": {\n    \"title\": \"DocuLight\",\n    \"icon\": \"/images/icon.png\"\n  },\n  \"ssl\": {\n    \"enabled\": false,\n    \"key\": \"***\"\n  }\n}\n```"
+      }
+    ]
+  }
+}
+```
+
+**출력 형식:**
+- 헤더: `# Configuration (section: {section})`
+- 본문: JSON 형식의 설정 정보
+- 민감값 마스킹: `apiKey`, `password`, `key`, `secret`, `token` 등이 `***`로 표시
+
+**섹션 필터링:**
+- `all`: 전체 설정 반환 (기본값)
+- `ui`: UI 관련 설정만 반환
+- `security`: 보안 관련 설정만 반환
+- `ssl`: SSL 관련 설정만 반환
+
+**보안 기능:**
+- 민감한 필드 자동 감지 및 마스킹
+- 로그에 민감값 노출 방지
+- 재귀적으로 중첩된 객체도 마스킹
+
+**특징:**
+- 런타임 설정 조회 (재시작 없이 최신 상태)
+- 안전한 설정 확인 및 디버깅
+- AI 에이전트가 서버 설정 파악 가능
+
+**에러 케이스:**
+- `INVALID_SECTION`: 유효하지 않은 section 값
+
+---
+
+### 도구 7: DocuLight_search
+
+문서 내용에서 키워드를 검색합니다. 실시간 파일 스캔 방식으로 작동합니다.
+
+**파라미터:**
+| 이름 | 타입 | 필수 | 기본값 | 설명 |
+|------|------|------|--------|------|
+| query | string | Yes | - | 검색 쿼리 (최소 2글자) |
+| limit | integer | No | `10` | 최대 결과 수 (1-100) |
+| path | string | No | `/` | 검색 대상 디렉토리 |
+
+**요청 예시:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 60,
+  "method": "tools/call",
+  "params": {
+    "name": "DocuLight_search",
+    "arguments": {
+      "query": "installation",
+      "limit": 5,
+      "path": "/"
+    }
+  }
+}
+```
+
+**응답 예시:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 60,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "# Search Results for \"installation\"\n\n**Statistics**: 3 matches in 8 files scanned (42ms)\n\n## 1. /guide/setup.md\n\n**Line 5**: ## Installation\n\n```\n# Getting Started\n\n## Installation\n\nTo install DocuLight, run:\n```\n\n## 2. /README.md\n\n**Line 12**: Installation is simple\n\n```\nDocuLight is a lightweight server.\n\nInstallation is simple:\n\nnpm install\n```\n\n## 3. /docs/advanced.md\n\n**Line 23**: Post-installation steps\n\n```\nConfiguration file setup.\n\nPost-installation steps:\n\n1. Copy config\n```\n"
+      }
+    ]
+  }
+}
+```
+
+**출력 형식:**
+- 헤더: `# Search Results for "{query}"`
+- 통계: 매치 수, 스캔한 파일 수, 실행 시간
+- 결과: 각 매치별로 파일 경로, 라인 번호, 내용, 컨텍스트(±2줄)
+
+**검색 특징:**
+- **대소문자 무시**: `Installation`, `installation` 모두 매칭
+- **컨텍스트 제공**: 매칭 라인의 전후 2줄 포함
+- **성능 최적화**:
+  - 1MB 이상 파일은 자동 스킵
+  - 검색 시간 제한: 5초
+  - 파일당 최대 50개 매치 제한
+
+**제한사항:**
+- 쿼리 최소 길이: 2글자
+- 최대 결과 수: 100 (초과 시 자동 제한)
+- 숨김 파일 및 exclude 패턴 적용
+
+**성능 고려사항:**
+- 실시간 스캔 방식으로 대규모 문서 집합에서는 느릴 수 있음
+- `path` 파라미터로 검색 범위 제한 권장
+- 향후 인덱싱 기반으로 업그레이드 예정
+
+**에러 케이스:**
+- `INVALID_QUERY`: query 파라미터 누락 또는 타입 오류
+- `QUERY_TOO_SHORT`: 쿼리 길이 < 2글자
+- `PATH_TRAVERSAL`: 잘못된 path 파라미터
+- `PATH_NOT_FOUND`: 검색 경로가 존재하지 않음
+- `SEARCH_TIMEOUT`: 검색 시간 초과 (5초)
+
+---
+
+## JSON-RPC 에러 코드
+
+MCP 프로토콜에서 사용하는 표준 JSON-RPC 2.0 에러 코드:
+
+| 코드 | 이름 | 설명 |
+|------|------|------|
+| -32600 | Invalid Request | JSON-RPC 버전이 "2.0"이 아니거나 필수 필드 누락 |
+| -32601 | Method not found | 요청한 메서드가 존재하지 않음 |
+| -32602 | Invalid params | 파라미터가 누락되었거나 형식이 잘못됨 |
+| -32603 | Internal error | 서버 내부 오류 발생 |
+
+### 에러 응답 예시
+
+**잘못된 JSON-RPC 버전:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "error": {
+    "code": -32600,
+    "message": "Invalid Request",
+    "data": "jsonrpc must be \"2.0\""
+  }
+}
+```
+
+**메서드 누락:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "error": {
+    "code": -32600,
+    "message": "Invalid Request",
+    "data": "method is required"
+  }
+}
+```
+
+**존재하지 않는 메서드:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "error": {
+    "code": -32601,
+    "message": "Method not found",
+    "data": "Method unknown_method not supported"
+  }
+}
+```
+
+**도구 이름 누락:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "error": {
+    "code": -32602,
+    "message": "Invalid params",
+    "data": "tool name is required"
+  }
+}
+```
+
+**내부 오류 (예: 파일 시스템 에러):**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 5,
+  "error": {
+    "code": -32603,
+    "message": "Internal error",
+    "data": "ENOENT: no such file or directory"
+  }
+}
+```
+
+---
+
+## 사용 예시
+
+### Python 예시
+
+```python
+import requests
+import json
+
+MCP_URL = "http://localhost:3000/mcp"
+
+def mcp_call(method, params=None):
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": method,
+        "params": params or {}
+    }
+    response = requests.post(MCP_URL, json=payload)
+    return response.json()
+
+# 1. 초기화
+init_result = mcp_call("initialize")
+print(f"Server: {init_result['result']['serverInfo']['name']}")
+
+# 2. 도구 목록 조회
+tools_result = mcp_call("tools/list")
+print(f"Available tools: {len(tools_result['result']['tools'])}")
+
+# 3. 문서 목록 조회
+list_result = mcp_call("tools/call", {
+    "name": "list_documents",
+    "arguments": {"path": "/"}
+})
+print(list_result['result']['content'][0]['text'])
+
+# 4. 문서 읽기
+read_result = mcp_call("tools/call", {
+    "name": "read_document",
+    "arguments": {"path": "/README.md"}
+})
+print(read_result['result']['content'][0]['text'])
+
+# 5. 문서 생성
+create_result = mcp_call("tools/call", {
+    "name": "create_document",
+    "arguments": {
+        "path": "/test/hello.md",
+        "content": "# Hello World\n\nThis is a test document."
+    }
+})
+print(create_result['result']['content'][0]['text'])
+
+# 6. 전체 트리 조회 (최대 깊이 2)
+tree_result = mcp_call("tools/call", {
+    "name": "list_full_tree",
+    "arguments": {
+        "path": "/",
+        "maxDepth": 2
+    }
+})
+print(tree_result['result']['content'][0]['text'])
+
+# 7. 문서 삭제
+delete_result = mcp_call("tools/call", {
+    "name": "delete_document",
+    "arguments": {"path": "/test/hello.md"}
+})
+print(delete_result['result']['content'][0]['text'])
+
+# 8. 설정 조회
+config_result = mcp_call("tools/call", {
+    "name": "DocuLight_get_config",
+    "arguments": {"section": "all"}
+})
+print(config_result['result']['content'][0]['text'])
+
+# 9. 문서 검색
+search_result = mcp_call("tools/call", {
+    "name": "DocuLight_search",
+    "arguments": {
+        "query": "installation",
+        "limit": 5
+    }
+})
+print(search_result['result']['content'][0]['text'])
+```
+
+---
+
+### JavaScript/Node.js 예시
+
+```javascript
+const axios = require('axios');
+
+const MCP_URL = 'http://localhost:3000/mcp';
+
+async function mcpCall(method, params = {}) {
+  const response = await axios.post(MCP_URL, {
+    jsonrpc: '2.0',
+    id: Date.now(),
+    method,
+    params
+  });
+  return response.data;
+}
+
+async function main() {
+  // 1. 초기화
+  const initResult = await mcpCall('initialize');
+  console.log('Server:', initResult.result.serverInfo.name);
+
+  // 2. 도구 목록
+  const toolsResult = await mcpCall('tools/list');
+  console.log('Tools:', toolsResult.result.tools.map(t => t.name));
+
+  // 3. 문서 목록
+  const listResult = await mcpCall('tools/call', {
+    name: 'list_documents',
+    arguments: { path: '/' }
+  });
+  console.log(listResult.result.content[0].text);
+
+  // 4. 문서 읽기
+  const readResult = await mcpCall('tools/call', {
+    name: 'read_document',
+    arguments: { path: '/README.md' }
+  });
+  console.log(readResult.result.content[0].text);
+
+  // 5. 문서 생성
+  const createResult = await mcpCall('tools/call', {
+    name: 'create_document',
+    arguments: {
+      path: '/guide/new-guide.md',
+      content: '# New Guide\n\nContent here...'
+    }
+  });
+  console.log(createResult.result.content[0].text);
+
+  // 6. 전체 트리
+  const treeResult = await mcpCall('tools/call', {
+    name: 'list_full_tree',
+    arguments: { path: '/guide' }
+  });
+  console.log(treeResult.result.content[0].text);
+
+  // 7. 삭제
+  const deleteResult = await mcpCall('tools/call', {
+    name: 'delete_document',
+    arguments: { path: '/guide/new-guide.md' }
+  });
+  console.log(deleteResult.result.content[0].text);
+
+  // 8. 설정 조회
+  const configResult = await mcpCall('tools/call', {
+    name: 'DocuLight_get_config',
+    arguments: { section: 'ui' }
+  });
+  console.log(configResult.result.content[0].text);
+
+  // 9. 검색
+  const searchResult = await mcpCall('tools/call', {
+    name: 'DocuLight_search',
+    arguments: {
+      query: 'configuration',
+      limit: 10
+    }
+  });
+  console.log(searchResult.result.content[0].text);
+}
+
+main().catch(console.error);
+```
+
+---
+
+### cURL 예시
+
+**초기화:**
+```bash
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize"
+  }'
+```
+
+**도구 목록:**
+```bash
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/list"
+  }'
+```
+
+**문서 목록 조회:**
+```bash
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 3,
+    "method": "tools/call",
+    "params": {
+      "name": "list_documents",
+      "arguments": {
+        "path": "/guide"
+      }
+    }
+  }'
+```
+
+**전체 트리 조회:**
+```bash
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 4,
+    "method": "tools/call",
+    "params": {
+      "name": "list_full_tree",
+      "arguments": {
+        "path": "/",
+        "maxDepth": 3
+      }
+    }
+  }'
+```
+
+**문서 읽기:**
+```bash
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 5,
+    "method": "tools/call",
+    "params": {
+      "name": "read_document",
+      "arguments": {
+        "path": "/README.md"
+      }
+    }
+  }'
+```
+
+**문서 생성:**
+```bash
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 6,
+    "method": "tools/call",
+    "params": {
+      "name": "create_document",
+      "arguments": {
+        "path": "/test.md",
+        "content": "# Test\n\nHello World"
+      }
+    }
+  }'
+```
+
+**문서 삭제:**
+```bash
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 7,
+    "method": "tools/call",
+    "params": {
+      "name": "delete_document",
+      "arguments": {
+        "path": "/test.md"
+      }
+    }
+  }'
+```
+
+**설정 조회:**
+```bash
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 8,
+    "method": "tools/call",
+    "params": {
+      "name": "DocuLight_get_config",
+      "arguments": {
+        "section": "all"
+      }
+    }
+  }'
+```
+
+**문서 검색:**
+```bash
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 9,
+    "method": "tools/call",
+    "params": {
+      "name": "DocuLight_search",
+      "arguments": {
+        "query": "api",
+        "limit": 5,
+        "path": "/"
+      }
+    }
+  }'
+```
+
+---
+
+## 보안 및 제약사항
+
+### 보안 기능
+
+1. **경로 검증**
+   - 모든 경로는 `path-validator` 유틸리티로 검증
+   - Path traversal 공격 방지 (`../` 차단)
+   - 문서 루트 외부 접근 차단
+
+2. **파일 타입 제한**
+   - `read_document`: 마크다운 파일(`.md`)만 허용
+   - 다른 파일 형식은 읽을 수 없음
+
+3. **동시성 제어**
+   - Lock Manager를 통한 디렉토리/파일 단위 잠금
+   - 동시 수정/삭제 방지
+   - 데이터 무결성 보장
+
+4. **파일 필터링**
+   - 숨김 파일 자동 제외 (`.`로 시작)
+   - 사용자 정의 제외 패턴 지원 (`config.json5`의 `excludes`)
+
+### 제약사항
+
+1. **인증 없음**
+   - MCP 엔드포인트는 현재 공개 접근 허용
+   - 프로덕션 환경에서는 네트워크 레벨 보안 권장
+
+2. **마크다운 전용**
+   - `read_document`는 `.md` 파일만 지원
+   - 이미지, PDF 등 바이너리 파일 미지원
+
+3. **응답 크기**
+   - `list_full_tree`는 출력 라인 수 제한 없음
+   - 매우 큰 트리는 응답이 클 수 있음
+   - `maxDepth` 파라미터로 조절 권장
+
+4. **동기 실행**
+   - 각 도구 호출은 순차적으로 처리
+   - 장시간 실행 작업은 다른 요청을 지연시킬 수 있음
+
+---
+
+## 워크플로우 예시
+
+### 워크플로우 1: 문서 탐색 및 읽기
+
+```
+1. initialize → 서버 정보 확인
+2. tools/list → 사용 가능한 도구 확인
+3. list_documents (path: "/") → 루트 디렉토리 내용 확인
+4. list_documents (path: "/guide") → 가이드 디렉토리 확인
+5. read_document (path: "/guide/intro.md") → 문서 읽기
+```
+
+### 워크플로우 2: 문서 작성 및 구조 확인
+
+```
+1. list_full_tree (path: "/", maxDepth: 2) → 전체 구조 파악
+2. create_document (path: "/guide/new-chapter.md", content: "...") → 새 문서 생성
+3. list_documents (path: "/guide") → 생성 확인
+4. read_document (path: "/guide/new-chapter.md") → 내용 확인
+```
+
+### 워크플로우 3: 문서 정리
+
+```
+1. list_full_tree (path: "/old-docs") → 삭제 대상 확인
+2. delete_document (path: "/old-docs/obsolete.md") → 개별 파일 삭제
+3. delete_document (path: "/old-docs") → 디렉토리 전체 삭제
+4. list_documents (path: "/") → 삭제 확인
+```
+
+### 워크플로우 4: 문서 복사/이동 (간접)
+
+MCP는 직접적인 복사/이동 기능이 없으므로 읽기+쓰기+삭제 조합:
+
+```
+1. read_document (path: "/source/doc.md") → 원본 읽기
+2. create_document (path: "/target/doc.md", content: "...") → 대상에 쓰기
+3. delete_document (path: "/source/doc.md") → 원본 삭제 (이동의 경우)
+```
+
+---
+
+## 구현 세부사항
+
+### 아키텍처
+
+```
+┌─────────────────┐
+│   MCP Client    │ (AI Agent, Tool Consumer)
+│  (Claude, etc)  │
+└────────┬────────┘
+         │ HTTP POST /mcp
+         │ JSON-RPC 2.0
+         ▼
+┌─────────────────────────────────────┐
+│       MCP Router (mcp.js)           │
+│  ┌───────────────────────────────┐  │
+│  │ JSON-RPC Handler              │  │
+│  │ - Validate protocol           │  │
+│  │ - Route methods               │  │
+│  │ - Error handling              │  │
+│  └───────────┬───────────────────┘  │
+│              │                       │
+│  ┌───────────▼───────────────────┐  │
+│  │ MCP Tools                     │  │
+│  │ - list_documents              │  │
+│  │ - list_full_tree              │  │
+│  │ - read_document               │  │
+│  │ - create_document             │  │
+│  │ - delete_document             │  │
+│  │ - DocuLight_get_config         │  │
+│  │ - DocuLight_search             │  │
+│  └───────────┬───────────────────┘  │
+└──────────────┼─────────────────────┘
+               │
+               ▼
+┌──────────────────────────────────────┐
+│    API Controllers (api-ctrl.js)     │
+│  - getTreeData()                     │
+│  - getFullTreeData()                 │
+│  - getRawContent()                   │
+│  - uploadFileData()                  │
+│  - deleteEntryData()                 │
+│  - getConfig()                       │
+│  - searchDocuments()                 │
+└──────────────┬───────────────────────┘
+               │
+               ▼
+┌──────────────────────────────────────┐
+│         Utilities                    │
+│  - path-validator (보안)             │
+│  - lock-manager (동시성)             │
+│  - logger (로깅)                     │
+└──────────────┬───────────────────────┘
+               │
+               ▼
+┌──────────────────────────────────────┐
+│      File System (docs/)             │
+│  - Markdown files                    │
+│  - Directory structure               │
+└──────────────────────────────────────┘
+```
+
+### 모듈 구조
+
+```
+src/routes/
+  ├── mcp.js              # MCP 라우터 및 도구 정의
+  └── api-ctrl.js         # 공통 비즈니스 로직
+
+src/middleware/
+  ├── auth.js             # API 키 인증 (MCP는 미사용)
+  └── error-handler.js    # 전역 에러 핸들러
+
+src/utils/
+  ├── path-validator.js   # 경로 보안 검증
+  ├── lock-manager.js     # 동시성 제어
+  └── logger.js           # 로깅
+```
+
+### 의존성
+
+- **express**: 웹 프레임워크
+- **ignore**: .gitignore 스타일 파일 필터링
+- **adm-zip**: ZIP 파일 처리 (업로드 시)
+- Node.js 내장 모듈: `fs`, `path`
+
+---
+
+## MCP vs REST API 비교
+
+DocuLight는 동일한 기능을 MCP와 REST API 두 가지 방식으로 제공합니다.
+
+| 측면 | MCP API | REST API |
+|------|---------|----------|
+| **프로토콜** | JSON-RPC 2.0 | RESTful HTTP |
+| **엔드포인트** | 단일 (`POST /mcp`) | 다중 (`GET /api/tree`, etc.) |
+| **인증** | 없음 | API 키 (보호된 엔드포인트) |
+| **메서드** | `method` 필드 | HTTP 메서드 (GET, POST, DELETE) |
+| **대상** | AI 에이전트, MCP 클라이언트 | 일반 HTTP 클라이언트 |
+| **응답 형식** | `content[].text` | 직접 JSON 또는 파일 스트림 |
+| **기능** | 문서 CRUD + 검색 + 설정 조회 (7개 도구) | 문서 CRUD + 다운로드 + ZIP |
+
+### 동등 기능 매핑
+
+| MCP Tool | REST API Endpoint | 비고 |
+|----------|-------------------|------|
+| `list_documents` | `GET /api/tree` | 동일 |
+| `list_full_tree` | `GET /api/tree/full` | MCP는 포맷된 텍스트, REST는 JSON |
+| `read_document` | `GET /api/raw` | 동일 |
+| `create_document` | `POST /api/upload` | MCP는 텍스트만, REST는 파일+ZIP |
+| `delete_document` | `DELETE /api/entry` | 동일 |
+| `DocuLight_get_config` | `GET /api/config/index` | MCP는 민감값 마스킹, REST는 선택적 |
+| `DocuLight_search` | - | MCP 전용 기능 |
+| - | `GET /api/download/file` | MCP 미지원 |
+| - | `GET /api/download/dir` | MCP 미지원 |
+
+---
+
+## 로깅
+
+모든 MCP 호출은 자동으로 로그에 기록됩니다.
+
+**로그 레벨:**
+- `info`: 정상 작업 (도구 호출, 성공)
+- `error`: 에러 발생
+
+**로그 예시:**
+```
+[INFO] MCP: tools/list called
+[INFO] MCP: tools/call { tool: 'list_documents', args: { path: '/guide' } }
+[INFO] Tree retrieved { path: '/guide', dirs: 2, files: 5 }
+[ERROR] MCP error { method: 'tools/call', error: 'NOT_FOUND: Path is not a file' }
+```
+
+---
+
+## 테스트
+
+### 단위 테스트 예시
+
+```javascript
+const request = require('supertest');
+const app = require('../src/app');
+
+describe('MCP API', () => {
+  test('initialize should return server info', async () => {
+    const response = await request(app)
+      .post('/mcp')
+      .send({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize'
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.result.serverInfo.name).toBe('DocuLight');
+  });
+
+  test('tools/list should return all tools', async () => {
+    const response = await request(app)
+      .post('/mcp')
+      .send({
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'tools/list'
+      });
+
+    expect(response.body.result.tools).toHaveLength(7);
+  });
+
+  test('list_documents should work', async () => {
+    const response = await request(app)
+      .post('/mcp')
+      .send({
+        jsonrpc: '2.0',
+        id: 3,
+        method: 'tools/call',
+        params: {
+          name: 'list_documents',
+          arguments: { path: '/' }
+        }
+      });
+
+    expect(response.body.result.content[0].type).toBe('text');
+  });
+});
+```
+
+---
+
+## 문제 해결
+
+### 일반적인 문제
+
+**1. "Invalid Request: jsonrpc must be '2.0'"**
+- 원인: `jsonrpc` 필드가 없거나 값이 잘못됨
+- 해결: 모든 요청에 `"jsonrpc": "2.0"` 포함
+
+**2. "Method not found"**
+- 원인: 지원하지 않는 메서드 호출
+- 해결: `initialize`, `tools/list`, `tools/call` 중 하나 사용
+
+**3. "tool name is required"**
+- 원인: `tools/call`에서 `params.name` 누락
+- 해결: `params` 객체에 `name` 필드 포함
+
+**4. "NOT_FOUND: Path is not a file"**
+- 원인: `read_document`에서 디렉토리 경로 지정
+- 해결: 파일 경로만 지정
+
+**5. "UNSUPPORTED_TYPE: Only .md files are supported"**
+- 원인: `.md`가 아닌 파일 읽기 시도
+- 해결: 마크다운 파일만 읽기
+
+**6. 응답이 너무 큼**
+- 원인: `list_full_tree`로 매우 큰 트리 조회
+- 해결: `maxDepth` 파라미터로 깊이 제한
+
+---
+
+## 확장 가능성
+
+향후 추가 가능한 기능:
+
+1. **추가 도구**
+   - ~~`search_documents`~~: ✅ 구현 완료 (`DocuLight_search`)
+   - `move_document`: 파일 이동
+   - `copy_document`: 파일 복사
+   - `get_document_info`: 메타데이터 조회 (크기, 수정 시간 등)
+   - `watch_changes`: 실시간 파일 변경 감지
+
+2. **검색 기능 향상**
+   - 인덱싱 기반 검색으로 업그레이드
+   - 정규식 검색 지원
+   - 파일 타입 필터링
+   - 날짜 범위 검색
+
+3. **고급 필터링**
+   - `list_documents`에 파일 확장자 필터
+   - `list_full_tree`에 파일명 패턴 매칭
+
+4. **배치 작업**
+   - `bulk_create`: 여러 문서 동시 생성
+   - `bulk_delete`: 여러 문서 동시 삭제
+
+5. **인증**
+   - API 키 기반 인증 추가
+   - 도구별 권한 제어
+
+6. **스트리밍**
+   - 대용량 문서 스트리밍 읽기
+   - 대규모 트리 청크 방식 전송
+
+7. **리소스(Resources)**
+   - MCP Resources 기능 구현
+   - 문서를 리소스로 노출
+
+---
+
+## 참고 자료
+
+- [Model Context Protocol 공식 문서](https://modelcontextprotocol.io/)
+- [JSON-RPC 2.0 스펙](https://www.jsonrpc.org/specification)
+- [DocuLight REST API 문서](./api.md)
+- [DocuLight cURL 예제](./api-curl-example.md)
+
+---
+
+## 버전 정보
+
+- **MCP Protocol Version**: 2024-11-05
+- **DocuLight Version**: 1.0.0
+- **Last Updated**: 2025-10-27
+- **Compatibility**: Node.js 14+
+- **Total MCP Tools**: 7 (기존 5개 + 신규 2개)
+  - 신규: `DocuLight_get_config`, `DocuLight_search`
+
+---
+
+## 라이선스 및 기여
+
+이 문서는 DocuLight 프로젝트의 일부입니다. 기여 및 피드백은 GitHub 리포지토리를 통해 환영합니다.

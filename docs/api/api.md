@@ -1,8 +1,8 @@
-# DocLight REST API 문서
+# DocuLight REST API 문서
 
 ## 개요
 
-DocLight는 마크다운 문서 관리를 위한 RESTful API를 제공합니다. API는 공개 엔드포인트와 보호된 엔드포인트로 구성되어 있습니다.
+DocuLight는 마크다운 문서 관리를 위한 RESTful API를 제공합니다. API는 공개 엔드포인트와 보호된 엔드포인트로 구성되어 있습니다.
 
 ### 기본 정보
 
@@ -223,6 +223,60 @@ This is a markdown file...
 - `PATH_TRAVERSAL`: path 파라미터 누락
 - `NOT_FOUND`: 파일이 존재하지 않거나 디렉토리임
 - `UNSUPPORTED_TYPE`: `.md` 파일이 아님
+
+---
+
+#### 2.1 Clean URL을 통한 원본 다운로드 (신규)
+
+브라우저에서 문서 URL에 `.md` 확장자를 추가하면 원본 파일이 다운로드됩니다.
+
+**요청**
+```http
+GET /doc/{path}.md
+```
+
+**예시**
+```
+렌더링 URL: http://localhost:3000/doc/guide/intro
+다운로드 URL: http://localhost:3000/doc/guide/intro.md
+```
+
+**동작**
+- `.md` 확장자가 있는 URL → 원본 파일 다운로드
+- `.md` 확장자가 없는 URL → 마크다운 뷰어로 렌더링
+
+**응답 헤더**
+```
+HTTP/1.1 200 OK
+Content-Disposition: attachment; filename="intro.md"
+Content-Type: text/markdown; charset=UTF-8
+Content-Length: 2048
+```
+
+**cURL 예시**
+```bash
+# 원본 다운로드
+curl "http://localhost:3000/doc/guide/intro.md" -o intro.md
+
+# 여러 파일 다운로드
+for doc in intro setup advanced; do
+  curl "http://localhost:3000/doc/guide/$doc.md" -o "$doc.md"
+done
+```
+
+**vs REST API (`/api/raw`)**
+
+| 측면 | Clean URL (`/doc/*.md`) | REST API (`/api/raw`) |
+|------|------------------------|----------------------|
+| **용도** | 브라우저 다운로드 | API 호출 |
+| **응답 헤더** | Content-Disposition: attachment | Content-Type: text/plain |
+| **브라우저 동작** | 다운로드 다이얼로그 | 텍스트 표시 |
+| **파일명** | 자동 설정 | 사용자가 직접 저장 |
+| **인증** | 불필요 | 불필요 |
+
+**사용 시나리오**
+- **Clean URL**: 최종 사용자가 브라우저에서 파일 다운로드
+- **REST API**: 프로그램이 파일 내용을 읽어서 처리
 
 ---
 
@@ -632,8 +686,17 @@ GET    /api/download/dir  → downloadDirectory()
 
 ---
 
+## 참고 자료
+
+- [MCP API 문서](./mcp.md) - Model Context Protocol (AI 에이전트용)
+- [API cURL 예제](./api-curl-example.md)
+
+---
+
 ## 버전 정보
 
 - **API Version**: 1.0
-- **Last Updated**: 2025-10-25
+- **Last Updated**: 2025-10-27
 - **Compatibility**: Node.js 14+
+
+**참고**: AI 에이전트를 위한 MCP API도 제공됩니다. 자세한 내용은 [MCP API 문서](./mcp.md)를 참조하세요.

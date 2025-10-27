@@ -343,7 +343,9 @@ module.exports = {
   getRawContent,
   uploadFileData,
   deleteEntryData,
-  getFullTreeData
+  getFullTreeData,
+  getConfig,
+  searchDocuments
 };
 
 /**
@@ -442,4 +444,267 @@ async function getFullTreeData(config, logger, startPath = '/', options = {}) {
     options: { maxDepth },
     stats: { totalFiles, totalDirs }
   };
+}
+
+/**
+ * 현재 런타임 설정 조회 및 민감값 마스킹
+ * @param {Object} config 애플리케이션 설정
+ * @param {Object} logger 로거
+ * @param {string} section 섹션 필터 (ui, security, ssl, all) - 기본값: all
+ * @returns {Promise<Object>} 마스킹된 설정 객체
+ */
+async function getConfig(config, logger, section = 'all') {
+  try {
+    // section 검증
+    const validSections = ['ui', 'security', 'ssl', 'all'];
+    if (section && !validSections.includes(section)) {
+      const error = new Error(`INVALID_SECTION: Section must be one of ${validSections.join(', ')}`);
+      error.code = 'INVALID_SECTION';
+      throw error;
+    }
+
+    // 깊은 복사로 원본 config 보호
+    let result = JSON.parse(JSON.stringify(config));
+
+    // 민감값 마스킹 함수
+    function maskSensitiveValues(obj, path = '') {
+      if (typeof obj !== 'object' || obj === null) return;
+
+      const sensitivePatterns = [
+        'apiKey', 'password', 'passwd', 'key', 'secret', 'token',
+        'credentials', 'auth', 'privateKey', 'privateKeyPath', 'pass'
+      ];
+
+      for (const [key, value] of Object.entries(obj)) {
+        const lowerKey = key.toLowerCase();
+
+        // 민감한 필드 확인
+        if (sensitivePatterns.some(pattern => lowerKey.includes(pattern.toLowerCase()))) {
+          if (typeof value === 'string' && value.length > 0) {
+            obj[key] = '***';
+          } else if (typeof value === 'object' && value !== null) {
+            obj[key] = { ...value };
+            for (const subKey in obj[key]) {
+              obj[key][subKey] = '***';
+            }
+          }
+        } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+          // 재귀적으로 처리
+          maskSensitiveValues(value, `${path}.${key}`);
+        }
+      }
+    }
+
+    // 전체 config에 마스킹 적용
+    maskSensitiveValues(result);
+
+    // section 필터링
+    if (section !== 'all') {
+      if (result[section] !== undefined) {
+        result = { [section]: result[section] };
+      } else {
+        result = {};
+      }
+    }
+
+    logger.info('Config retrieved', {
+      section,
+      keys: Object.keys(result).length
+    });
+
+    return result;
+  } catch (error) {
+    logger.error('Config retrieval failed', {
+      section,
+      error: error.message
+    });
+    throw error;
+  }
+}
+
+/**
+ * 문서 검색 (실시간 파일 스캔)
+ * @param {Object} config 애플리케이션 설정
+ * @param {Object} logger 로거
+ * @param {string} query 검색 쿼리
+ * @param {Object} options 옵션 { limit?: number, path?: string }
+ * @returns {Promise<Object>} 검색 결과
+ */
+async function searchDocuments(config, logger, query, options = {}) {
+  try {
+    const startTime = Date.now();
+    const { limit = 10, path: searchPath = '/' } = options;
+
+    // 입력 검증
+    if (!query || typeof query !== 'string') {
+      const error = new Error('INVALID_QUERY: Query must be a non-empty string');
+      error.code = 'INVALID_QUERY';
+      throw error;
+    }
+
+    if (query.length < 2) {
+      const error = new Error('QUERY_TOO_SHORT: Query must be at least 2 characters');
+      error.code = 'QUERY_TOO_SHORT';
+      throw error;
+    }
+
+    // limit 검증 및 제한
+    let finalLimit = Math.min(Math.max(parseInt(limit) || 10, 1), 100);
+
+    // 경로 검증
+    let absoluteSearchPath;
+    try {
+      absoluteSearchPath = validatePath(config.docsRoot, searchPath);
+    } catch (error) {
+      const pathError = new Error(`PATH_ERROR: ${error.message}`);
+      pathError.code = 'PATH_TRAVERSAL';
+      throw pathError;
+    }
+
+    // 검색 경로가 디렉토리인지 확인
+    let stats;
+    try {
+      stats = await fs.stat(absoluteSearchPath);
+    } catch (error) {
+      const notFoundError = new Error(`PATH_NOT_FOUND: ${searchPath}`);
+      notFoundError.code = 'NOT_FOUND';
+      throw notFoundError;
+    }
+
+    if (!stats.isDirectory()) {
+      const error = new Error('PATH_NOT_DIR: Search path must be a directory');
+      error.code = 'INVALID_PATH';
+      throw error;
+    }
+
+    // ignore 필터 생성
+    const ig = ignore().add(config.excludes);
+
+    // 검색 결과 저장소
+    const results = [];
+    let filesScanned = 0;
+    const maxFileSize = 1024 * 1024; // 1MB
+
+    // 쿼리를 소문자로 변환 (대소문자 무시 검색)
+    const lowerQuery = query.toLowerCase();
+
+    // 재귀적 파일 검색
+    async function searchRecursive(currentPath) {
+      // 검색 시간 제한 (5초)
+      if (Date.now() - startTime > 5000) {
+        const error = new Error('SEARCH_TIMEOUT: Search operation took too long');
+        error.code = 'TIMEOUT';
+        throw error;
+      }
+
+      try {
+        const entries = await fs.readdir(currentPath, { withFileTypes: true });
+
+        for (const entry of entries) {
+          // 숨김 파일 제외
+          if (entry.name.startsWith('.')) continue;
+
+          const entryPath = path.join(currentPath, entry.name);
+          const relativePath = path.relative(config.docsRoot, entryPath);
+
+          // 제외 규칙 적용
+          if (ig.ignores(relativePath)) continue;
+
+          if (entry.isDirectory()) {
+            // 재귀
+            await searchRecursive(entryPath);
+          } else if (entry.isFile()) {
+            filesScanned++;
+
+            // 파일 크기 확인
+            const fileStats = await fs.stat(entryPath);
+            if (fileStats.size > maxFileSize) {
+              continue; // 1MB 이상 파일은 스킵
+            }
+
+            // 파일 읽기
+            try {
+              const content = await fs.readFile(entryPath, 'utf-8');
+              const lines = content.split('\n');
+              const fileMatches = [];
+
+              // 각 라인 검색
+              for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+                const line = lines[lineNum];
+                if (line.toLowerCase().includes(lowerQuery)) {
+                  // 컨텍스트 추출 (±2줄)
+                  const contextStart = Math.max(0, lineNum - 2);
+                  const contextEnd = Math.min(lines.length - 1, lineNum + 2);
+                  const context = lines.slice(contextStart, contextEnd + 1).join('\n');
+
+                  fileMatches.push({
+                    line: lineNum + 1,
+                    content: line.trim(),
+                    context: context
+                  });
+
+                  // 파일당 최대 50개 매치 제한
+                  if (fileMatches.length >= 50) break;
+                }
+              }
+
+              // 매치가 있으면 결과에 추가
+              if (fileMatches.length > 0) {
+                results.push({
+                  path: '/' + relativePath.replace(/\\/g, '/'),
+                  matches: fileMatches
+                });
+              }
+
+              // 전체 결과가 limit에 도달하면 종료
+              if (results.length >= finalLimit) break;
+            } catch (readError) {
+              // 파일 읽기 오류는 로그하고 계속
+              logger.warn('Failed to read file during search', {
+                path: entryPath,
+                error: readError.message
+              });
+            }
+          }
+        }
+      } catch (dirError) {
+        // 디렉토리 읽기 오류는 로그하고 계속
+        logger.warn('Failed to read directory during search', {
+          path: currentPath,
+          error: dirError.message
+        });
+      }
+    }
+
+    // 검색 실행
+    await searchRecursive(absoluteSearchPath);
+
+    // 결과 제한
+    const limitedResults = results.slice(0, finalLimit);
+
+    const duration = Date.now() - startTime;
+    logger.info('Document search completed', {
+      query,
+      path: searchPath,
+      results: limitedResults.length,
+      filesScanned,
+      duration: `${duration}ms`
+    });
+
+    return {
+      query,
+      path: searchPath,
+      total: limitedResults.length,
+      filesScanned,
+      duration: `${duration}ms`,
+      results: limitedResults
+    };
+  } catch (error) {
+    logger.error('Document search failed', {
+      query,
+      error: error.message,
+      code: error.code
+    });
+    throw error;
+  }
 }

@@ -30,7 +30,7 @@
 
   // UI 설정
   ui: {
-    title: "DocLight",
+    title: "DocuLight",
     icon: "/images/icon.svg",
 
     // NEW: 색인 파일 경로
@@ -137,10 +137,10 @@ function resolveDocPath(docPath) {
 <div class="welcome">
   <div class="welcome-logo">
     <svg width="80" height="80" viewBox="0 0 24 24">
-      <!-- DocLight 아이콘 SVG -->
+      <!-- DocuLight 아이콘 SVG -->
     </svg>
   </div>
-  <h1>Welcome to DocLight</h1>
+  <h1>Welcome to DocuLight</h1>
   <p class="welcome-subtitle">A lightweight Markdown documentation viewer</p>
   <div class="welcome-actions">
     <div class="welcome-card">
@@ -301,7 +301,7 @@ function showWelcomeScreen() {
       <div class="welcome-logo">
         <svg>...</svg>
       </div>
-      <h1>Welcome to DocLight</h1>
+      <h1>Welcome to DocuLight</h1>
       <p class="welcome-subtitle">A lightweight Markdown documentation viewer</p>
       <div class="welcome-actions">
         <!-- 환영 카드 -->
@@ -568,12 +568,12 @@ router.get('/tree', getTree);           // 기존: 부분 트리
 
 ### 7.2 전체 트리용 MCP 도구
 
-**파일**: `doclight-mcp-server/src/tools/list.js`
+**파일**: `DocuLight-mcp-server/src/tools/list.js`
 
 **향상된 함수**:
 ```javascript
 export async function listDocuments(config, path) {
-  const client = new DocLightClient(config.baseUrl, config.apiKey);
+  const client = new DocuLightClient(config.baseUrl, config.apiKey);
 
   try {
     let result;
@@ -629,7 +629,7 @@ function formatFullTree(node, indent = 0) {
 }
 ```
 
-**클라이언트 업데이트**: `doclight-mcp-server/src/client.js`
+**클라이언트 업데이트**: `DocuLight-mcp-server/src/client.js`
 ```javascript
 /**
  * 전체 디렉터리 트리 가져오기
@@ -763,7 +763,7 @@ fs.watch(configPath, (eventType) => {
   apiKey: "your-api-key",
 
   ui: {
-    title: "DocLight",
+    title: "DocuLight",
     icon: "/images/icon.svg"
     // indexFile 지정 없음 - 환영 화면 표시
   }
@@ -820,10 +820,10 @@ curl http://localhost:3000/api/tree/full | jq
 # }
 
 # 테스트 2: MCP 전체 트리
-echo '{"name":"doclight_list","arguments":{}}' | \
-  DOCLIGHT_URL=http://localhost:3000 \
-  DOCLIGHT_API_KEY=your-key \
-  node doclight-mcp-server/src/index.js
+echo '{"name":"DocuLight_list","arguments":{}}' | \
+  DocuLight_URL=http://localhost:3000 \
+  DocuLight_API_KEY=your-key \
+  node DocuLight-mcp-server/src/index.js
 ```
 
 ---
@@ -838,7 +838,7 @@ echo '{"name":"doclight_list","arguments":{}}' | \
 - [ ] `/api/config/index`이 올바른 색인 파일 경로 반환
 - [ ] `/api/tree/full`이 완전한 트리 구조 반환
 - [ ] 사용자 정의 API/MCP 색인 파일이 올바르게 로드됨
-- [ ] MCP `doclight_list` 도구가 전체 트리 지원
+- [ ] MCP `DocuLight_list` 도구가 전체 트리 지원
 - [ ] 모든 기능이 핫 설정 리로드에서 작동
 
 ---

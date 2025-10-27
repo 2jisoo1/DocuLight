@@ -65,11 +65,11 @@ app.use((req, res, next) => {
 
 // Documentation portal routes (must be before /api router)
 app.get('/api/doc', (req, res) => {
-  res.render('doc-viewer', { title: 'API Documentation - DocLight', docType: 'api' });
+  res.render('doc-viewer', { title: 'API Documentation - DocuLight', docType: 'api' });
 });
 
 app.get('/mcp/doc', (req, res) => {
-  res.render('doc-viewer', { title: 'MCP Server Documentation - DocLight', docType: 'mcp' });
+  res.render('doc-viewer', { title: 'MCP Server Documentation - DocuLight', docType: 'mcp' });
 });
 
 // Documentation API endpoints (return JSON)
@@ -82,18 +82,80 @@ app.get('/api/config/index', getIndexConfig);
 app.get('/', (req, res) => {
   const cfg = req.app.locals.config || {};
   res.render('index', {
-    title: 'DocLight - Markdown Viewer',
-    uiTitle: (cfg.ui && cfg.ui.title) || 'DocLight',
+    title: 'DocuLight - Markdown Viewer',
+    uiTitle: (cfg.ui && cfg.ui.title) || 'DocuLight',
     uiIcon: (cfg.ui && cfg.ui.icon) || '/images/icon.png'
   });
+});
+
+// Raw file download route (must be before /doc/*)
+app.get('/doc/*.md', async (req, res, next) => {
+  try {
+    const { config, logger } = req.app.locals;
+
+    if (!config) {
+      return res.status(503).json({
+        error: { code: 'SERVICE_UNAVAILABLE', message: 'Server not initialized' }
+      });
+    }
+
+    // Extract file path from URL
+    // Example: /doc/guide/intro.md → guide/intro.md (relative path)
+    let filePath = req.path.replace('/doc/', '');
+
+    // Remove leading slash if present (validatePath expects relative paths)
+    if (filePath.startsWith('/')) {
+      filePath = filePath.substring(1);
+    }
+
+    if (!filePath || filePath === '' || filePath === '.md') {
+      const error = new Error('INVALID_PATH: File path is required');
+      error.code = 'INVALID_PATH';
+      throw error;
+    }
+
+    // Validate path
+    const { validatePath } = require('./utils/path-validator');
+    const absolutePath = validatePath(config.docsRoot, filePath);
+
+    // Check if file exists
+    const fs = require('fs').promises;
+
+    let stats;
+    try {
+      stats = await fs.stat(absolutePath);
+    } catch (error) {
+      const notFoundError = new Error('NOT_FOUND: File does not exist');
+      notFoundError.code = 'NOT_FOUND';
+      throw notFoundError;
+    }
+
+    if (!stats.isFile()) {
+      const error = new Error('NOT_FOUND: Path is not a file');
+      error.code = 'NOT_FOUND';
+      throw error;
+    }
+
+    // Log download
+    logger.info('Raw file download via /doc/*.md', {
+      path: filePath,
+      filename: path.basename(filePath),
+      size: stats.size
+    });
+
+    // Set download headers and send file
+    res.download(absolutePath, path.basename(filePath));
+  } catch (error) {
+    next(error);
+  }
 });
 
 // Document viewer route (for clean URLs)
 app.get('/doc/*', (req, res) => {
   const cfg = req.app.locals.config || {};
   res.render('index', {
-    title: 'DocLight - Markdown Viewer',
-    uiTitle: (cfg.ui && cfg.ui.title) || 'DocLight',
+    title: 'DocuLight - Markdown Viewer',
+    uiTitle: (cfg.ui && cfg.ui.title) || 'DocuLight',
     uiIcon: (cfg.ui && cfg.ui.icon) || '/images/icon.png'
   });
 });
@@ -103,17 +165,8 @@ app.get('/healthz', (req, res) => {
   res.status(200).json({ status: 'OK', timestamp: new Date().toISOString(), uptime: process.uptime() });
 });
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Route not found' } });
-});
-
-// Error handler (must be last) - dynamic wrapper
-app.use((err, req, res, next) => {
-  const lg = (req && req.app && req.app.locals && req.app.locals.logger) || console;
-  const handler = errorHandler(lg);
-  return handler(err, req, res, next);
-});
+// Note: 404 and error handlers are added dynamically in start() function
+// This ensures they are placed after all routers are mounted
 
 // Start the server (exposed API)
 async function start(options = {}) {
@@ -171,6 +224,24 @@ async function start(options = {}) {
       app.locals.mcpMounted = true;
     }
 
+    // Add 404 handler (after all routers are mounted)
+    if (!app.locals.notFoundHandlerMounted) {
+      app.use((req, res) => {
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Route not found' } });
+      });
+      app.locals.notFoundHandlerMounted = true;
+    }
+
+    // Add error handler (must be after all routers and 404 handler)
+    if (!app.locals.errorHandlerMounted) {
+      app.use((err, req, res, next) => {
+        const lg = (req && req.app && req.app.locals && req.app.locals.logger) || logger || console;
+        const handler = errorHandler(lg);
+        return handler(err, req, res, next);
+      });
+      app.locals.errorHandlerMounted = true;
+    }
+
     const PORT = cfg.port || 3000;
 
     if (cfg.ssl && cfg.ssl.enabled) {
@@ -185,7 +256,7 @@ async function start(options = {}) {
       server.listen(PORT, () => resolve());
     });
 
-    logger.info('DocLight server started', { port: PORT, docsRoot: cfg.docsRoot, ssl: !!(cfg.ssl && cfg.ssl.enabled) });
+    logger.info('DocuLight server started', { port: PORT, docsRoot: cfg.docsRoot, ssl: !!(cfg.ssl && cfg.ssl.enabled) });
 
     // On first successful start, delete any existing .bak (as requested) and then create a fresh backup
     const configPath = path.join(process.cwd(), 'config.json5');

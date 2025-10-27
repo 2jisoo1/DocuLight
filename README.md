@@ -1,10 +1,10 @@
-# DocLight
+# DocuLight
 
 경량 Markdown 문서 뷰어 및 관리 시스템
 
 ## 개요
 
-DocLight는 Markdown 문서를 탐색, 열람, 관리하기 위한 경량 웹 서버입니다.
+DocuLight는 Markdown 문서를 탐색, 열람, 관리하기 위한 경량 웹 서버입니다.
 Node.js + Express + EJS 기반으로 구축되었으며, 브라우저에서 디렉터리 트리 탐색과 문서 렌더링을 제공합니다.
 
 ## 주요 기능
@@ -94,7 +94,7 @@ npm start
 ## 프로젝트 구조
 
 ```
-DocLight/
+DocuLight/
 ├── src/
 │   ├── app.js                 # 메인 애플리케이션
 │   ├── controllers/           # 비즈니스 로직
@@ -172,8 +172,8 @@ curl -H "X-API-Key: your-api-key" \
 
 ```
 logs/
-├── doclight-20251023.log
-├── doclight-20251024.log
+├── DocuLight-20251023.log
+├── DocuLight-20251024.log
 └── ...
 ```
 
@@ -185,7 +185,7 @@ logs/
 
 ```bash
 npm install -g pm2
-pm2 start src/app.js --name doclight
+pm2 start src/app.js --name DocuLight
 pm2 save
 pm2 startup
 ```
@@ -193,18 +193,18 @@ pm2 startup
 ### 로그 확인
 
 ```bash
-pm2 logs doclight
+pm2 logs DocuLight
 ```
 
 ### 서버 재시작
 
 ```bash
-pm2 restart doclight
+pm2 restart DocuLight
 ```
 
 ## Config Hot-Reload (운영 가이드)
 
-DocLight는 `config.json5` 변경 시 안전하게 설정을 반영하기 위한 Hot-Reload 기능을 제공합니다. 운영 환경에서 아래 절차와 도구를 사용하세요.
+DocuLight는 `config.json5` 변경 시 안전하게 설정을 반영하기 위한 Hot-Reload 기능을 제공합니다. 운영 환경에서 아래 절차와 도구를 사용하세요.
 
 1. 변경 전: `git diff config.json5`로 변경 내용 검토.
 2. 변경 적용: 파일을 저장하면 내부 감시자가 변경을 감지하고 검증 후 `app.restart()`를 시도합니다.
@@ -282,7 +282,7 @@ openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -node
 ### MCP 서버
 
 Claude Desktop과 통합하여 문서를 관리할 수 있습니다.
-자세한 내용은 `doclight-mcp-server/README.md`를 참조하세요.
+자세한 내용은 `DocuLight-mcp-server/README.md`를 참조하세요.
 
 ## 라이선스
 
@@ -292,4 +292,4 @@ ISC
 
 - [SRS (Software Requirements Specification)](docs/plan/srs.md)
 - [SDS (System Design Specification)](docs/plan/sds.md)
-- [MCP Server Documentation](doclight-mcp-server/README.md)
+- [MCP Server Documentation](DocuLight-mcp-server/README.md)

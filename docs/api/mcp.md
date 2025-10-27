@@ -1,8 +1,8 @@
-# DocLight MCP API 문서
+# DocuLight MCP API 문서
 
 ## 개요
 
-DocLight는 Model Context Protocol (MCP) over HTTP를 지원하여 AI 에이전트가 문서 관리 작업을 수행할 수 있도록 합니다. MCP는 JSON-RPC 2.0 프로토콜을 기반으로 하며, SDK 없이 직접 구현되었습니다.
+DocuLight는 Model Context Protocol (MCP) over HTTP를 지원하여 AI 에이전트가 문서 관리 작업을 수행할 수 있도록 합니다. MCP는 JSON-RPC 2.0 프로토콜을 기반으로 하며, SDK 없이 직접 구현되었습니다.
 
 ### 기본 정보
 
@@ -83,7 +83,7 @@ MCP 서버를 초기화하고 서버 정보 및 기능을 조회합니다.
       "tools": {}
     },
     "serverInfo": {
-      "name": "doclight",
+      "name": "DocuLight",
       "version": "1.0.0"
     }
   }
@@ -196,6 +196,45 @@ MCP 서버를 초기화하고 서버 정보 및 기능을 조회합니다.
             }
           },
           "required": ["path"]
+        }
+      },
+      {
+        "name": "DocuLight_get_config",
+        "description": "Get current runtime configuration with sensitive values masked",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "section": {
+              "type": "string",
+              "description": "Configuration section to retrieve (ui, security, ssl, all)",
+              "default": "all",
+              "enum": ["ui", "security", "ssl", "all"]
+            }
+          }
+        }
+      },
+      {
+        "name": "DocuLight_search",
+        "description": "Search for documents containing specific text",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Search query (minimum 2 characters)"
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Maximum number of results to return (1-100)",
+              "default": 10
+            },
+            "path": {
+              "type": "string",
+              "description": "Search within directory (default: /)",
+              "default": "/"
+            }
+          },
+          "required": ["query"]
         }
       }
     ]
@@ -391,7 +430,7 @@ MCP 서버를 초기화하고 서버 정보 및 기능을 조회합니다.
     "content": [
       {
         "type": "text",
-        "text": "# /README.md\n\n# DocLight\n\nA lightweight documentation server...\n"
+        "text": "# /README.md\n\n# DocuLight\n\nA lightweight documentation server...\n"
       }
     ]
   }
@@ -434,7 +473,7 @@ MCP 서버를 초기화하고 서버 정보 및 기능을 조회합니다.
     "name": "create_document",
     "arguments": {
       "path": "/guide/getting-started.md",
-      "content": "# Getting Started\n\nWelcome to DocLight!\n\n## Installation\n\n..."
+      "content": "# Getting Started\n\nWelcome to DocuLight!\n\n## Installation\n\n..."
     }
   }
 }
@@ -531,6 +570,148 @@ MCP 서버를 초기화하고 서버 정보 및 기능을 조회합니다.
 - `PATH_TRAVERSAL`: path 파라미터 누락
 - `NOT_FOUND`: 경로가 존재하지 않음
 - `FILE_BUSY`: 파일이 사용 중이어서 삭제 불가
+
+---
+
+### 도구 6: DocuLight_get_config
+
+현재 런타임 설정을 조회합니다. 민감한 정보(apiKey, passwords 등)는 자동으로 마스킹됩니다.
+
+**파라미터:**
+| 이름 | 타입 | 필수 | 기본값 | 설명 |
+|------|------|------|--------|------|
+| section | string | No | `all` | 조회할 설정 섹션 (`ui`, `security`, `ssl`, `all`) |
+
+**요청 예시:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 50,
+  "method": "tools/call",
+  "params": {
+    "name": "DocuLight_get_config",
+    "arguments": {
+      "section": "all"
+    }
+  }
+}
+```
+
+**응답 예시:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 50,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "# Configuration (section: all)\n\n```json\n{\n  \"docsRoot\": \"/path/to/docs\",\n  \"apiKey\": \"***\",\n  \"port\": 3000,\n  \"ui\": {\n    \"title\": \"DocuLight\",\n    \"icon\": \"/images/icon.png\"\n  },\n  \"ssl\": {\n    \"enabled\": false,\n    \"key\": \"***\"\n  }\n}\n```"
+      }
+    ]
+  }
+}
+```
+
+**출력 형식:**
+- 헤더: `# Configuration (section: {section})`
+- 본문: JSON 형식의 설정 정보
+- 민감값 마스킹: `apiKey`, `password`, `key`, `secret`, `token` 등이 `***`로 표시
+
+**섹션 필터링:**
+- `all`: 전체 설정 반환 (기본값)
+- `ui`: UI 관련 설정만 반환
+- `security`: 보안 관련 설정만 반환
+- `ssl`: SSL 관련 설정만 반환
+
+**보안 기능:**
+- 민감한 필드 자동 감지 및 마스킹
+- 로그에 민감값 노출 방지
+- 재귀적으로 중첩된 객체도 마스킹
+
+**특징:**
+- 런타임 설정 조회 (재시작 없이 최신 상태)
+- 안전한 설정 확인 및 디버깅
+- AI 에이전트가 서버 설정 파악 가능
+
+**에러 케이스:**
+- `INVALID_SECTION`: 유효하지 않은 section 값
+
+---
+
+### 도구 7: DocuLight_search
+
+문서 내용에서 키워드를 검색합니다. 실시간 파일 스캔 방식으로 작동합니다.
+
+**파라미터:**
+| 이름 | 타입 | 필수 | 기본값 | 설명 |
+|------|------|------|--------|------|
+| query | string | Yes | - | 검색 쿼리 (최소 2글자) |
+| limit | integer | No | `10` | 최대 결과 수 (1-100) |
+| path | string | No | `/` | 검색 대상 디렉토리 |
+
+**요청 예시:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 60,
+  "method": "tools/call",
+  "params": {
+    "name": "DocuLight_search",
+    "arguments": {
+      "query": "installation",
+      "limit": 5,
+      "path": "/"
+    }
+  }
+}
+```
+
+**응답 예시:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 60,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "# Search Results for \"installation\"\n\n**Statistics**: 3 matches in 8 files scanned (42ms)\n\n## 1. /guide/setup.md\n\n**Line 5**: ## Installation\n\n```\n# Getting Started\n\n## Installation\n\nTo install DocuLight, run:\n```\n\n## 2. /README.md\n\n**Line 12**: Installation is simple\n\n```\nDocuLight is a lightweight server.\n\nInstallation is simple:\n\nnpm install\n```\n\n## 3. /docs/advanced.md\n\n**Line 23**: Post-installation steps\n\n```\nConfiguration file setup.\n\nPost-installation steps:\n\n1. Copy config\n```\n"
+      }
+    ]
+  }
+}
+```
+
+**출력 형식:**
+- 헤더: `# Search Results for "{query}"`
+- 통계: 매치 수, 스캔한 파일 수, 실행 시간
+- 결과: 각 매치별로 파일 경로, 라인 번호, 내용, 컨텍스트(±2줄)
+
+**검색 특징:**
+- **대소문자 무시**: `Installation`, `installation` 모두 매칭
+- **컨텍스트 제공**: 매칭 라인의 전후 2줄 포함
+- **성능 최적화**:
+  - 1MB 이상 파일은 자동 스킵
+  - 검색 시간 제한: 5초
+  - 파일당 최대 50개 매치 제한
+
+**제한사항:**
+- 쿼리 최소 길이: 2글자
+- 최대 결과 수: 100 (초과 시 자동 제한)
+- 숨김 파일 및 exclude 패턴 적용
+
+**성능 고려사항:**
+- 실시간 스캔 방식으로 대규모 문서 집합에서는 느릴 수 있음
+- `path` 파라미터로 검색 범위 제한 권장
+- 향후 인덱싱 기반으로 업그레이드 예정
+
+**에러 케이스:**
+- `INVALID_QUERY`: query 파라미터 누락 또는 타입 오류
+- `QUERY_TOO_SHORT`: 쿼리 길이 < 2글자
+- `PATH_TRAVERSAL`: 잘못된 path 파라미터
+- `PATH_NOT_FOUND`: 검색 경로가 존재하지 않음
+- `SEARCH_TIMEOUT`: 검색 시간 초과 (5초)
 
 ---
 
@@ -682,6 +863,23 @@ delete_result = mcp_call("tools/call", {
     "arguments": {"path": "/test/hello.md"}
 })
 print(delete_result['result']['content'][0]['text'])
+
+# 8. 설정 조회
+config_result = mcp_call("tools/call", {
+    "name": "DocuLight_get_config",
+    "arguments": {"section": "all"}
+})
+print(config_result['result']['content'][0]['text'])
+
+# 9. 문서 검색
+search_result = mcp_call("tools/call", {
+    "name": "DocuLight_search",
+    "arguments": {
+        "query": "installation",
+        "limit": 5
+    }
+})
+print(search_result['result']['content'][0]['text'])
 ```
 
 ---
@@ -749,6 +947,23 @@ async function main() {
     arguments: { path: '/guide/new-guide.md' }
   });
   console.log(deleteResult.result.content[0].text);
+
+  // 8. 설정 조회
+  const configResult = await mcpCall('tools/call', {
+    name: 'DocuLight_get_config',
+    arguments: { section: 'ui' }
+  });
+  console.log(configResult.result.content[0].text);
+
+  // 9. 검색
+  const searchResult = await mcpCall('tools/call', {
+    name: 'DocuLight_search',
+    arguments: {
+      query: 'configuration',
+      limit: 10
+    }
+  });
+  console.log(searchResult.result.content[0].text);
 }
 
 main().catch(console.error);
@@ -862,6 +1077,42 @@ curl -X POST http://localhost:3000/mcp \
       "name": "delete_document",
       "arguments": {
         "path": "/test.md"
+      }
+    }
+  }'
+```
+
+**설정 조회:**
+```bash
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 8,
+    "method": "tools/call",
+    "params": {
+      "name": "DocuLight_get_config",
+      "arguments": {
+        "section": "all"
+      }
+    }
+  }'
+```
+
+**문서 검색:**
+```bash
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 9,
+    "method": "tools/call",
+    "params": {
+      "name": "DocuLight_search",
+      "arguments": {
+        "query": "api",
+        "limit": 5,
+        "path": "/"
       }
     }
   }'
@@ -982,6 +1233,8 @@ MCP는 직접적인 복사/이동 기능이 없으므로 읽기+쓰기+삭제 �
 │  │ - read_document               │  │
 │  │ - create_document             │  │
 │  │ - delete_document             │  │
+│  │ - DocuLight_get_config         │  │
+│  │ - DocuLight_search             │  │
 │  └───────────┬───────────────────┘  │
 └──────────────┼─────────────────────┘
                │
@@ -993,6 +1246,8 @@ MCP는 직접적인 복사/이동 기능이 없으므로 읽기+쓰기+삭제 �
 │  - getRawContent()                   │
 │  - uploadFileData()                  │
 │  - deleteEntryData()                 │
+│  - getConfig()                       │
+│  - searchDocuments()                 │
 └──────────────┬───────────────────────┘
                │
                ▼
@@ -1039,7 +1294,7 @@ src/utils/
 
 ## MCP vs REST API 비교
 
-DocLight는 동일한 기능을 MCP와 REST API 두 가지 방식으로 제공합니다.
+DocuLight는 동일한 기능을 MCP와 REST API 두 가지 방식으로 제공합니다.
 
 | 측면 | MCP API | REST API |
 |------|---------|----------|
@@ -1049,7 +1304,7 @@ DocLight는 동일한 기능을 MCP와 REST API 두 가지 방식으로 제공�
 | **메서드** | `method` 필드 | HTTP 메서드 (GET, POST, DELETE) |
 | **대상** | AI 에이전트, MCP 클라이언트 | 일반 HTTP 클라이언트 |
 | **응답 형식** | `content[].text` | 직접 JSON 또는 파일 스트림 |
-| **기능** | 문서 CRUD (5개 도구) | 문서 CRUD + 다운로드 + ZIP |
+| **기능** | 문서 CRUD + 검색 + 설정 조회 (7개 도구) | 문서 CRUD + 다운로드 + ZIP |
 
 ### 동등 기능 매핑
 
@@ -1060,6 +1315,8 @@ DocLight는 동일한 기능을 MCP와 REST API 두 가지 방식으로 제공�
 | `read_document` | `GET /api/raw` | 동일 |
 | `create_document` | `POST /api/upload` | MCP는 텍스트만, REST는 파일+ZIP |
 | `delete_document` | `DELETE /api/entry` | 동일 |
+| `DocuLight_get_config` | `GET /api/config/index` | MCP는 민감값 마스킹, REST는 선택적 |
+| `DocuLight_search` | - | MCP 전용 기능 |
 | - | `GET /api/download/file` | MCP 미지원 |
 | - | `GET /api/download/dir` | MCP 미지원 |
 
@@ -1102,7 +1359,7 @@ describe('MCP API', () => {
       });
 
     expect(response.status).toBe(200);
-    expect(response.body.result.serverInfo.name).toBe('doclight');
+    expect(response.body.result.serverInfo.name).toBe('DocuLight');
   });
 
   test('tools/list should return all tools', async () => {
@@ -1114,7 +1371,7 @@ describe('MCP API', () => {
         method: 'tools/list'
       });
 
-    expect(response.body.result.tools).toHaveLength(5);
+    expect(response.body.result.tools).toHaveLength(7);
   });
 
   test('list_documents should work', async () => {
@@ -1172,28 +1429,35 @@ describe('MCP API', () => {
 향후 추가 가능한 기능:
 
 1. **추가 도구**
-   - `search_documents`: 전체 텍스트 검색
+   - ~~`search_documents`~~: ✅ 구현 완료 (`DocuLight_search`)
    - `move_document`: 파일 이동
    - `copy_document`: 파일 복사
-   - `get_document_info`: 메타데이터 조회
+   - `get_document_info`: 메타데이터 조회 (크기, 수정 시간 등)
+   - `watch_changes`: 실시간 파일 변경 감지
 
-2. **고급 필터링**
+2. **검색 기능 향상**
+   - 인덱싱 기반 검색으로 업그레이드
+   - 정규식 검색 지원
+   - 파일 타입 필터링
+   - 날짜 범위 검색
+
+3. **고급 필터링**
    - `list_documents`에 파일 확장자 필터
    - `list_full_tree`에 파일명 패턴 매칭
 
-3. **배치 작업**
+4. **배치 작업**
    - `bulk_create`: 여러 문서 동시 생성
    - `bulk_delete`: 여러 문서 동시 삭제
 
-4. **인증**
+5. **인증**
    - API 키 기반 인증 추가
    - 도구별 권한 제어
 
-5. **스트리밍**
+6. **스트리밍**
    - 대용량 문서 스트리밍 읽기
    - 대규모 트리 청크 방식 전송
 
-6. **리소스(Resources)**
+7. **리소스(Resources)**
    - MCP Resources 기능 구현
    - 문서를 리소스로 노출
 
@@ -1203,20 +1467,22 @@ describe('MCP API', () => {
 
 - [Model Context Protocol 공식 문서](https://modelcontextprotocol.io/)
 - [JSON-RPC 2.0 스펙](https://www.jsonrpc.org/specification)
-- [DocLight REST API 문서](./api.md)
-- [DocLight cURL 예제](./api-curl-example.md)
+- [DocuLight REST API 문서](./api.md)
+- [DocuLight cURL 예제](./api-curl-example.md)
 
 ---
 
 ## 버전 정보
 
 - **MCP Protocol Version**: 2024-11-05
-- **DocLight Version**: 1.0.0
-- **Last Updated**: 2025-10-25
+- **DocuLight Version**: 1.0.0
+- **Last Updated**: 2025-10-27
 - **Compatibility**: Node.js 14+
+- **Total MCP Tools**: 7 (기존 5개 + 신규 2개)
+  - 신규: `DocuLight_get_config`, `DocuLight_search`
 
 ---
 
 ## 라이선스 및 기여
 
-이 문서는 DocLight 프로젝트의 일부입니다. 기여 및 피드백은 GitHub 리포지토리를 통해 환영합니다.
+이 문서는 DocuLight 프로젝트의 일부입니다. 기여 및 피드백은 GitHub 리포지토리를 통해 환영합니다.

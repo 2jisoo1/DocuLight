@@ -1,4 +1,4 @@
-# DocLight Phase 2: 코드 하이라이팅 및 UX 개선
+# DocuLight Phase 2: 코드 하이라이팅 및 UX 개선
 
 **작성일**: 2025-10-23
 **우선순위**: P0

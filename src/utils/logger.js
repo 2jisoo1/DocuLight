@@ -33,7 +33,7 @@ function createLogger(config) {
 
   // Configure daily rotate file transport
   const fileTransport = new DailyRotateFile({
-    filename: 'doclight-%DATE%.log',
+    filename: 'DocuLight-%DATE%.log',
     dirname: config.logDir,
     datePattern: 'YYYYMMDD',
     maxSize: '10m',

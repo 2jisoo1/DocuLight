@@ -1,4 +1,4 @@
-# DocLight 개발 계획
+# DocuLight 개발 계획
 
 ## 📋 프로젝트 현황
 
@@ -100,7 +100,7 @@ curl -X GET http://localhost:3000/api/tree
 curl -H "X-API-Key: your-key" -F "file=@test.md" http://localhost:3000/api/upload
 
 # 4. 로그 확인
-tail -f logs/doclight-*.log
+tail -f logs/DocuLight-*.log
 ```
 
 #### Phase 2 자동화 테스트

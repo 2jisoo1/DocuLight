@@ -20,7 +20,20 @@ async function getRaw(req, res, next) {
     const absolutePath = validatePath(config.docsRoot, userPath);
 
     // Check if file exists
-    const stats = await fs.stat(absolutePath);
+    let stats;
+    try {
+      stats = await fs.stat(absolutePath);
+    } catch (fsError) {
+      // Convert ENOENT to NOT_FOUND (404)
+      if (fsError.code === 'ENOENT') {
+        const error = new Error('NOT_FOUND: File does not exist');
+        error.code = 'NOT_FOUND';
+        throw error;
+      }
+      // Re-throw other file system errors
+      throw fsError;
+    }
+
     if (!stats.isFile()) {
       const error = new Error('NOT_FOUND: Path is not a file');
       error.code = 'NOT_FOUND';
