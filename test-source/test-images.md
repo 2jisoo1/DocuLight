@@ -16,21 +16,27 @@ DocLight 애플리케이션 아이콘:
 
 ---
 
-## 2. 외부 URL - Placeholder 이미지
+## 2. 크기별 이미지 테스트
 
-### 작은 이미지 (150x150)
+### 원본 크기 이미지
 
-![Placeholder 150x150](https://via.placeholder.com/150)
+![DocLight Icon - Original Size](/images/icon.png)
 
-### 중간 이미지 (300x200, 파란색 배경)
+### HTML 스타일로 크기 조절 (CSS)
 
-![Placeholder 300x200](https://via.placeholder.com/300x200/3498db/ffffff?text=DocLight+Test)
+DocLight 아이콘을 다양한 크기로 표시:
 
-### 큰 이미지 (500x300, 회색 배경)
+<img src="/images/icon.png" alt="Small Icon" width="50" height="50" loading="lazy">
+<img src="/images/icon.png" alt="Medium Icon" width="100" height="100" loading="lazy">
+<img src="/images/icon.png" alt="Large Icon" width="150" height="150" loading="lazy">
 
-![Large Placeholder](https://via.placeholder.com/500x300/95a5a6/ffffff?text=Large+Image)
+### 테스트 이미지 다양한 크기
 
-> **참고**: 외부 URL 이미지는 인터넷 연결이 필요합니다.
+<img src="/images/test-absolute.png" alt="Test 80px" width="80" height="80" loading="lazy">
+<img src="/images/test-absolute.png" alt="Test 120px" width="120" height="120" loading="lazy">
+<img src="/images/test-absolute.png" alt="Test 200px" width="200" height="200" loading="lazy">
+
+> **참고**: HTML `<img>` 태그의 width/height 속성으로 크기를 조절할 수 있습니다.
 
 ---
 
@@ -40,7 +46,7 @@ hover 시 제목이 표시되어야 합니다:
 
 ![Icon with Title](/images/icon.png "DocLight Application Icon - Hover to see this title")
 
-![External with Title](https://via.placeholder.com/200 "External Placeholder Image")
+<img src="/images/test-absolute.png" alt="Test with Title" width="150" height="150" title="테스트 이미지 - Hover를 보세요" loading="lazy">
 
 > **참고**: 이미지 위에 마우스를 올리면 제목이 tooltip으로 표시됩니다.
 
@@ -62,32 +68,32 @@ hover 시 제목이 표시되어야 합니다:
 
 ### 작은 이미지 (50x50)
 
-작은 아이콘: ![Small](https://via.placeholder.com/50/e74c3c/ffffff?text=S)
+작은 아이콘: <img src="/images/icon.png" alt="Small" width="50" height="50" loading="lazy">
 
 ### 중간 이미지 (200x200)
 
-중간 크기: ![Medium](https://via.placeholder.com/200/3498db/ffffff?text=Medium)
+중간 크기: <img src="/images/test-absolute.png" alt="Medium" width="200" height="200" loading="lazy">
 
-### 큰 이미지 (600x400)
+### 큰 이미지 (400x400)
 
-큰 배너: ![Large Banner](https://via.placeholder.com/600x400/2ecc71/ffffff?text=Large+Banner+Image)
+큰 이미지: <img src="/images/icon.png" alt="Large" width="400" height="400" loading="lazy">
 
 ---
 
 ## 6. 인라인 이미지
 
-텍스트 중간에 작은 이미지를 삽입할 수 있습니다: ![inline](https://via.placeholder.com/24) 이렇게 말이죠.
+텍스트 중간에 작은 이미지를 삽입할 수 있습니다: <img src="/images/icon.png" alt="inline" width="24" height="24" loading="lazy"> 이렇게 말이죠.
 
-또 다른 예: 여기 ![icon](/images/icon.png) DocLight 아이콘이 있습니다.
+또 다른 예: 여기 <img src="/images/test-absolute.png" alt="icon" width="32" height="32" loading="lazy"> 테스트 아이콘이 있습니다.
 
 ---
 
 ## 7. 연속된 여러 이미지
 
-![Image 1](https://via.placeholder.com/100/e74c3c/ffffff?text=1)
-![Image 2](https://via.placeholder.com/100/3498db/ffffff?text=2)
-![Image 3](https://via.placeholder.com/100/2ecc71/ffffff?text=3)
-![Image 4](https://via.placeholder.com/100/f39c12/ffffff?text=4)
+<img src="/images/icon.png" alt="Image 1" width="80" height="80" loading="lazy">
+<img src="/images/test-absolute.png" alt="Image 2" width="80" height="80" loading="lazy">
+<img src="/images/icon.png" alt="Image 3" width="80" height="80" loading="lazy">
+<img src="/images/test-absolute.png" alt="Image 4" width="80" height="80" loading="lazy">
 
 ---
 
@@ -95,7 +101,7 @@ hover 시 제목이 표시되어야 합니다:
 
 ### 기본 렌더링
 - [ ] 절대 경로 이미지 표시 (`/images/icon.png`)
-- [ ] 외부 URL 이미지 표시 (placeholder)
+- [ ] HTML img 태그 width/height 속성으로 크기 조절
 - [ ] 다양한 크기 이미지 정상 렌더링
 
 ### 속성
@@ -110,18 +116,18 @@ hover 시 제목이 표시되어야 합니다:
 
 ### 성능
 - [ ] 이미지 lazy loading 동작
-- [ ] 외부 이미지 로딩 시간 적절
-- [ ] 큰 이미지도 페이지 레이아웃 깨지지 않음
+- [ ] 크기 조절된 이미지 로딩 정상
+- [ ] 큰 이미지(400px)도 페이지 레이아웃 깨지지 않음
 
 ---
 
 ## 예상 결과
 
 - ✅ 모든 절대 경로 이미지 정상 표시
-- ✅ 외부 URL 이미지 정상 표시
+- ✅ HTML img 태그 width/height로 크기 조절 정상
 - ✅ alt/title 속성 정상 동작
 - ⚠️ 존재하지 않는 이미지는 broken image 아이콘
-- ✅ 다양한 크기 이미지 모두 렌더링
+- ✅ 다양한 크기 (50px ~ 400px) 이미지 모두 렌더링
 
 ---
 

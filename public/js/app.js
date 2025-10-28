@@ -396,7 +396,7 @@ async function renderMarkdown(content) {
 
   // Sanitize HTML with DOMPurify - allow Highlight.js classes, heading IDs, and image attributes
   const cleanHtml = DOMPurify.sanitize(rawHtml, {
-    ADD_ATTR: ['class', 'data-language', 'data-highlighted', 'id', 'loading', 'title', 'alt', 'src'],
+    ADD_ATTR: ['class', 'data-language', 'data-highlighted', 'id', 'loading', 'title', 'alt', 'src', 'width', 'height'],
     ADD_TAGS: ['span']
   });
 
