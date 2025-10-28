@@ -841,6 +841,8 @@ body {
   text-decoration: none;
   transition: all 0.2s ease;
   background-color: #ffffff;
+  min-width: 140px;     /* 최소 너비 고정 */
+  min-height: 60px;     /* 최소 높이 고정 */
 }
 
 .doc-navigation a:hover {
@@ -857,11 +859,12 @@ body {
   font-weight: 400;
 }
 
-/* Navigation titles */
+/* Navigation titles - Wiki 링크 스타일과 동일 */
 .nav-title {
-  font-size: 1rem;
+  font-size: 1.05em;             /* Wiki 링크와 동일 (1.05em) */
   color: var(--accent-color);
   font-weight: 600;
+  text-decoration: underline;    /* 밑줄 추가 (Wiki 링크와 동일) */
 }
 
 /* Responsive design */
