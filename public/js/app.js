@@ -472,12 +472,18 @@ function addDocumentNavigation(contentDiv) {
   if (nav.prev) {
     const cleanPath = nav.prev.path.replace(/\.md$/, '');
     const displayName = nav.prev.name.replace(/\.md$/, '');
-    prevDiv.innerHTML = `
-      <a href="/doc/${cleanPath}">
-        <span class="nav-label">← Previous</span>
-        <span class="nav-title">${displayName}</span>
-      </a>
+    const prevLink = document.createElement('a');
+    prevLink.href = `/doc/${cleanPath}`;
+    prevLink.innerHTML = `
+      <span class="nav-label">← Previous</span>
+      <span class="nav-title">${displayName}</span>
     `;
+    // Add click event to use SPA navigation
+    prevLink.addEventListener('click', async (e) => {
+      e.preventDefault();
+      await loadFile(nav.prev.path);
+    });
+    prevDiv.appendChild(prevLink);
   }
 
   // Next link
@@ -486,12 +492,18 @@ function addDocumentNavigation(contentDiv) {
   if (nav.next) {
     const cleanPath = nav.next.path.replace(/\.md$/, '');
     const displayName = nav.next.name.replace(/\.md$/, '');
-    nextDiv.innerHTML = `
-      <a href="/doc/${cleanPath}">
-        <span class="nav-label">Next →</span>
-        <span class="nav-title">${displayName}</span>
-      </a>
+    const nextLink = document.createElement('a');
+    nextLink.href = `/doc/${cleanPath}`;
+    nextLink.innerHTML = `
+      <span class="nav-label">Next →</span>
+      <span class="nav-title">${displayName}</span>
     `;
+    // Add click event to use SPA navigation
+    nextLink.addEventListener('click', async (e) => {
+      e.preventDefault();
+      await loadFile(nav.next.path);
+    });
+    nextDiv.appendChild(nextLink);
   }
 
   navContainer.appendChild(prevDiv);
@@ -942,6 +954,51 @@ async function expandPathToFile(filePath) {
   }
 }
 
+/**
+ * Expand parent folders for a given file path
+ * Step 9.3: Navigation fix - ensure parent folders are expanded
+ *
+ * @param {string} filePath - File path (e.g., 'test-zip/file1.md')
+ */
+async function expandParentFolders(filePath) {
+  if (!filePath || !filePath.includes('/')) {
+    return; // Root level file, no parent folders
+  }
+
+  // Extract directory path (remove file name)
+  const parts = filePath.split('/');
+  parts.pop(); // Remove file name
+
+  if (parts.length === 0) {
+    return; // No parent folders
+  }
+
+  // Expand each parent folder sequentially
+  let currentPath = '';
+  for (const part of parts) {
+    currentPath = currentPath ? `${currentPath}/${part}` : part;
+
+    // Find the folder wrapper in DOM
+    const wrapper = document.querySelector(`.tree-item-wrapper[data-path="${currentPath}"]`);
+    if (!wrapper) {
+      console.warn(`Folder not found in tree: ${currentPath}`);
+      continue;
+    }
+
+    // Check if already expanded
+    const childrenContainer = wrapper.querySelector('.tree-children');
+    if (childrenContainer && childrenContainer.style.display === 'none') {
+      // Need to expand - click the expand icon
+      const expandIcon = wrapper.querySelector('.expand-icon');
+      if (expandIcon) {
+        expandIcon.click();
+        // Wait for DOM to update
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+  }
+}
+
 // Load file and render
 async function loadFile(path, hash = '', updateUrl = true) {
   try {
@@ -956,6 +1013,10 @@ async function loadFile(path, hash = '', updateUrl = true) {
     document.querySelectorAll('.tree-item').forEach(item => {
       item.classList.remove('active');
     });
+
+    // Expand parent folders if needed (Step 9.3 fix)
+    await expandParentFolders(path);
+
     const activeItem = document.querySelector(`.tree-item[data-path="${path}"]`);
     if (activeItem) {
       activeItem.classList.add('active');
