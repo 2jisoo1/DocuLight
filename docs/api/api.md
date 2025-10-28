@@ -686,6 +686,43 @@ GET    /api/download/dir  → downloadDirectory()
 
 ---
 
+## 클라이언트 기능
+
+### Wiki 링크 지원
+
+DocuLight는 Obsidian 스타일의 Wiki 링크를 지원합니다.
+
+**구문**:
+```markdown
+[[/path/to/document]]
+```
+
+**예시**:
+- `[[/guide/getting-started]]` → getting-started 문서로 링크
+- `[[/README]]` → README 문서로 링크
+- `[[/guide/setup.md]]` → .md 확장자는 자동 제거됨
+
+**동작 방식**:
+1. Wiki 링크 `[[path]]`는 클라이언트에서 전처리됨
+2. 표준 마크다운 링크 `[name](url)`로 자동 변환
+3. Clean URL 형식 사용: `/doc/path` (`.md` 확장자 제거)
+4. 링크 클릭 시 해당 문서로 이동
+
+**변환 예시**:
+```markdown
+원본: [[/guide/programming-samples]]
+변환: [programming-samples](/doc/guide/programming-samples)
+```
+
+**제한사항**:
+- 현재 **절대 경로만 지원** (루트 `/`부터 시작하는 경로)
+- 상대 경로 (`../other-doc`)는 향후 지원 예정
+- 경로의 앞뒤 공백은 자동으로 제거됨
+
+**테스트 문서**: `/test-wiki-links` 문서에서 다양한 Wiki 링크 패턴을 확인할 수 있습니다.
+
+---
+
 ## 참고 자료
 
 - [MCP API 문서](./mcp.md) - Model Context Protocol (AI 에이전트용)

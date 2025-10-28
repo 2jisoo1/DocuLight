@@ -259,8 +259,42 @@ function addCopyButtons(contentDiv) {
   });
 }
 
+/**
+ * Wiki 링크 [[path]] → [name](url) 변환
+ * Step 9.4: Wiki Links Support
+ *
+ * @param {string} markdown - 원본 마크다운 콘텐츠
+ * @returns {string} - Wiki 링크가 표준 마크다운 링크로 변환된 콘텐츠
+ *
+ * 예시:
+ * - 입력: [[/guide/setup]]
+ * - 출력: [setup](/doc/guide/setup)
+ */
+function preprocessWikiLinks(markdown) {
+  // Wiki 링크 패턴: [[경로]]
+  const wikiLinkPattern = /\[\[([^\]]+)\]\]/g;
+
+  return markdown.replace(wikiLinkPattern, (match, fullPath) => {
+    // 1. 경로 정규화: trim + .md 제거
+    let cleanPath = fullPath.trim().replace(/\.md$/, '');
+
+    // 2. 파일명 추출 (표시용)
+    const parts = cleanPath.split('/').filter(p => p);
+    const displayName = parts[parts.length - 1] || cleanPath;
+
+    // 3. Clean URL 생성 (/doc prefix)
+    const url = `/doc${cleanPath.startsWith('/') ? cleanPath : '/' + cleanPath}`;
+
+    // 4. 표준 마크다운 링크 형식으로 변환
+    return `[${displayName}](${url})`;
+  });
+}
+
 // Render markdown
 async function renderMarkdown(content) {
+  // Step 9.4: Preprocess Wiki links [[]] before markdown parsing
+  const preprocessed = preprocessWikiLinks(content);
+
   // Configure marked with custom renderer to add IDs to headings
   const renderer = new marked.Renderer();
   const originalHeading = renderer.heading.bind(renderer);
@@ -284,8 +318,8 @@ async function renderMarkdown(content) {
     renderer: renderer
   });
 
-  // Parse markdown
-  const rawHtml = marked.parse(content);
+  // Parse markdown (with preprocessed Wiki links)
+  const rawHtml = marked.parse(preprocessed);
 
   // Sanitize HTML with DOMPurify - allow Highlight.js classes and heading IDs
   const cleanHtml = DOMPurify.sanitize(rawHtml, {
