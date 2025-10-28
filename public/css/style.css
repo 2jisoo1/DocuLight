@@ -437,11 +437,14 @@ body {
 
 .markdown-content a {
   color: var(--accent-color);
-  text-decoration: none;
+  text-decoration: underline;  /* 기본 밑줄 (GitHub 스타일) */
+  font-weight: 600;            /* 굵게 (semi-bold) */
+  font-size: 1.05em;           /* 약간 크게 (5% 증가) */
 }
 
 .markdown-content a:hover {
   text-decoration: underline;
+  opacity: 0.8;                /* hover 시 약간 투명하게 */
 }
 
 .markdown-content ul,
