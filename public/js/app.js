@@ -11,6 +11,9 @@ const DB_NAME = 'DocuLight';
 const DB_VERSION = 1;
 let db;
 
+// Global state: flattened file list for navigation (Step 9.3)
+let flatFileList = [];
+
 // Initialize IndexedDB
 async function initDB() {
   return new Promise((resolve, reject) => {
@@ -260,6 +263,70 @@ function addCopyButtons(contentDiv) {
 }
 
 /**
+ * 재귀적으로 모든 파일을 가져와서 평면화된 리스트 생성
+ * Step 9.3: Document Navigation
+ *
+ * @param {string} path - 시작 경로
+ * @param {Array} result - 결과 배열
+ * @returns {Promise<Array>} - 평면화된 파일 리스트 [{path, name}, ...]
+ */
+async function fetchAllFilesRecursive(path = '/', result = []) {
+  try {
+    const data = await fetchTree(path);
+
+    // 현재 레벨의 파일들을 먼저 추가
+    if (data.files && Array.isArray(data.files)) {
+      data.files.forEach(file => {
+        const filePath = path === '/' ? file.name : `${path}/${file.name}`;
+        result.push({
+          path: filePath,
+          name: file.name
+        });
+      });
+    }
+
+    // 하위 디렉토리를 재귀적으로 처리 (DFS)
+    if (data.dirs && Array.isArray(data.dirs)) {
+      for (const dir of data.dirs) {
+        const dirPath = path === '/' ? dir.name : `${path}/${dir.name}`;
+        await fetchAllFilesRecursive(dirPath, result);
+      }
+    }
+
+    return result;
+  } catch (error) {
+    console.error(`Failed to fetch files in ${path}:`, error);
+    return result;
+  }
+}
+
+/**
+ * 현재 문서의 이전/다음 문서 계산
+ * Step 9.3: Document Navigation
+ *
+ * @param {string} currentPath - 현재 문서 경로
+ * @returns {Object} - { prev: {path, name} | null, next: {path, name} | null }
+ */
+function calculateNavigation(currentPath) {
+  if (!currentPath || flatFileList.length === 0) {
+    return { prev: null, next: null };
+  }
+
+  // 현재 파일 인덱스 찾기
+  const currentIndex = flatFileList.findIndex(file => file.path === currentPath);
+
+  if (currentIndex === -1) {
+    return { prev: null, next: null };
+  }
+
+  // 이전/다음 파일 결정
+  const prev = currentIndex > 0 ? flatFileList[currentIndex - 1] : null;
+  const next = currentIndex < flatFileList.length - 1 ? flatFileList[currentIndex + 1] : null;
+
+  return { prev, next };
+}
+
+/**
  * Wiki 링크 [[path]] → [name](url) 변환
  * Step 9.4: Wiki Links Support
  *
@@ -362,6 +429,74 @@ async function renderMarkdown(content) {
 
   // Add anchor links to headings
   addHeadingAnchors(contentDiv);
+
+  // Step 9.3: Add document navigation (prev/next)
+  addDocumentNavigation(contentDiv);
+}
+
+/**
+ * 문서 네비게이션 추가 (이전/다음 링크)
+ * Step 9.3: Document Navigation
+ */
+function addDocumentNavigation(contentDiv) {
+  // Get current path from breadcrumb
+  const breadcrumb = document.getElementById('breadcrumb');
+  if (!breadcrumb) return;
+
+  const currentPath = breadcrumb.textContent.trim();
+
+  // 폴더 리스트 뷰는 네비게이션 제외
+  if (!currentPath || currentPath === 'Select a document' || currentPath.endsWith('/')) {
+    return;
+  }
+
+  const nav = calculateNavigation(currentPath);
+
+  // 이전/다음이 모두 없으면 네비게이션 추가 안 함
+  if (!nav.prev && !nav.next) {
+    return;
+  }
+
+  // Separator
+  const separator = document.createElement('hr');
+  separator.className = 'doc-separator';
+  contentDiv.appendChild(separator);
+
+  // Navigation container
+  const navContainer = document.createElement('nav');
+  navContainer.className = 'doc-navigation';
+
+  // Previous link
+  const prevDiv = document.createElement('div');
+  prevDiv.className = 'nav-prev';
+  if (nav.prev) {
+    const cleanPath = nav.prev.path.replace(/\.md$/, '');
+    const displayName = nav.prev.name.replace(/\.md$/, '');
+    prevDiv.innerHTML = `
+      <a href="/doc/${cleanPath}">
+        <span class="nav-label">← Previous</span>
+        <span class="nav-title">${displayName}</span>
+      </a>
+    `;
+  }
+
+  // Next link
+  const nextDiv = document.createElement('div');
+  nextDiv.className = 'nav-next';
+  if (nav.next) {
+    const cleanPath = nav.next.path.replace(/\.md$/, '');
+    const displayName = nav.next.name.replace(/\.md$/, '');
+    nextDiv.innerHTML = `
+      <a href="/doc/${cleanPath}">
+        <span class="nav-label">Next →</span>
+        <span class="nav-title">${displayName}</span>
+      </a>
+    `;
+  }
+
+  navContainer.appendChild(prevDiv);
+  navContainer.appendChild(nextDiv);
+  contentDiv.appendChild(navContainer);
 }
 
 // Copy heading link to clipboard
@@ -914,6 +1049,10 @@ async function init() {
     const container = document.getElementById('tree-container');
     await buildTree(treeData, container);
 
+    // Step 9.3: Recursively fetch all files for document navigation
+    flatFileList = await fetchAllFilesRecursive('/');
+    console.log(`[Step 9.3] Loaded ${flatFileList.length} files for navigation`);
+
     // Tree item click event delegation (Step 9.2)
     container.addEventListener('click', async (e) => {
       // First check if we clicked on a folder item or its children
@@ -971,6 +1110,10 @@ async function init() {
         const treeData = await fetchTree('/');
         container.innerHTML = '';
         await buildTree(treeData, container);
+
+        // Step 9.3: Re-fetch all files for navigation
+        flatFileList = await fetchAllFilesRecursive('/');
+        console.log(`[Step 9.3] Reloaded ${flatFileList.length} files after refresh`);
       } catch (error) {
         console.error('Failed to refresh tree:', error);
         const userMessage = ErrorHandler.getUserMessage(error, 'Directory tree');
