@@ -428,22 +428,23 @@ async function buildTree(data, container, currentPath = '', level = 0) {
     item.dataset.path = dirPath;
     item.style.paddingLeft = `${level * 1.2}rem`;
 
-    // Create expand icon
+    // Create expand icon (toggle) - Obsidian-style chevron SVG
     const expandIcon = document.createElement('span');
     expandIcon.className = 'expand-icon';
-    expandIcon.textContent = '▶';
+    expandIcon.dataset.action = 'toggle';  // For event delegation
+    expandIcon.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M5 3 L9 7 L5 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    `;
 
-    // Create folder icon
-    const folderIcon = document.createElement('span');
-    folderIcon.className = 'tree-icon';
-    folderIcon.textContent = '📁';
-
-    // Create name span
+    // Create name span (folder link)
     const nameSpan = document.createElement('span');
+    nameSpan.className = 'folder-name';
     nameSpan.textContent = dir.name;
+    nameSpan.dataset.action = 'list';      // For event delegation
 
     item.appendChild(expandIcon);
-    item.appendChild(folderIcon);
     item.appendChild(nameSpan);
 
     // Create children container
@@ -451,11 +452,8 @@ async function buildTree(data, container, currentPath = '', level = 0) {
     childrenContainer.className = 'tree-children';
     childrenContainer.style.display = 'none';
 
-    // Add click handler for expansion
-    item.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      await toggleDirectory(dirPath, wrapper, childrenContainer, expandIcon, level + 1);
-    });
+    // Click handlers are handled by event delegation in init()
+    // (Step 9.2: removed individual item click handlers)
 
     wrapper.appendChild(item);
     wrapper.appendChild(childrenContainer);
@@ -471,7 +469,7 @@ async function buildTree(data, container, currentPath = '', level = 0) {
     const item = document.createElement('div');
     item.className = 'tree-item file';
     item.dataset.path = filePath;
-    item.style.paddingLeft = `${(level + 1) * 1.2}rem`;
+    item.style.paddingLeft = `${level * 1.2}rem`;  // 폴더와 동일한 레벨 (level + 1 제거)
 
     const fileIcon = document.createElement('span');
     fileIcon.className = 'tree-icon';
@@ -519,13 +517,11 @@ async function toggleDirectory(dirPath, wrapper, childrenContainer, expandIcon, 
   if (isExpanded) {
     // Collapse
     childrenContainer.style.display = 'none';
-    expandIcon.textContent = '▶';
     expandIcon.classList.remove('expanded');
     wrapper.classList.remove('expanded');
     await saveTreeState(dirPath, false);
   } else {
     // Expand
-    expandIcon.textContent = '▼';
     expandIcon.classList.add('expanded');
     wrapper.classList.add('expanded');
 
@@ -547,6 +543,193 @@ async function toggleDirectory(dirPath, wrapper, childrenContainer, expandIcon, 
     childrenContainer.style.display = 'block';
     await saveTreeState(dirPath, true);
   }
+}
+
+// Show folder contents as a list in main area (Step 9.2)
+async function showFolderList(folderPath) {
+  try {
+    // Save current path
+    currentPath = folderPath;
+
+    // Update breadcrumb
+    document.getElementById('breadcrumb').textContent = folderPath + '/';
+
+    // Fetch folder contents
+    const response = await fetch(`/api/tree?path=${encodeURIComponent(folderPath)}`);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    // Generate markdown for folder contents
+    const markdown = generateFolderListMarkdown(folderPath, data);
+
+    // Render markdown
+    await renderMarkdown(markdown);
+
+    // Add folder-list-view class to content div
+    const contentDiv = document.getElementById('markdown-content');
+    contentDiv.classList.add('folder-list-view');
+
+    // Update URL (clean URL without .md)
+    const cleanPath = folderPath.replace(/^\//, '');
+    const encodedPath = cleanPath.split('/').map(seg => encodeURIComponent(seg)).join('/');
+    window.history.pushState({
+      path: folderPath,
+      type: 'folder'
+    }, '', cleanPath ? `/doc/${encodedPath}` : '/');
+
+    // Update active state in tree
+    document.querySelectorAll('.tree-item').forEach(item => {
+      item.classList.remove('active');
+    });
+
+    const activeItem = document.querySelector(`.tree-item[data-path="${folderPath}"]`);
+    if (activeItem) {
+      activeItem.classList.add('active');
+    }
+
+  } catch (error) {
+    console.error('Failed to load folder list:', error);
+    const userMessage = ErrorHandler.getUserMessage(error, 'Folder');
+    ErrorHandler.showError(userMessage, error.message);
+  }
+}
+
+// Expand all folders (Step 9.3)
+async function expandAll() {
+  try {
+    const allWrappers = document.querySelectorAll('.tree-item-wrapper');
+
+    for (const wrapper of allWrappers) {
+      const directoryItem = wrapper.querySelector('.tree-item.directory');
+      if (!directoryItem) continue;
+
+      const dirPath = wrapper.dataset.path;
+      const childrenContainer = wrapper.querySelector('.tree-children');
+      const expandIcon = wrapper.querySelector('.expand-icon');
+      const level = parseInt(directoryItem.style.paddingLeft) / 1.2;
+
+      // Check if already expanded
+      if (childrenContainer.style.display === 'none') {
+        // Load children if not loaded
+        if (childrenContainer.children.length === 0) {
+          try {
+            const treeData = await fetchTree(dirPath);
+            await buildTree(treeData, childrenContainer, dirPath, level);
+          } catch (error) {
+            console.error(`Failed to load directory ${dirPath}:`, error);
+          }
+        }
+
+        // Show children
+        expandIcon.classList.add('expanded');
+        wrapper.classList.add('expanded');
+        childrenContainer.style.display = 'block';
+
+        // Save state
+        await saveTreeState(dirPath, true);
+      }
+    }
+  } catch (error) {
+    console.error('Failed to expand all:', error);
+    ErrorHandler.showError('Failed to expand all folders', error.message);
+  }
+}
+
+// Collapse all folders (Step 9.3)
+async function collapseAll() {
+  try {
+    const allWrappers = document.querySelectorAll('.tree-item-wrapper');
+
+    for (const wrapper of allWrappers) {
+      const childrenContainer = wrapper.querySelector('.tree-children');
+      const expandIcon = wrapper.querySelector('.expand-icon');
+
+      if (!childrenContainer || !expandIcon) continue;
+
+      const dirPath = wrapper.dataset.path;
+
+      // Check if already expanded
+      if (childrenContainer.style.display !== 'none') {
+        // Hide children
+        expandIcon.classList.remove('expanded');
+        wrapper.classList.remove('expanded');
+        childrenContainer.style.display = 'none';
+
+        // Save state
+        await saveTreeState(dirPath, false);
+      }
+    }
+  } catch (error) {
+    console.error('Failed to collapse all:', error);
+    ErrorHandler.showError('Failed to collapse all folders', error.message);
+  }
+}
+
+// Generate markdown for folder list view (Step 9.2)
+function generateFolderListMarkdown(folderPath, treeData) {
+  // Extract folder name for title
+  const folderName = folderPath.split('/').filter(p => p).pop() || 'Root';
+
+  let markdown = `# 📂 ${folderName}\n\n`;
+
+  // Show current path
+  markdown += `**Path**: \`${folderPath || '/'}\`\n\n`;
+
+  // Subdirectories section
+  if (treeData.dirs && treeData.dirs.length > 0) {
+    markdown += `## Subdirectories\n\n`;
+
+    for (const dir of treeData.dirs) {
+      const dirPath = folderPath ? `${folderPath}/${dir.name}` : dir.name;
+      const cleanDirPath = dirPath.replace(/^\//, '');
+      markdown += `- **[${dir.name}](/doc/${cleanDirPath})**\n`;
+    }
+
+    markdown += '\n';
+  }
+
+  // Documents section
+  if (treeData.files && treeData.files.length > 0) {
+    markdown += `## Documents\n\n`;
+
+    for (const file of treeData.files) {
+      // Only show .md files
+      if (!file.name.endsWith('.md')) continue;
+
+      const filePath = folderPath ? `${folderPath}/${file.name}` : file.name;
+      const cleanFilePath = filePath.replace(/^\//, '').replace(/\.md$/, '');
+
+      // Display name without .md extension
+      const displayName = file.name.replace(/\.md$/, '');
+
+      // File size (human readable)
+      const sizeKB = (file.size / 1024).toFixed(1);
+
+      markdown += `- [📄 ${displayName}](/doc/${cleanFilePath}) _${sizeKB} KB_\n`;
+    }
+
+    markdown += '\n';
+  }
+
+  // Empty folder message
+  if ((!treeData.dirs || treeData.dirs.length === 0) &&
+      (!treeData.files || treeData.files.length === 0)) {
+    markdown += `\n---\n\n`;
+    markdown += `_This folder is empty._\n\n`;
+  }
+
+  // Footer with stats
+  const totalDirs = treeData.dirs ? treeData.dirs.length : 0;
+  const totalFiles = treeData.files ? treeData.files.filter(f => f.name.endsWith('.md')).length : 0;
+
+  markdown += `\n---\n\n`;
+  markdown += `**Total**: ${totalDirs} subdirectories, ${totalFiles} documents\n`;
+
+  return markdown;
 }
 
 // Expand folder path to make file visible in tree
@@ -697,6 +880,56 @@ async function init() {
     const container = document.getElementById('tree-container');
     await buildTree(treeData, container);
 
+    // Tree item click event delegation (Step 9.2)
+    container.addEventListener('click', async (e) => {
+      // First check if we clicked on a folder item or its children
+      const directoryItem = e.target.closest('.tree-item.directory');
+
+      if (directoryItem) {
+        // Folder item clicked
+        const wrapper = directoryItem.closest('.tree-item-wrapper');
+        if (!wrapper) return;
+
+        const dirPath = wrapper.dataset.path;
+        e.stopPropagation();
+
+        // Check if expand-icon was specifically clicked
+        const expandIcon = e.target.closest('.expand-icon');
+        if (expandIcon) {
+          // Toggle icon clicked → expand/collapse tree
+          const childrenContainer = wrapper.querySelector('.tree-children');
+          const icon = wrapper.querySelector('.expand-icon');
+          const level = parseInt(directoryItem.style.paddingLeft) / 1.2;
+
+          await toggleDirectory(dirPath, wrapper, childrenContainer, icon, level + 1);
+        } else {
+          // Other parts of folder clicked → show folder list in main area
+          await showFolderList(dirPath);
+        }
+      }
+    });
+
+    // Tree item double-click event delegation (Step 9.2)
+    container.addEventListener('dblclick', async (e) => {
+      // First check if we double-clicked on a folder item
+      const directoryItem = e.target.closest('.tree-item.directory');
+
+      if (directoryItem) {
+        // Folder item double-clicked → expand/collapse tree
+        const wrapper = directoryItem.closest('.tree-item-wrapper');
+        if (!wrapper) return;
+
+        const dirPath = wrapper.dataset.path;
+        e.stopPropagation();
+
+        const childrenContainer = wrapper.querySelector('.tree-children');
+        const expandIcon = wrapper.querySelector('.expand-icon');
+        const level = parseInt(directoryItem.style.paddingLeft) / 1.2;
+
+        await toggleDirectory(dirPath, wrapper, childrenContainer, expandIcon, level + 1);
+      }
+    });
+
     // Refresh button
     document.getElementById('refresh-btn').addEventListener('click', async () => {
       try {
@@ -713,6 +946,24 @@ async function init() {
             <p class="error-details">${error.message}</p>
           </div>
         `;
+      }
+    });
+
+    // Expand All button (Step 9.3)
+    document.getElementById('expand-all-btn')?.addEventListener('click', async () => {
+      try {
+        await expandAll();
+      } catch (error) {
+        console.error('Error in expand all:', error);
+      }
+    });
+
+    // Collapse All button (Step 9.3)
+    document.getElementById('collapse-all-btn')?.addEventListener('click', async () => {
+      try {
+        await collapseAll();
+      } catch (error) {
+        console.error('Error in collapse all:', error);
       }
     });
 
@@ -768,13 +1019,36 @@ async function init() {
     }
 
     if (pathFromUrl) {
-      // Load file from URL (highest priority)
+      // Try to load as file first, then as folder (Step 9.2)
+      const folderPath = pathFromUrl.replace(/\.md$/, '');
+
+      // Try loading as file
+      let isFile = false;
       try {
-        await expandPathToFile(pathFromUrl);
-        await loadFile(pathFromUrl, hash, false); // Don't update URL (already set)
-      } catch (error) {
-        console.error('Failed to load file from URL:', error);
-        // Fallback to welcome screen
+        // Check if it's a file by trying to fetch it
+        const testResponse = await fetch(`/api/raw?path=${encodeURIComponent(pathFromUrl)}`);
+        isFile = testResponse.ok;
+      } catch (e) {
+        isFile = false;
+      }
+
+      if (isFile) {
+        // Load as file
+        try {
+          await expandPathToFile(pathFromUrl);
+          await loadFile(pathFromUrl, hash, false);
+        } catch (error) {
+          console.error('Failed to load file:', error);
+          ErrorHandler.showError('Failed to load file', error.message);
+        }
+      } else {
+        // Try as folder
+        try {
+          await showFolderList(folderPath);
+        } catch (error) {
+          console.error('Failed to load folder:', error);
+          ErrorHandler.showError('Not found', `Path "${pathname}" does not exist`);
+        }
       }
     } else {
       // Check for configured index file (second priority)

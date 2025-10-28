@@ -1,0 +1,11 @@
+<svg width="16" height="16" viewBox="0 0 16 16"
+     xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Collapse">
+    <title>Collapse (2px gap)</title>
+    <g fill="none" stroke="#888888" stroke-width="1.5"
+       stroke-linecap="round" stroke-linejoin="round">
+        <!-- 위쪽 화살표 (∨) -->
+        <path d="M4 5.5 L8 3 L12 5.5"/>
+        <!-- 아래쪽 화살표 (∧) -->
+        <path d="M4 10.5 L8 13 L12 10.5"/>
+    </g>
+</svg>

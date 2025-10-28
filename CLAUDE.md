@@ -1,186 +1,418 @@
 # CLAUDE.md
 
-이 파일은 Claude Code(claude.ai/code)가 이 저장소의 코드 작업 시 참고하는 가이드입니다.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## 프로젝트 개요
+## Project Overview
 
-DocuLight는 Node.js + Express + EJS로 구축된 경량 Markdown 문서 뷰어 및 관리 시스템입니다. Obsidian 스타일의 트리 탐색과 GitHub 스타일의 렌더링으로 Markdown 파일을 탐색, 열람, 관리할 수 있는 웹 기반 인터페이스를 제공합니다.
+**DocLight** is a lightweight Markdown document viewer and management system built with Node.js + Express + EJS. It provides a web-based interface for browsing, viewing, and managing Markdown files with an Obsidian-style file tree and GitHub-style rendering.
 
-## 개발 명령어
+### Key Capabilities
+- File tree navigation (Obsidian-like sidebar)
+- Markdown rendering (GitHub-flavored, with Mermaid diagram support)
+- API-based file operations (upload, delete, download)
+- Configuration-driven settings (JSON5 format with validation)
+- Security: Path validation, API key authentication, XSS protection via DOMPurify
+- Client-side state persistence (IndexedDB for tree expansion and last opened file)
 
-### 애플리케이션 실행
+## Development Commands
+
+### Running the Application
 
 ```bash
-# 개발 모드 - 자동 재시작(nodemon)
+# Development mode with auto-restart (nodemon)
 npm run dev
 
-# 프로덕션 모드
+# Production mode
 npm start
 ```
 
-서버는 기본적으로 포트 3000에서 실행됩니다(`config.json5`에서 설정 가능). `http://localhost:3000`에 접속하세요.
+The server runs on port 3000 by default (configurable via `config.json5`). Access the application at `http://localhost:3000`.
 
-### 설정 구성
+### Setup Configuration
 
-첫 실행 전:
+Before first run:
 
 ```bash
-# 예제 설정 파일 복사
+# Copy example config
 cp config.example.json5 config.json5
 
-# config.json5 편집하여 설정:
-# - docsRoot: 문서 디렉터리의 절대 경로
-# - apiKey: API 인증용 안전한 랜덤 문자열
-# - port, maxUploadMB, excludes 등
+# Edit config.json5 with:
+# - docsRoot: absolute path to document directory
+# - apiKey: secure random string for API authentication
+# - port, maxUploadMB, excludes, etc.
 ```
 
-`config.json5`가 누락되었거나 잘못된 설정이 포함되어 있으면 애플리케이션 시작이 실패합니다(검증 규칙은 src/utils/config-loader.js:31-40 참조).
+Application startup will fail if `config.json5` is missing or contains invalid settings (validation rules: src/utils/config-loader.js:31-40).
 
-## 아키텍처
+### Running Tests
 
-### 서버 측 구조 (src/)
-
-**진입점: src/app.js**
-- `config-loader.js`를 통해 설정 로드
-- 일일 로테이션이 있는 Winston 로거 초기화
-- EJS 뷰가 있는 Express 앱 설정
-- `/api`에 API 라우트 마운트
-- SIGTERM/SIGINT에서 우아한 종료 제공
-
-**요청 흐름**:
-1. Request → `request-logger.js` 미들웨어 (Winston 로깅)
-2. `routes/api.js`에서 라우트 매칭
-3. 공개 라우트 (GET /tree, /raw) → 컨트롤러로 직접 이동
-4. 보호된 라우트 (POST /upload, DELETE /entry, GET /download/*) → `auth.js` 미들웨어 → 컨트롤러
-5. 경로 검증, 파일 작업이 포함된 컨트롤러 로직
-6. 응답 또는 오류 → `error-handler.js` 미들웨어
-
-**컨트롤러 (src/controllers/)**:
-- `tree-controller.js`: 제외 패턴 필터링이 있는 디렉터리 트리 생성
-- `raw-controller.js`: Markdown 파일 콘텐츠 검색
-- `upload-controller.js`: 크기 제한이 있는 Multer 기반 파일 업로드
-- `delete-controller.js`: 안전을 위해 async-lock을 사용한 파일/디렉터리 삭제
-- `download-controller.js`: 단일 파일 및 디렉터리 ZIP 다운로드
-
-**주요 유틸리티 (src/utils/)**:
-- `config-loader.js`: 검증 및 기본값이 포함된 JSON5 설정 파싱
-- `logger.js`: 일일 파일 로테이션이 있는 Winston 로거 팩토리
-- `path-validator.js`: 디렉터리 순회 방지를 위한 보안 검증
-- `lock-manager.js`: 동시 작업 안전을 위한 AsyncLock 래퍼
-
-**미들웨어 (src/middleware/)**:
-- `auth.js`: X-API-Key 헤더를 통한 API 키 검증
-- `error-handler.js`: 상태 코드 매핑이 있는 중앙집중식 오류 처리
-- `request-logger.js`: HTTP 요청/응답 로깅
-
-### 클라이언트 측 구조 (public/js/app.js)
-
-**주요 컴포넌트**:
-- 트리 상태 및 마지막으로 연 파일을 유지하기 위한 IndexedDB 통합
-- 확장/축소 지속성이 있는 파일 트리 렌더링
-- DOMPurify 정제가 있는 Markdown 렌더링
-- Mermaid.js 다이어그램 지원
-- 지수 백오프 재시도 로직이 있는 오류 처리
-- 상태 관리 (ErrorHandler, TreeManager, FileViewer 패턴)
-
-**상태 지속성**:
-- IndexedDB `treeState` 스토어에 경로별로 트리 확장 상태 저장
-- `lastOpened` 스토어에 마지막으로 연 파일을 저장하여 재방문 시 자동 로드
-
-### 보안 모델
-
-**경로 검증** (src/utils/path-validator.js):
-- 디렉터리 순회를 방지하기 위해 모든 파일 경로를 `docsRoot`에 대해 검증
-- `path.resolve()` 및 포함 검사 사용
-
-**API 인증**:
-- 읽기 작업 (GET /tree, /raw): 공개 접근
-- 쓰기 작업 (POST /upload, DELETE /entry, GET /download/*): `config.apiKey`와 일치하는 X-API-Key 헤더 필요
-
-**XSS 보호**:
-- Markdown 렌더링 전 DOMPurify를 통한 클라이언트 측 HTML 정제
-
-**파일 필터링**:
-- config.json5의 제외 패턴은 `ignore` 라이브러리 사용 (gitignore 호환)
-- 민감한 파일을 숨기기 위해 트리 생성 시 적용
-
-## 설정 시스템
-
-`config.json5` (주석을 위한 JSON5 형식)은 시작 시 로드됩니다. 필수 필드:
-- `docsRoot`: 기존 디렉터리여야 함 (절대 경로 권장)
-- `apiKey`: 기본값에서 변경되어야 함
-
-기본값이 있는 선택 필드:
-- `maxUploadMB`: 10 (검증 범위 1-1000)
-- `port`: 3000
-- `excludes`: [] (gitignore 스타일 패턴의 배열)
-- `logDir`: "./logs" (없으면 생성됨)
-- `logLevel`: "info" (error|warn|info|debug)
-- `ui.title`: "DocuLight" (사이드바 제목)
-- `ui.icon`: "/images/icon.png" (아이콘 경로)
-
-전체 문서는 config.example.json5를 참조하세요.
-
-## API 엔드포인트
-
-### 공개 (인증 불필요)
-- `GET /api/tree?path=<path>` - 디렉터리 트리 구조
-- `GET /api/raw?path=<file>` - 원본 Markdown 콘텐츠
-- `GET /healthz` - 헬스 체크
-
-### 보호됨 (X-API-Key 헤더 필요)
-- `POST /api/upload?path=<dir>` - 파일 업로드 (multipart/form-data, 필드: "file")
-- `DELETE /api/entry?path=<path>` - 파일 또는 디렉터리 삭제
-- `GET /api/download/file?path=<file>` - 단일 파일 다운로드
-- `GET /api/download/dir?path=<dir>` - 디렉터리를 ZIP으로 다운로드
-
-## 주요 의존성
-
-- **express**: 웹 서버 프레임워크
-- **ejs**: 서버 측 템플릿
-- **multer**: 파일 업로드 처리
-- **winston**: 일일 로테이션이 있는 로깅
-- **ignore**: 제외를 위한 Gitignore 스타일 패턴 매칭
-- **archiver**: 디렉터리 다운로드를 위한 ZIP 생성
-- **async-lock**: 파일 작업을 위한 동시성 제어
-- **json5**: 주석이 있는 설정 파일 파싱
-- **puppeteer**: (향후 PDF 내보내기 기능에 사용 가능)
-- **nodemon** (dev): 파일 변경 시 자동 재로드
-
-## 개발 워크플로
-
-1. 서버 코드 수정 (src/*) → nodemon이 서버 자동 재시작
-2. 클라이언트 코드 수정 (public/js/app.js, public/css/style.css) → 브라우저 새로고침
-3. 뷰 수정 (src/views/index.ejs) → 브라우저 새로고침
-4. `logs/` 디렉터리에서 로그 확인 (일일 로테이션 파일)
-
-## 테스트
-
-프로젝트에는 루트 디렉터리에 수동 테스트 보고서(TEST*.md 파일)가 포함되어 있습니다. 현재 자동화된 테스트 스위트는 구성되어 있지 않습니다(`npm test`는 오류로 종료됨).
-
-API 엔드포인트 테스트:
 ```bash
-# 공개 엔드포인트
+# Manual tests (currently no automated test suite)
+npm run test:startstop    # Server startup/shutdown test
+npm run test:watcher      # File watcher restart test
+
+# Browser tests (Playwright)
+npm run test:folder-ui    # UI/UX testing for Step 9 features
+```
+
+Test reports are stored as markdown files in the root directory (TEST*.md).
+
+## Architecture
+
+### Server-Side Structure (src/)
+
+**Entry Point: src/app.js**
+- Loads configuration via `config-loader.js`
+- Initializes Winston logger with daily file rotation
+- Sets up Express app with EJS views
+- Mounts API routes at `/api`
+- Provides graceful shutdown on SIGTERM/SIGINT
+- **Note**: Step 9 will add `/doc/*.md` route for file downloads and update routing order
+
+**Request Flow**:
+1. Request → `request-logger.js` middleware (Winston logging)
+2. Route matching in `routes/api.js`
+3. Public routes (GET /tree, /raw) → controllers directly
+4. Protected routes (POST /upload, DELETE /entry, GET /download/*) → auth.js middleware → controllers
+5. Controller logic with path validation and file operations
+6. Response or error → `error-handler.js` middleware
+
+**Controllers (src/controllers/)**:
+- `tree-controller.js`: Directory tree generation with exclude pattern filtering
+- `raw-controller.js`: Markdown file content retrieval
+- `upload-controller.js`: Multer-based file upload with size limits
+- `delete-controller.js`: File/directory deletion with async-lock for safety
+- `download-controller.js`: Single file and directory (ZIP) downloads
+
+**Key Utilities (src/utils/)**:
+- `config-loader.js`: JSON5 config parsing with validation and defaults
+- `logger.js`: Winston logger factory with daily file rotation
+- `path-validator.js`: Security validation to prevent directory traversal
+- `lock-manager.js`: AsyncLock wrapper for concurrent operation safety
+- `backup-utils.js` & `config-watcher.js`: Config hot-reload support (Step 8)
+
+**Middleware (src/middleware/)**:
+- `auth.js`: API key validation via X-API-Key header
+- `error-handler.js`: Centralized error handling with status code mapping
+- `request-logger.js`: HTTP request/response logging
+
+### Client-Side Structure (public/js/app.js)
+
+**Main Components**:
+- IndexedDB integration for tree state and last opened file persistence
+- File tree rendering with expand/collapse persistence
+- Markdown rendering with DOMPurify sanitization
+- Mermaid.js diagram support
+- Exponential backoff retry logic with error handling
+- State management (ErrorHandler, TreeManager, FileViewer patterns)
+
+**State Persistence**:
+- IndexedDB `treeState` store: tree expansion state per path
+- IndexedDB `lastOpened` store: auto-load last viewed file on revisit
+
+**Step 9 Enhancements** (in progress):
+- Clean URLs: Remove .md extension from display URLs
+- Folder UI: Separate toggle (tree expand/collapse) from folder listing
+- Document navigation: Previous/next links based on DFS ordering
+- Wiki links: Support `[[/path/to/doc]]` syntax
+- Image rendering: Validate and handle relative/absolute image paths
+
+### Security Model
+
+**Path Validation** (src/utils/path-validator.js):
+- All file paths validated against `docsRoot` to prevent directory traversal
+- Uses `path.resolve()` with containment check
+
+**API Authentication**:
+- Read operations (GET /tree, /raw): Public access
+- Write operations (POST /upload, DELETE /entry, GET /download/*): Require X-API-Key header matching `config.apiKey`
+
+**XSS Protection**:
+- Client-side HTML sanitization via DOMPurify before Markdown rendering
+
+**File Filtering**:
+- Exclude patterns in config.json5 use `ignore` library (gitignore-compatible)
+- Applied during tree generation to hide sensitive files
+
+## Configuration System
+
+`config.json5` (JSON5 format with comments) is loaded at startup.
+
+**Required Fields**:
+- `docsRoot`: Must be an existing directory (absolute path recommended)
+- `apiKey`: Must be changed from default
+
+**Optional Fields (with defaults)**:
+- `maxUploadMB`: 10 (validated range: 1-1000)
+- `port`: 3000
+- `excludes`: [] (array of gitignore-style patterns)
+- `logDir`: "./logs" (created if missing)
+- `logLevel`: "info" (error|warn|info|debug)
+- `ui.title`: "DocLight" (sidebar title)
+- `ui.icon`: "/images/icon.png" (icon path)
+- `hotReload`: Configuration hot-reload settings (Step 8 feature)
+  - `enabled`: Enable file watcher for config changes
+  - `allowPortSslAutoRestart`: Auto-restart server on port/SSL changes
+
+See `config.example.json5` for complete documentation and all available options.
+
+## API Endpoints
+
+### Public (No Authentication Required)
+- `GET /api/tree?path=<path>` — Directory tree structure
+- `GET /api/raw?path=<file>` — Raw Markdown file content
+- `GET /healthz` — Health check endpoint
+
+### Protected (X-API-Key Header Required)
+- `POST /api/upload?path=<dir>` — File upload (multipart/form-data, field: "file")
+- `DELETE /api/entry?path=<path>` — Delete file or directory
+- `GET /api/download/file?path=<file>` — Download single file
+- `GET /api/download/dir?path=<dir>` — Download directory as ZIP
+
+### Web Routes
+- `GET /doc/* (without .md)` — Render Markdown document (Step 9)
+- `GET /doc/*.md` — Download original Markdown file (Step 9)
+- `GET /` — Main application interface
+
+## Key Dependencies
+
+- **express**: Web server framework
+- **ejs**: Server-side templating
+- **multer**: File upload handling
+- **winston**: Logging with daily file rotation
+- **winston-daily-rotate-file**: Daily log rotation
+- **ignore**: Gitignore-style pattern matching for file exclusion
+- **archiver**: ZIP creation for directory downloads
+- **async-lock**: Concurrency control for file operations
+- **json5**: JSON5 config file parsing with comments support
+- **marked**: Markdown parsing and rendering
+- **dompurify**: Client-side HTML sanitization
+- **mermaid**: Diagram rendering support
+- **puppeteer**: Headless Chrome (future PDF export capability)
+- **chokidar** (optional): File system watcher for config hot-reload (Step 8)
+- **adm-zip**: ZIP file manipulation
+- **nodemon** (dev): Auto-reload on file changes
+- **playwright** (dev): Browser automation and E2E testing
+
+## Development Workflow
+
+1. **Server code changes** (src/*) → nodemon automatically restarts server
+2. **Client code changes** (public/js/app.js, public/css/style.css) → Browser refresh required
+3. **View changes** (src/views/index.ejs) → Browser refresh required
+4. **Check logs** in `logs/` directory (daily rotation files)
+
+### Step 9 Development Focus
+
+When implementing Step 9 features (Clean URLs, folder UI, document navigation, wiki links, image validation):
+
+1. **Client-side changes** are primary (public/js/app.js, public/css/style.css)
+2. **Server routing changes** needed for `/doc/*.md` download route
+3. **Test with Playwright** for UI/UX features
+4. **Update API documentation** (docs/api/api.md) if endpoints change
+5. **Maintain backward compatibility** where possible
+
+## Testing Strategy
+
+### Current Test Suite
+- Manual test reports stored as TEST*.md files in root directory
+- No automated unit test suite currently configured
+
+### Test Commands
+```bash
+# Startup/shutdown test
+npm run test:startstop
+
+# File watcher restart test
+npm run test:watcher
+
+# UI/UX tests (Playwright-based, for Step 9)
+npm run test:folder-ui
+```
+
+### API Endpoint Testing
+```bash
+# Public endpoint
 curl "http://localhost:3000/api/tree?path=/"
 
-# 보호된 엔드포인트
+# Protected endpoint
 curl -H "X-API-Key: your-api-key" -X DELETE "http://localhost:3000/api/entry?path=/test.md"
+
+# Web routes (Step 9)
+curl "http://localhost:3000/doc/guide/setup"        # Render (no .md)
+curl "http://localhost:3000/doc/guide/setup.md"     # Download
 ```
 
-## 프로덕션 배포
+### When Adding New Features
+1. Create test case files in `test/` directory
+2. Use Playwright for browser automation tests
+3. Create manual test checklist in TEST*.md
+4. Verify with both cURL and browser
 
-권장: 프로세스 관리에 PM2 사용
+## Production Deployment
+
+Recommended: Use PM2 for process management
 ```bash
 npm install -g pm2
-pm2 start src/app.js --name DocuLight
+pm2 start src/app.js --name DocLight
 pm2 save
 pm2 startup
 ```
 
-## 중요 참고사항
+## Important Notes
 
-- **경로 안전성**: 보안 문제를 방지하기 위해 모든 파일 작업은 path-validator.js를 거쳐야 합니다
-- **동시성**: 삭제 작업은 경쟁 조건을 방지하기 위해 lock-manager.js를 사용합니다
-- **오류 처리**: 컨트롤러는 중앙집중식 error-handler에 오류를 전달하기 위해 `next(error)`를 사용해야 합니다
-- **로깅**: 일관된 로깅을 위해 라우트/컨트롤러에서 `req.app.locals.logger`를 사용하세요
-- **설정 변경**: 서버 재시작 필요 (개발 모드에서 nodemon 사용 시에도)
+### Code Patterns and Conventions
+
+**Path Safety**: All file operations must use `path-validator.js` to prevent directory traversal attacks. Never construct file paths directly from user input.
+
+**Concurrency Control**: Deletion operations use `lock-manager.js` to prevent race conditions. This is critical for file system safety.
+
+**Error Handling**: Controllers must use `next(error)` to pass errors to centralized `error-handler.js` middleware. Never send error responses directly.
+
+**Logging**: Use `req.app.locals.logger` in routes/controllers for consistent logging. This ensures logs are written to daily-rotated files with proper formatting.
+
+**Configuration Changes**: Server restart is required for config changes (even in dev mode with nodemon). The file watcher does not auto-reload all config properties.
+
+### Step 8 Features (Already Implemented)
+- Config hot-reload with file watcher (optional `chokidar`)
+- Backup and rollback functionality
+- Runtime configuration updates without full restart
+- See `src/utils/config-watcher.js` and `src/utils/backup-utils.js`
+
+### Testing Guidelines (from .github/instructions/)
+- Test code belongs in `test/` directory
+- Use Jest or Mocha for unit tests; Playwright for browser tests
+- Tests must be independent and not rely on external systems
+- Use mocks/stubs when needed
+- Run tests in WSL environment if developing on Windows
+
+## Current Development: Step 9 (UI/UX Improvements)
+
+The project is currently in **Step 9: UI/UX Improvements — Clean URLs and Docusaurus-style Navigation**.
+
+### Features Being Implemented
+
+1. **Clean URLs** (P0)
+   - Remove .md extension from rendered URLs (e.g., `/doc/guide/setup` instead of `/doc/guide/setup.md`)
+   - .md URLs trigger file downloads instead of rendering
+   - Backward compatible: existing .md URLs still work
+
+2. **Folder UI Improvements** (P0)
+   - Separate toggle icon (▶/▼) from folder name
+   - Clicking toggle: expand/collapse tree
+   - Clicking folder name: show folder contents as dynamic list view
+   - Docusaurus-style presentation
+
+3. **Document Navigation** (P1)
+   - Previous/next links at bottom of documents
+   - Based on DFS (depth-first search) ordering
+   - Respects file structure
+
+4. **Wiki Link Support** (P1)
+   - Render `[[/path/to/doc]]` as clickable links
+   - Supports relative and absolute paths
+   - Clean URL output
+
+5. **Image Rendering Validation** (P2)
+   - Verify image paths (absolute, relative, external URLs)
+   - Handle lazy loading
+   - Test with Playwright
+
+### Key Files to Modify
+
+**Server:**
+- `src/app.js` — Add `/doc/*.md` route for downloads
+
+**Client:**
+- `public/js/app.js` — Clean URLs, folder UI, navigation, wiki links, image handling
+- `public/css/style.css` — Styling for new UI elements
+
+**Documentation:**
+- `docs/api/api.md` — Update with new download endpoint
+- `docs/api/api-curl-example.md` — Add examples
+
+**Tests:**
+- `test/test-folder-ui.spec.js` — Playwright tests (new file)
+- Test documents in `test-source/` (new files)
+
+### Implementation Plan
+See `docs/plan/plan.step9.md` for detailed implementation plan with phases, time estimates, and success criteria.
+
+## File Organization
+
+### Directory Structure
+```
+DocLight/
+├── src/                      # Server code
+│   ├── app.js               # Express app entry point
+│   ├── controllers/         # Request handlers
+│   ├── middleware/          # Express middleware
+│   ├── routes/              # API routes
+│   ├── utils/               # Utilities (config, logger, validators, etc.)
+│   └── views/               # EJS templates
+├── public/                  # Client files (static)
+│   ├── js/                  # Client JavaScript
+│   │   └── app.js          # Main client application
+│   ├── css/                 # Stylesheets
+│   └── images/              # Static images
+├── test/                    # Test files
+│   ├── test-*.js           # Node.js tests
+│   └── *.spec.js           # Playwright tests
+├── test-source/            # Test documents (Markdown)
+├── docs/                    # Documentation
+│   ├── plan/               # Step-by-step implementation plans
+│   ├── api/                # API documentation
+│   └── guide/              # User guides
+├── logs/                    # Application logs (created at runtime)
+├── config.example.json5     # Example configuration
+└── package.json             # Dependencies
+```
+
+### Important Directories
+
+**`docs/plan/`** — Implementation plans for each step (plan.step1.md through plan.step9.md)
+- Each file contains detailed requirements, architecture, timeline, and success criteria
+- Useful for understanding what's been done and what's coming next
+
+**`test/`** — All test files
+- `test-*.js`: Node.js/Express tests
+- `*.spec.js`: Playwright browser tests
+
+**`src/utils/`** — Reusable utilities
+- Keep utilities focused and testable
+- Use for cross-cutting concerns (logging, validation, config management)
+
+## Common Development Patterns
+
+### Adding a New API Endpoint
+
+1. Create controller in `src/controllers/new-controller.js`
+2. Add route in `src/routes/api.js`
+3. Add authentication if needed (via `auth.js` middleware)
+4. Use `path-validator.js` for path validation
+5. Use `req.app.locals.logger` for logging
+6. Use `next(error)` for error handling
+7. Document in `docs/api/api.md`
+8. Add tests in `test/`
+
+### Modifying Client-Side Functionality
+
+1. Edit `public/js/app.js` (main state management and functions)
+2. Update `public/css/style.css` (styling)
+3. Consider IndexedDB usage (see TreeManager for pattern)
+4. Add Playwright tests if UI-focused
+5. Verify in browser before committing
+
+### Working with Configuration
+
+1. Add new config option to `config.example.json5`
+2. Update validation in `src/utils/config-loader.js`
+3. Reference via `req.app.locals.config` in routes/controllers
+4. Document defaults and validation rules in CLAUDE.md
+
+## References and Documentation
+
+- **Main README**: Check if exists for user-facing documentation
+- **Plan Files**: `docs/plan/plan.step*.md` for step-by-step context
+- **API Docs**: `docs/api/api.md` for endpoint documentation
+- **Config Example**: `config.example.json5` for all available options
+- **.github/instructions/**: `instructions.md` contains coding guidelines
