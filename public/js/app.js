@@ -274,7 +274,15 @@ async function fetchAllFilesRecursive(path = '/', result = []) {
   try {
     const data = await fetchTree(path);
 
-    // 현재 레벨의 파일들을 먼저 추가
+    // 하위 디렉토리를 먼저 재귀적으로 처리 (폴더 우선 정렬)
+    if (data.dirs && Array.isArray(data.dirs)) {
+      for (const dir of data.dirs) {
+        const dirPath = path === '/' ? dir.name : `${path}/${dir.name}`;
+        await fetchAllFilesRecursive(dirPath, result);
+      }
+    }
+
+    // 현재 레벨의 파일들을 나중에 추가 (sidebar 순서와 동일)
     if (data.files && Array.isArray(data.files)) {
       data.files.forEach(file => {
         const filePath = path === '/' ? file.name : `${path}/${file.name}`;
@@ -283,14 +291,6 @@ async function fetchAllFilesRecursive(path = '/', result = []) {
           name: file.name
         });
       });
-    }
-
-    // 하위 디렉토리를 재귀적으로 처리 (DFS)
-    if (data.dirs && Array.isArray(data.dirs)) {
-      for (const dir of data.dirs) {
-        const dirPath = path === '/' ? dir.name : `${path}/${dir.name}`;
-        await fetchAllFilesRecursive(dirPath, result);
-      }
     }
 
     return result;
