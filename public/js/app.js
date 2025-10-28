@@ -378,6 +378,12 @@ async function renderMarkdown(content) {
     return `<h${level} id="${id}">${text}</h${level}>\n`;
   };
 
+  // Step 9.5: Custom image renderer for lazy loading
+  renderer.image = function(href, title, text) {
+    const titleAttr = title ? ` title="${title}"` : '';
+    return `<img src="${href}" alt="${text}"${titleAttr} loading="lazy">`;
+  };
+
   // Configure marked options
   marked.setOptions({
     breaks: true,
@@ -388,9 +394,9 @@ async function renderMarkdown(content) {
   // Parse markdown (with preprocessed Wiki links)
   const rawHtml = marked.parse(preprocessed);
 
-  // Sanitize HTML with DOMPurify - allow Highlight.js classes and heading IDs
+  // Sanitize HTML with DOMPurify - allow Highlight.js classes, heading IDs, and image attributes
   const cleanHtml = DOMPurify.sanitize(rawHtml, {
-    ADD_ATTR: ['class', 'data-language', 'data-highlighted', 'id'],
+    ADD_ATTR: ['class', 'data-language', 'data-highlighted', 'id', 'loading', 'title', 'alt', 'src'],
     ADD_TAGS: ['span']
   });
 
