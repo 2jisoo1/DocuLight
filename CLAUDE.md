@@ -272,6 +272,8 @@ pm2 startup
 
 **Configuration Changes**: Server restart is required for config changes (even in dev mode with nodemon). The file watcher does not auto-reload all config properties.
 
+**Git Workflow**: NEVER commit or push changes without explicit user instruction. Always wait for user to say "커밋" or "commit" before creating commits. Always wait for user to say "푸시" or "push" before pushing to remote.
+
 ### Step 8 Features (Already Implemented)
 - Config hot-reload with file watcher (optional `chokidar`)
 - Backup and rollback functionality
