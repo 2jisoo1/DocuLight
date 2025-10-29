@@ -283,8 +283,14 @@ async function fetchAllFilesRecursive(path = '/', result = []) {
     }
 
     // 현재 레벨의 파일들을 나중에 추가 (sidebar 순서와 동일)
+    // Only add .md files to navigation
     if (data.files && Array.isArray(data.files)) {
       data.files.forEach(file => {
+        // Skip non-markdown files
+        if (!file.name.endsWith('.md')) {
+          return;
+        }
+
         const filePath = path === '/' ? file.name : `${path}/${file.name}`;
         result.push({
           path: filePath,
@@ -368,11 +374,12 @@ async function renderMarkdown(content) {
 
   renderer.heading = function(text, level, raw) {
     // Generate ID from heading text (slug format)
+    // Keep alphanumeric, spaces, hyphens, and Korean characters (가-힣)
     const id = raw
       .toLowerCase()
-      .replace(/[^\w\s-]/g, '') // Remove special characters
-      .replace(/\s+/g, '-')      // Replace spaces with hyphens
-      .replace(/-+/g, '-')       // Replace multiple hyphens with single hyphen
+      .replace(/[^\w\s\-가-힣]/gu, '') // Keep Korean characters (한글 유지)
+      .replace(/\s+/g, '-')             // Replace spaces with hyphens
+      .replace(/-+/g, '-')              // Replace multiple hyphens with single hyphen
       .trim();
 
     return `<h${level} id="${id}">${text}</h${level}>\n`;
@@ -539,7 +546,8 @@ async function copyHeadingLink(heading, anchorLink) {
     // Build full URL with anchor (Clean URL: remove .md extension)
     const cleanPath = currentPath.replace(/\.md$/, '');
     const encodedPath = cleanPath.split('/').map(seg => encodeURIComponent(seg)).join('/');
-    const fullUrl = `${window.location.origin}/doc/${encodedPath}#${heading.id}`;
+    const encodedHash = encodeURIComponent(heading.id); // UTF-8 encode for Korean characters
+    const fullUrl = `${window.location.origin}/doc/${encodedPath}#${encodedHash}`;
 
     console.log('Copying URL:', fullUrl);
 
@@ -547,7 +555,7 @@ async function copyHeadingLink(heading, anchorLink) {
     await navigator.clipboard.writeText(fullUrl);
 
     // Update URL
-    const newUrl = `/doc/${encodedPath}#${heading.id}`;
+    const newUrl = `/doc/${encodedPath}#${encodedHash}`;
     window.history.pushState({
       path: currentPath,
       cleanPath: cleanPath,
@@ -650,8 +658,13 @@ async function buildTree(data, container, currentPath = '', level = 0) {
     dirsToRestore.push({ dirPath, wrapper, childrenContainer, expandIcon, level });
   }
 
-  // Add files
+  // Add files (only .md files)
   data.files.forEach(file => {
+    // Skip non-markdown files
+    if (!file.name.endsWith('.md')) {
+      return;
+    }
+
     const filePath = currentPath ? `${currentPath}/${file.name}` : file.name;
     const item = document.createElement('div');
     item.className = 'tree-item file';
@@ -663,10 +676,7 @@ async function buildTree(data, container, currentPath = '', level = 0) {
     fileIcon.textContent = '📄';
 
     // Remove .md extension from display name
-    let displayName = file.name;
-    if (displayName.endsWith('.md')) {
-      displayName = displayName.slice(0, -3);
-    }
+    const displayName = file.name.slice(0, -3);
 
     const nameSpan = document.createElement('span');
     nameSpan.textContent = displayName;
@@ -674,13 +684,11 @@ async function buildTree(data, container, currentPath = '', level = 0) {
     item.appendChild(fileIcon);
     item.appendChild(nameSpan);
 
-    // Only handle .md files
-    if (file.name.endsWith('.md')) {
-      item.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        await loadFile(filePath);
-      });
-    }
+    // Add click event for .md files
+    item.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      await loadFile(filePath);
+    });
 
     fragment.appendChild(item);
   });
