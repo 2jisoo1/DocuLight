@@ -35,16 +35,48 @@
         </button>
       </div>
       <div class="tree-container" id="tree-container">
-        <!-- Tree Controls: Expand All / Collapse All -->
-        <div class="tree-controls">
+        <!-- Tree Controls: Expand All / Collapse All / Search -->
+        <div class="tree-controls" id="tree-controls">
           <button id="expand-all-btn" class="tree-control-btn" title="Expand all folders" aria-label="Expand all folders">
             <img src="/images/expand.svg" alt="Expand all folders">
           </button>
           <button id="collapse-all-btn" class="tree-control-btn" title="Collapse all folders" aria-label="Collapse all folders">
             <img src="/images/collapse.svg" alt="Collapse all folders">
           </button>
+          <button id="search-toggle-btn" class="tree-control-btn" title="Search documents" aria-label="Search documents">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <path d="m21 21-4.35-4.35"></path>
+            </svg>
+          </button>
         </div>
-        <!-- Tree will be loaded here -->
+
+        <!-- Search UI (hidden by default) -->
+        <div class="search-panel" id="search-panel" style="display: none;">
+          <div class="search-input-wrapper">
+            <input
+              type="text"
+              id="search-input"
+              class="search-input"
+              placeholder="Search documents..."
+              autocomplete="off"
+            />
+            <button id="search-close-btn" class="search-close-btn" title="Close search" aria-label="Close search">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+          <div class="search-results" id="search-results">
+            <!-- Search results will be displayed here -->
+          </div>
+        </div>
+
+        <!-- Tree Menu (shown by default) -->
+        <div class="tree-menu" id="tree-menu">
+          <!-- Tree will be loaded here -->
+        </div>
       </div>
     </aside>
 

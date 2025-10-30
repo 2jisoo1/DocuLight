@@ -209,6 +209,22 @@ async function fetchRaw(path) {
   }
 }
 
+/**
+ * Search documents by keyword
+ * GET /api/search?query=<keyword>&limit=<limit>
+ */
+async function fetchSearch(query, limit = 50) {
+  try {
+    const response = await fetchWithRetry(
+      `/api/search?query=${encodeURIComponent(query)}&limit=${limit}`
+    );
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to search documents:', error);
+    throw error;
+  }
+}
+
 // Copy code to clipboard
 async function copyCodeToClipboard(codeElement, button) {
   try {
@@ -1121,15 +1137,15 @@ async function init() {
 
     // Load tree
     const treeData = await fetchTree('/');
-    const container = document.getElementById('tree-container');
-    await buildTree(treeData, container);
+    const treeMenu = document.getElementById('tree-menu');
+    await buildTree(treeData, treeMenu);
 
     // Step 9.3: Recursively fetch all files for document navigation
     flatFileList = await fetchAllFilesRecursive('/');
     console.log(`[Step 9.3] Loaded ${flatFileList.length} files for navigation`);
 
     // Tree item click event delegation (Step 9.2)
-    container.addEventListener('click', async (e) => {
+    treeMenu.addEventListener('click', async (e) => {
       // First check if we clicked on a folder item or its children
       const directoryItem = e.target.closest('.tree-item.directory');
 
@@ -1158,7 +1174,7 @@ async function init() {
     });
 
     // Tree item double-click event delegation (Step 9.2)
-    container.addEventListener('dblclick', async (e) => {
+    treeMenu.addEventListener('dblclick', async (e) => {
       // First check if we double-clicked on a folder item
       const directoryItem = e.target.closest('.tree-item.directory');
 
@@ -1181,10 +1197,10 @@ async function init() {
     // Refresh button
     document.getElementById('refresh-btn').addEventListener('click', async () => {
       try {
-        container.innerHTML = '<div class="loading">Loading...</div>';
+        treeMenu.innerHTML = '<div class="loading">Loading...</div>';
         const treeData = await fetchTree('/');
-        container.innerHTML = '';
-        await buildTree(treeData, container);
+        treeMenu.innerHTML = '';
+        await buildTree(treeData, treeMenu);
 
         // Step 9.3: Re-fetch all files for navigation
         flatFileList = await fetchAllFilesRecursive('/');
@@ -1192,7 +1208,7 @@ async function init() {
       } catch (error) {
         console.error('Failed to refresh tree:', error);
         const userMessage = ErrorHandler.getUserMessage(error, 'Directory tree');
-        container.innerHTML = `
+        treeMenu.innerHTML = `
           <div class="tree-error">
             <p>${userMessage}</p>
             <p class="error-details">${error.message}</p>
@@ -1218,6 +1234,9 @@ async function init() {
         console.error('Error in collapse all:', error);
       }
     });
+
+    // Initialize search feature (Step 8.4)
+    initSearchFeature();
 
     // Sidebar header click - navigate to welcome or index
     const sidebarTitle = document.querySelector('.sidebar-title');
@@ -1355,6 +1374,167 @@ async function init() {
       `${userMessage}\n${error.message}`
     );
   }
+}
+
+/**
+ * Initialize search feature (Step 8.4)
+ * Handles search UI toggle, real-time search, and result display
+ */
+function initSearchFeature() {
+  const searchToggleBtn = document.getElementById('search-toggle-btn');
+  const searchCloseBtn = document.getElementById('search-close-btn');
+  const searchPanel = document.getElementById('search-panel');
+  const treeMenu = document.getElementById('tree-menu');
+  const treeControls = document.getElementById('tree-controls');
+  const searchInput = document.getElementById('search-input');
+  const searchResults = document.getElementById('search-results');
+
+  if (!searchToggleBtn || !searchPanel || !searchInput) return;
+
+  // Debounce timer for search input
+  let searchTimeout;
+
+  /**
+   * Toggle search panel visibility
+   */
+  searchToggleBtn.addEventListener('click', () => {
+    const isSearchVisible = searchPanel.style.display !== 'none';
+
+    if (isSearchVisible) {
+      // Close search
+      searchPanel.style.display = 'none';
+      treeMenu.style.display = 'block';
+      if (treeControls) treeControls.style.display = 'flex';
+      searchInput.value = '';
+      searchResults.innerHTML = '';
+    } else {
+      // Open search
+      searchPanel.style.display = 'flex';
+      treeMenu.style.display = 'none';
+      if (treeControls) treeControls.style.display = 'none';
+      searchInput.focus();
+    }
+  });
+
+  /**
+   * Close search button
+   */
+  if (searchCloseBtn) {
+    searchCloseBtn.addEventListener('click', () => {
+      searchPanel.style.display = 'none';
+      treeMenu.style.display = 'block';
+      if (treeControls) treeControls.style.display = 'flex';
+      searchInput.value = '';
+      searchResults.innerHTML = '';
+    });
+  }
+
+  /**
+   * Real-time search with debounce (300ms)
+   */
+  searchInput.addEventListener('input', (e) => {
+    const query = e.target.value.trim();
+
+    // Clear previous timeout
+    clearTimeout(searchTimeout);
+
+    // Clear results if query is too short
+    if (query.length < 2) {
+      searchResults.innerHTML = '';
+      return;
+    }
+
+    // Show loading state
+    searchResults.innerHTML = '<div class="search-loading">Searching...</div>';
+
+    // Debounce search
+    searchTimeout = setTimeout(async () => {
+      try {
+        const data = await fetchSearch(query, 50);
+
+        if (data.results.length === 0) {
+          searchResults.innerHTML = `
+            <div class="search-results empty">
+              <p>No results found for "<strong>${escapeHtml(query)}</strong>"</p>
+            </div>
+          `;
+          return;
+        }
+
+        // Display results as HTML elements
+        searchResults.innerHTML = '';
+        data.results.forEach(result => {
+          const itemDiv = document.createElement('div');
+          itemDiv.className = 'search-result-item';
+          itemDiv.dataset.path = result.path;  // Store path directly in dataset
+
+          // File path
+          const pathDiv = document.createElement('div');
+          pathDiv.className = 'search-result-path';
+          pathDiv.textContent = result.path;
+          itemDiv.appendChild(pathDiv);
+
+          // First match content (with HTML highlighting)
+          if (result.matches.length > 0) {
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'search-result-content';
+            contentDiv.innerHTML = DOMPurify.sanitize(result.matches[0].content, {
+              ALLOWED_TAGS: ['mark'],
+              ALLOWED_ATTR: []
+            });
+            itemDiv.appendChild(contentDiv);
+          }
+
+          // Match count meta info
+          if (result.matches.length > 1) {
+            const metaDiv = document.createElement('div');
+            metaDiv.className = 'search-result-meta';
+            metaDiv.textContent = `+${result.matches.length - 1} more match${result.matches.length > 2 ? 'es' : ''}`;
+            itemDiv.appendChild(metaDiv);
+          }
+
+          searchResults.appendChild(itemDiv);
+        });
+
+        // Add click event listeners to results
+        searchResults.querySelectorAll('.search-result-item').forEach(item => {
+          item.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const path = item.dataset.path;
+
+            try {
+              // Close search panel
+              searchPanel.style.display = 'none';
+              treeMenu.style.display = 'block';
+              searchInput.value = '';
+              searchResults.innerHTML = '';
+
+              // Load file
+              await loadFile(path);
+            } catch (error) {
+              console.error('Failed to load search result:', error);
+            }
+          });
+        });
+      } catch (error) {
+        console.error('Search failed:', error);
+        searchResults.innerHTML = `
+          <div class="search-results empty">
+            <p>Search failed. Please try again.</p>
+          </div>
+        `;
+      }
+    }, 300); // 300ms debounce
+  });
+}
+
+/**
+ * Escape HTML special characters for safe display
+ */
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 // Initialize resizer
