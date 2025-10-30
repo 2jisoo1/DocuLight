@@ -78,13 +78,39 @@ app.get('/api/documentation/:docType', (req, res, next) => getDocumentation(req,
 // Config API endpoints
 app.get('/api/config/index', getIndexConfig);
 
+// Convert file path to web path (e.g., ./public/images/icon.png → /images/icon.png)
+function resolveIconPath(configIconPath) {
+  if (!configIconPath) {
+    return '/images/icon.png';
+  }
+
+  // If it's already a web path (starts with /), return as-is
+  if (configIconPath.startsWith('/')) {
+    return configIconPath;
+  }
+
+  // Convert file path to web path
+  // ./public/images/icon.png → /images/icon.png
+  let webPath = configIconPath
+    .replace(/^\.\/public/, '') // Remove ./public prefix
+    .replace(/\\/g, '/');       // Normalize Windows paths
+
+  // Ensure path starts with /
+  if (!webPath.startsWith('/')) {
+    webPath = '/' + webPath;
+  }
+
+  return webPath;
+}
+
 // Main page (use runtime config)
 app.get('/', (req, res) => {
   const cfg = req.app.locals.config || {};
+  const iconPath = (cfg.ui && cfg.ui.icon) || './public/images/icon.png';
   res.render('index', {
     title: 'DocuLight - Markdown Viewer',
     uiTitle: (cfg.ui && cfg.ui.title) || 'DocuLight',
-    uiIcon: (cfg.ui && cfg.ui.icon) || '/images/icon.png'
+    uiIcon: resolveIconPath(iconPath)
   });
 });
 

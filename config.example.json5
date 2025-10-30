@@ -19,24 +19,26 @@
     // Sidebar title (default: "DocuLight")
     title: "DocuLight",
 
-    // Icon path (default: "/images/icon.png")
-    // Absolute path (starts with /): relative to public directory
-    // Relative path (no / or starts with .): relative to docsRoot
-    icon: "/images/icon.png",
+    // Icon path (default: "./public/images/icon.png")
+    // Use file path (relative to project root)
+    // Server will serve it from public directory via web path
+    icon: "./public/images/icon.png",
 
     // Index file to auto-load on startup (optional)
-    // Absolute path: /absolute/path/to/index.md
-    // Relative path: relative to docsRoot (e.g., "/README.md", "/guide/index.md")
+    // Use relative path from docsRoot (e.g., "README.md", "guide/index.md")
     // If not specified or file doesn't exist, shows welcome screen
-    indexFile: "/README.md",
+    indexFile: "README.md",
+
 
     // Custom API documentation file (optional)
-    // Defaults to /public/api-doc.md
-    apiIndexFile: "/public/api-doc.md",
+    // Use relative path from project root (e.g., "./public/api-doc.md")
+    // Defaults to ./public/api-doc.md
+    apiIndexFile: "./public/api-doc.md",
 
     // Custom MCP documentation file (optional)
-    // Defaults to /public/mcp-doc.md
-    mcpIndexFile: "/public/mcp-doc.md"
+    // Use relative path from project root (e.g., "./public/mcp-doc.md")
+    // Defaults to ./public/mcp-doc.md
+    mcpIndexFile: "./public/mcp-doc.md"
   },
 
   // Files and directories to exclude (gitignore-compatible patterns)
