@@ -1,5 +1,5 @@
 const multer = require('multer');
-const { uploadFileData } = require('../routes/api-ctrl');
+const { uploadFileData } = require('../services/file-service');
 
 /**
  * Configure multer for file uploads

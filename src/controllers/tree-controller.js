@@ -1,4 +1,4 @@
-const { getTreeData, getFullTreeData } = require('../routes/api-ctrl');
+const { getTreeData, getFullTreeData } = require('../services/tree-service');
 
 /**
  * Get directory tree structure (Express wrapper)

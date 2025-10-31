@@ -1,13 +1,8 @@
 const express = require('express');
-const {
-  getTreeData,
-  getRawContent,
-  uploadFileData,
-  deleteEntryData,
-  getFullTreeData,
-  getConfig,
-  searchDocuments
-} = require('./api-ctrl');
+const { getTreeData, getFullTreeData } = require('../services/tree-service');
+const { getRawContent, uploadFileData, deleteEntryData } = require('../services/file-service');
+const { getConfig } = require('../services/config-service');
+const { searchDocuments } = require('../services/search-service');
 
 /**
  * MCP over HTTP (JSON-RPC 2.0)
@@ -236,7 +231,6 @@ async function executeTool(config, logger, name, args, req) {
     }
 
     case 'list_full_tree': {
-      const { getFullTreeData } = require('./api-ctrl');
       const startPath = args.path || '/';
       const result = await getFullTreeData(config, logger, startPath, { maxDepth: args.maxDepth });
 

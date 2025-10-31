@@ -1,4 +1,4 @@
-const { getRawContent } = require('../routes/api-ctrl');
+const { getRawContent } = require('../services/file-service');
 
 /**
  * Get raw markdown file content (Express wrapper)

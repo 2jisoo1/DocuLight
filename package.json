@@ -35,6 +35,7 @@
     "chokidar": "^3.5.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.56.1",
     "nodemon": "^3.0.2",
     "playwright": "^1.56.1"
   },

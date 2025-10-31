@@ -1,4 +1,4 @@
-const { deleteEntryData } = require('../routes/api-ctrl');
+const { deleteEntryData } = require('../services/file-service');
 
 /**
  * Delete file or directory (Express wrapper)
