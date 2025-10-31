@@ -24,6 +24,10 @@
     // Server will serve it from public directory via web path
     icon: "./public/images/icon.png",
 
+    // Maximum width for the markdown content area (default: "1024px")
+    // Supports units: px, %, em, rem, vw, etc.
+    maxWidth: "1024px",
+
     // Index file to auto-load on startup (optional)
     // Use relative path from docsRoot (e.g., "README.md", "guide/index.md")
     // If not specified or file doesn't exist, shows welcome screen
@@ -57,6 +61,14 @@
 
   // Log level: 'error' | 'warn' | 'info' | 'debug'
   logLevel: "info",
+
+  // Log retention settings
+  log: {
+    dir: "./logs",           // Log directory
+    level: "info",           // Log level
+    maxDays: 30,             // Log retention period (days)
+    history: true            // Enable log history (for future use)
+  },
 
   // Security settings (optional)
   security: {

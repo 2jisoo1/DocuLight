@@ -270,7 +270,7 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-y: auto;  /* Scrollbar at browser edge */
 }
 
 .content-header {
@@ -286,9 +286,10 @@ body {
 }
 
 .markdown-content {
-  flex: 1;
-  overflow-y: auto;
   padding: 2rem;
+  width: 100%;
+  max-width: var(--max-width);
+  margin: 0 auto;
 }
 
 /* Welcome Message */
@@ -551,29 +552,29 @@ body {
 
 /* Scrollbar Styles - Thin and elegant */
 .tree-container::-webkit-scrollbar,
-.markdown-content::-webkit-scrollbar {
+.main-content::-webkit-scrollbar {
   width: 6px;
 }
 
 .tree-container::-webkit-scrollbar-track,
-.markdown-content::-webkit-scrollbar-track {
+.main-content::-webkit-scrollbar-track {
   background: transparent;
 }
 
 .tree-container::-webkit-scrollbar-thumb,
-.markdown-content::-webkit-scrollbar-thumb {
+.main-content::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.2);
   border-radius: 3px;
 }
 
 .tree-container::-webkit-scrollbar-thumb:hover,
-.markdown-content::-webkit-scrollbar-thumb:hover {
+.main-content::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.35);
 }
 
 /* Firefox scrollbar */
 .tree-container,
-.markdown-content {
+.main-content {
   scrollbar-width: thin;
   scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
 }

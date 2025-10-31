@@ -12,12 +12,26 @@ const { validateSSL } = require('./ssl-validator.js');
 function loadConfig() {
   const configPath = path.join(process.cwd(), 'config.json5');
 
-  // Check if config file exists
+  // Auto-generate config.json5 if it doesn't exist
   if (!fs.existsSync(configPath)) {
-    throw new Error(
-      `Configuration file not found: ${configPath}\n` +
-      'Please copy config.example.json5 to config.json5 and configure it.'
-    );
+    try {
+      const examplePath = path.join(__dirname, '../../config.example.json5');
+      if (fs.existsSync(examplePath)) {
+        const exampleContent = fs.readFileSync(examplePath, 'utf-8');
+        fs.writeFileSync(configPath, exampleContent);
+        console.log('✅ config.json5 auto-generated from config.example.json5');
+      } else {
+        throw new Error(
+          `Configuration file not found: ${configPath}\n` +
+          'config.example.json5 is also missing. Cannot auto-generate config.'
+        );
+      }
+    } catch (error) {
+      throw new Error(
+        `Failed to auto-generate config.json5: ${error.message}\n` +
+        'Please manually copy config.example.json5 to config.json5 and configure it.'
+      );
+    }
   }
 
   // Read and parse JSON5 config
@@ -62,10 +76,18 @@ function loadConfig() {
   config.logDir = config.logDir || './logs';
   config.logLevel = config.logLevel || 'info';
 
+  // Set defaults for log settings
+  config.log = config.log || {};
+  config.log.dir = config.log.dir || config.logDir || './logs';
+  config.log.level = config.log.level || config.logLevel || 'info';
+  config.log.maxDays = config.log.maxDays || 30;
+  config.log.history = config.log.history !== undefined ? config.log.history : true;
+
   // Set defaults for UI settings
   config.ui = config.ui || {};
   config.ui.title = config.ui.title || 'DocLight';
   config.ui.icon = config.ui.icon || '/images/icon.png';
+  config.ui.maxWidth = config.ui.maxWidth || '1024px';
 
   // Resolve and validate index file paths
   if (config.ui.indexFile) {

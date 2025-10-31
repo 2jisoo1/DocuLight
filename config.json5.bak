@@ -5,8 +5,9 @@
   maxUploadMB: 10,
   port: 3000,
   ui: {
-    title: "DOCU LIGHT"
-    // icon: "icon.png"  // Optional: defaults to /images/icon.png if not specified
+    title: "DOCU LIGHT",
+    icon: "./public/images/icon.png",  // Optional: defaults to ./public/images/icon.png if not specified
+    maxWidth: "1224px"  // Final test - back to default
   },
   excludes: [
     "**/.git/",

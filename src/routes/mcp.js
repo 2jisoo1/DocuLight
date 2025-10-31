@@ -1,4 +1,5 @@
 const express = require('express');
+const authMiddleware = require('../middleware/auth');
 const {
   getTreeData,
   getRawContent,
@@ -169,9 +170,42 @@ const TOOLS = [
 ];
 
 /**
+ * Check if tool requires authentication
+ */
+function requiresAuth(toolName) {
+  const protectedTools = ['create_document', 'delete_document'];
+  return protectedTools.includes(toolName);
+}
+
+/**
+ * Validate API key
+ */
+function validateApiKey(req, config) {
+  const providedKey = req.header('X-API-Key');
+
+  if (!providedKey) {
+    return { valid: false, error: 'X-API-Key header is required for this operation' };
+  }
+
+  if (providedKey !== config.apiKey) {
+    return { valid: false, error: 'Invalid API key' };
+  }
+
+  return { valid: true };
+}
+
+/**
  * MCP Tool 실행
  */
-async function executeTool(config, logger, name, args) {
+async function executeTool(config, logger, name, args, req) {
+  // Check authentication for protected tools
+  if (requiresAuth(name)) {
+    const authResult = validateApiKey(req, config);
+    if (!authResult.valid) {
+      throw new Error(`UNAUTHORIZED: ${authResult.error}`);
+    }
+  }
+
   switch (name) {
     case 'list_documents': {
       const result = await getTreeData(config, logger, args.path || '/');
@@ -381,7 +415,7 @@ function createMcpRouter() {
           const { name, arguments: args } = params;
           logger.info('MCP: tools/call', { tool: name, args });
 
-          const result = await executeTool(config, logger, name, args || {});
+          const result = await executeTool(config, logger, name, args || {}, req);
           return res.json(createJsonRpcResponse(id, result));
         }
 

@@ -110,7 +110,8 @@ app.get('/', (req, res) => {
   res.render('index', {
     title: 'DocuLight - Markdown Viewer',
     uiTitle: (cfg.ui && cfg.ui.title) || 'DocuLight',
-    uiIcon: resolveIconPath(iconPath)
+    uiIcon: resolveIconPath(iconPath),
+    uiMaxWidth: (cfg.ui && cfg.ui.maxWidth) || '1024px'
   });
 });
 
@@ -179,10 +180,12 @@ app.get('/doc/*.md', async (req, res, next) => {
 // Document viewer route (for clean URLs)
 app.get('/doc/*', (req, res) => {
   const cfg = req.app.locals.config || {};
+  const iconPath = (cfg.ui && cfg.ui.icon) || './public/images/icon.png';
   res.render('index', {
     title: 'DocuLight - Markdown Viewer',
     uiTitle: (cfg.ui && cfg.ui.title) || 'DocuLight',
-    uiIcon: (cfg.ui && cfg.ui.icon) || '/images/icon.png'
+    uiIcon: resolveIconPath(iconPath),
+    uiMaxWidth: (cfg.ui && cfg.ui.maxWidth) || '1024px'
   });
 });
 
@@ -228,6 +231,8 @@ async function start(options = {}) {
     // Mount API router (always remount to reflect latest config)
     const apiRouter = createApiRouter(cfg);
     app.use('/api', apiRouter);
+    logger.info('API router mounted', { stackLength: app._router && app._router.stack ? app._router.stack.length : 0 });
+
     // capture the mounted layer so we can remove it on next start
     try {
       const stack = app._router && app._router.stack;
@@ -238,11 +243,14 @@ async function start(options = {}) {
           if (layer && layer.handle === apiRouter) {
             app.locals.apiLayer = layer;
             apiMounted = true;
+            logger.info('API layer captured', { index: i, totalLayers: stack.length });
             break;
           }
         }
       }
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      logger.warn('Failed to capture API layer', { error: e.message });
+    }
 
     // Ensure MCP router is mounted once
     if (!app.locals.mcpMounted) {
@@ -250,23 +258,48 @@ async function start(options = {}) {
       app.locals.mcpMounted = true;
     }
 
-    // Add 404 handler (after all routers are mounted)
-    if (!app.locals.notFoundHandlerMounted) {
-      app.use((req, res) => {
-        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Route not found' } });
-      });
-      app.locals.notFoundHandlerMounted = true;
+    // Remove all existing 404 and error handlers by filtering the stack
+    try {
+      const stack = app._router && app._router.stack;
+      if (stack) {
+        const originalLength = stack.length;
+        // Remove layers that are 404 or error handlers (they have 4 parameters for error handlers)
+        app._router.stack = stack.filter(layer => {
+          // Keep all layers except our custom 404/error handlers
+          if (!layer.route && layer.handle) {
+            // Error handler has 4 params: (err, req, res, next)
+            if (layer.handle.length === 4 && layer.handle.name !== 'query' && layer.handle.name !== 'expressInit') {
+              return false; // Remove error handlers
+            }
+            // 404 handler returns 404 json
+            if (layer.handle.toString().includes('Route not found')) {
+              return false; // Remove 404 handlers
+            }
+          }
+          return true; // Keep everything else
+        });
+        const removed = originalLength - app._router.stack.length;
+        if (removed > 0) {
+          logger.info('Removed old handlers from stack', { removed, newLength: app._router.stack.length });
+        }
+      }
+    } catch (e) {
+      logger.warn('Failed to clean up handlers', { error: e.message });
     }
 
+    // Add 404 handler (after all routers are mounted)
+    app.use((req, res) => {
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Route not found' } });
+    });
+    logger.info('404 handler mounted');
+
     // Add error handler (must be after all routers and 404 handler)
-    if (!app.locals.errorHandlerMounted) {
-      app.use((err, req, res, next) => {
-        const lg = (req && req.app && req.app.locals && req.app.locals.logger) || logger || console;
-        const handler = errorHandler(lg);
-        return handler(err, req, res, next);
-      });
-      app.locals.errorHandlerMounted = true;
-    }
+    app.use((err, req, res, next) => {
+      const lg = (req && req.app && req.app.locals && req.app.locals.logger) || logger || console;
+      const handler = errorHandler(lg);
+      return handler(err, req, res, next);
+    });
+    logger.info('Error handler mounted');
 
     const PORT = cfg.port || 3000;
 

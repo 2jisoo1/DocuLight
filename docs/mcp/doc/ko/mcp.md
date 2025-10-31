@@ -1142,17 +1142,65 @@ curl -X POST http://localhost:3000/mcp \
    - 숨김 파일 자동 제외 (`.`로 시작)
    - 사용자 정의 제외 패턴 지원 (`config.json5`의 `excludes`)
 
+### 인증 (Authentication)
+
+MCP 도구는 공개(읽기 전용)와 보호(쓰기) 작업으로 구분됩니다:
+
+**공개 도구** (인증 불필요):
+- `list_documents` - 디렉토리 내용 조회
+- `list_full_tree` - 재귀적 트리 조회
+- `read_document` - 문서 내용 읽기
+- `DocuLight_search` - 문서 검색
+- `DocuLight_get_config` - 설정 조회
+
+**보호된 도구** (X-API-Key 헤더 필수):
+- `create_document` - 문서 생성/수정
+- `delete_document` - 문서/디렉토리 삭제
+
+**인증 헤더:**
+```
+X-API-Key: your-api-key-here
+```
+
+**인증 포함 예시:**
+```bash
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "create_document",
+      "arguments": {
+        "path": "new-doc.md",
+        "content": "# New Document"
+      }
+    }
+  }'
+```
+
+**에러 응답 (API 키 누락):**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "error": {
+    "code": -32603,
+    "message": "Internal error",
+    "data": "UNAUTHORIZED: X-API-Key header is required for this operation"
+  }
+}
+```
+
 ### 제약사항
 
-1. **인증 없음**
-   - MCP 엔드포인트는 현재 공개 접근 허용
-   - 프로덕션 환경에서는 네트워크 레벨 보안 권장
-
-2. **마크다운 전용**
+1. **마크다운 전용**
    - `read_document`는 `.md` 파일만 지원
    - 이미지, PDF 등 바이너리 파일 미지원
 
-3. **응답 크기**
+2. **응답 크기**
    - `list_full_tree`는 출력 라인 수 제한 없음
    - 매우 큰 트리는 응답이 클 수 있음
    - `maxDepth` 파라미터로 조절 권장
@@ -1202,4 +1250,3 @@ MCP는 직접적인 복사/이동 기능이 없으므로 읽기+쓰기+삭제 �
 2. create_document (path: "/target/doc.md", content: "...") → 대상에 쓰기
 3. delete_document (path: "/source/doc.md") → 원본 삭제 (이동의 경우)
 ```
-
