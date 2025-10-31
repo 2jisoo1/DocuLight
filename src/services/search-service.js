@@ -4,21 +4,141 @@ const ignore = require('ignore');
 const { validatePath } = require('../utils/path-validator');
 
 /**
- * Search Service - Document search operations
+ * Search Service - Document search operations (unified for REST and MCP)
  */
 
 /**
- * Search documents by query (real-time file scanning)
+ * Extract document title from markdown content
+ * Returns the first H1 heading text, or null if not found
+ */
+function extractTitle(content) {
+  const lines = content.split('\n');
+  for (const line of lines) {
+    const match = line.match(/^#\s+(.+?)(?:\s*#*)?$/);
+    if (match) {
+      return match[1].trim();
+    }
+  }
+  return null;
+}
+
+/**
+ * Truncate content to specified length with ellipsis
+ */
+function truncateContent(content, maxLength = 100) {
+  if (content.length <= maxLength) {
+    return content;
+  }
+  return content.substring(0, maxLength) + '...';
+}
+
+/**
+ * Find all matches of query in content with priority and highlighting
+ * @param {string} content - File content
+ * @param {string} query - Search query
+ * @param {string} filename - Filename
+ * @param {Object} options - Options { highlight?: boolean, maxMatchesPerFile?: number, includeContext?: boolean }
+ * @returns {Array} Array of match objects
+ */
+function findMatches(content, query, filename, options = {}) {
+  const {
+    highlight = true,
+    maxMatchesPerFile = 50,
+    includeContext = true
+  } = options;
+
+  const lines = content.split('\n');
+  const matches = [];
+  const queryRegex = new RegExp(query, 'gi');
+
+  // Check if filename matches (highest priority)
+  const filenameLower = filename.toLowerCase().replace('.md', '');
+  if (filenameLower.includes(query.toLowerCase())) {
+    const filenameContent = highlight
+      ? `<mark>Filename match: ${filename}</mark>`
+      : `Filename match: ${filename}`;
+
+    matches.push({
+      line: 0,
+      content: filenameContent,
+      context: `File: ${filename}`,
+      priority: 'filename'
+    });
+  }
+
+  // Check if document title matches (high priority)
+  const title = extractTitle(content);
+  if (title && title.toLowerCase().includes(query.toLowerCase())) {
+    const highlightedTitle = highlight
+      ? title.replace(new RegExp(query, 'gi'), (match) => `<mark>${match}</mark>`)
+      : title;
+
+    const titleContent = highlight
+      ? `<mark>Title match: ${highlightedTitle}</mark>`
+      : `Title match: ${highlightedTitle}`;
+
+    matches.push({
+      line: 0,
+      content: titleContent,
+      context: title,
+      priority: 'title'
+    });
+  }
+
+  // Check content for matches
+  lines.forEach((line, lineIndex) => {
+    if (queryRegex.test(line)) {
+      // Reset regex lastIndex for global flag
+      queryRegex.lastIndex = 0;
+
+      // Highlight the matched text (if enabled)
+      const highlightedContent = highlight
+        ? line.replace(queryRegex, (match) => `<mark>${match}</mark>`)
+        : line;
+
+      // Extract context if requested
+      let context = line;
+      if (includeContext) {
+        const contextStart = Math.max(0, lineIndex - 2);
+        const contextEnd = Math.min(lines.length - 1, lineIndex + 2);
+        context = lines.slice(contextStart, contextEnd + 1).join('\n');
+      }
+
+      matches.push({
+        line: lineIndex + 1,
+        content: truncateContent(highlightedContent, 100),
+        context: includeContext ? context : truncateContent(line, 100),
+        priority: 'content'
+      });
+
+      // Limit matches per file
+      if (matches.length >= maxMatchesPerFile) {
+        return;
+      }
+    }
+  });
+
+  return matches;
+}
+
+/**
+ * Search documents by query (unified implementation)
  * @param {Object} config - Application configuration
  * @param {Object} logger - Logger instance
  * @param {string} query - Search query
- * @param {Object} options - Options { limit?: number, path?: string }
+ * @param {Object} options - Options { limit?: number, path?: string, highlight?: boolean, includeContext?: boolean, maxMatchesPerFile?: number }
  * @returns {Promise<Object>} Search results
  */
 async function searchDocuments(config, logger, query, options = {}) {
   try {
     const startTime = Date.now();
-    const { limit = 10, path: searchPath = '/' } = options;
+    const {
+      limit = 10,
+      path: searchPath = '/',
+      highlight = true,
+      includeContext = true,
+      maxMatchesPerFile = 3
+    } = options;
 
     // Input validation
     if (!query || typeof query !== 'string') {
@@ -98,7 +218,7 @@ async function searchDocuments(config, logger, query, options = {}) {
           if (entry.isDirectory()) {
             // Recurse
             await searchRecursive(entryPath);
-          } else if (entry.isFile()) {
+          } else if (entry.isFile() && entry.name.endsWith('.md')) {
             filesScanned++;
 
             // Check file size
@@ -110,34 +230,18 @@ async function searchDocuments(config, logger, query, options = {}) {
             // Read file
             try {
               const content = await fs.readFile(entryPath, 'utf-8');
-              const lines = content.split('\n');
-              const fileMatches = [];
-
-              // Search each line
-              for (let lineNum = 0; lineNum < lines.length; lineNum++) {
-                const line = lines[lineNum];
-                if (line.toLowerCase().includes(lowerQuery)) {
-                  // Extract context (±2 lines)
-                  const contextStart = Math.max(0, lineNum - 2);
-                  const contextEnd = Math.min(lines.length - 1, lineNum + 2);
-                  const context = lines.slice(contextStart, contextEnd + 1).join('\n');
-
-                  fileMatches.push({
-                    line: lineNum + 1,
-                    content: line.trim(),
-                    context: context
-                  });
-
-                  // Max 50 matches per file
-                  if (fileMatches.length >= 50) break;
-                }
-              }
+              const matches = findMatches(content, lowerQuery, entry.name, {
+                highlight,
+                maxMatchesPerFile,
+                includeContext
+              });
 
               // Add to results if matches found
-              if (fileMatches.length > 0) {
+              if (matches.length > 0) {
                 results.push({
                   path: '/' + relativePath.replace(/\\/g, '/'),
-                  matches: fileMatches
+                  name: entry.name,
+                  matches: matches
                 });
               }
 
@@ -164,6 +268,24 @@ async function searchDocuments(config, logger, query, options = {}) {
     // Execute search
     await searchRecursive(absoluteSearchPath);
 
+    // Sort by relevance: priority first, then by match count
+    const priorityOrder = { filename: 0, title: 1, content: 2 };
+    results.sort((a, b) => {
+      // Get highest priority from matches in each result
+      const aPriority = Math.min(
+        ...a.matches.map(m => priorityOrder[m.priority] ?? 2)
+      );
+      const bPriority = Math.min(
+        ...b.matches.map(m => priorityOrder[m.priority] ?? 2)
+      );
+
+      // Compare by priority first, then by match count
+      if (aPriority !== bPriority) {
+        return aPriority - bPriority;
+      }
+      return b.matches.length - a.matches.length;
+    });
+
     // Limit results
     const limitedResults = results.slice(0, finalLimit);
 
@@ -182,7 +304,8 @@ async function searchDocuments(config, logger, query, options = {}) {
       total: limitedResults.length,
       filesScanned,
       duration: `${duration}ms`,
-      results: limitedResults
+      results: limitedResults,
+      limited: results.length > finalLimit
     };
   } catch (error) {
     logger.error('Document search failed', {
