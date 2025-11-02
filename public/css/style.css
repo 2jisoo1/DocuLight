@@ -380,15 +380,24 @@ body {
 }
 
 /* Document Title (filename) - appears before markdown content */
-.document-title {
-  font-size: 3em;          /* Larger - 48px */
-  font-weight: 700;
-  color: #555;             /* Lighter gray */
-  margin-top: 0;
-  margin-bottom: 32px;
-  padding-bottom: 16px;
-  border-bottom: 3px solid #d0d7de;
-  line-height: 1.2;
+.markdown-content .document-title {
+  font-size: 2.5em !important;        /* 40px */
+  font-weight: 700 !important;
+  color: #000 !important;             /* Pure black */
+  margin-top: 0 !important;
+  margin-bottom: 64px !important;     /* More spacing from content */
+  padding-bottom: 0 !important;       /* No padding (no border) */
+  border-bottom: none !important;     /* Remove border line */
+  line-height: 1.2 !important;
+  cursor: default !important;         /* No pointer cursor */
+  position: static !important;        /* Remove relative positioning */
+  transition: none !important;        /* Remove color transition */
+}
+
+/* Prevent hover effect on document title */
+.markdown-content .document-title:hover {
+  color: #000 !important;  /* Keep black color on hover */
+  cursor: default !important;
 }
 
 /* Markdown Styles */
@@ -487,6 +496,16 @@ body {
 
 .markdown-content p {
   margin-bottom: 1rem;
+}
+
+/* Horizontal rule (--- syntax) - GitHub style */
+.markdown-content hr {
+  height: 0;
+  margin: 24px 0;
+  padding: 0;
+  background-color: transparent;
+  border: 0;
+  border-bottom: 3px solid #d0d7de;  /* Thicker gray line */
 }
 
 .markdown-content a {

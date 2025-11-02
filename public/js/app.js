@@ -684,6 +684,9 @@ function addHeadingAnchors(contentDiv) {
     // Skip if heading doesn't have an id
     if (!heading.id) return;
 
+    // Skip document title
+    if (heading.classList.contains('document-title')) return;
+
     // Create anchor link icon
     const anchorLink = document.createElement('span');
     anchorLink.className = 'heading-anchor';
