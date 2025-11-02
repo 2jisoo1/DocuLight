@@ -599,6 +599,32 @@ function addInternalLinkHandlers(contentDiv) {
   });
 }
 
+/**
+ * Add document title (filename without .md) at the top of content
+ */
+function addDocumentTitle(path, contentDiv) {
+  // Remove any existing document title
+  const existingTitle = contentDiv.querySelector('.document-title');
+  if (existingTitle) {
+    existingTitle.remove();
+  }
+
+  // Extract filename from path
+  const filename = path.split('/').pop(); // Get last segment
+  const titleText = filename.replace(/\.md$/, ''); // Remove .md extension
+
+  // Decode for display
+  const decodedTitle = decodeURIComponent(titleText);
+
+  // Create title element
+  const titleElement = document.createElement('h1');
+  titleElement.className = 'document-title';
+  titleElement.textContent = decodedTitle;
+
+  // Insert at the beginning of content
+  contentDiv.insertBefore(titleElement, contentDiv.firstChild);
+}
+
 // Copy heading link to clipboard
 async function copyHeadingLink(heading, anchorLink) {
   try {
@@ -1109,6 +1135,9 @@ async function loadFile(path, hash = '', updateUrl = true) {
     // Remove folder-list-view class (if previously set)
     const contentDiv = document.getElementById('markdown-content');
     contentDiv.classList.remove('folder-list-view');
+
+    // Add document title (filename without .md)
+    addDocumentTitle(path, contentDiv);
 
     // Update active state
     document.querySelectorAll('.tree-item').forEach(item => {
