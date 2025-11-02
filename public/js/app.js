@@ -1,5 +1,10 @@
 // DocuLight Client Application
 
+// Disable automatic scroll restoration by browser
+if ('scrollRestoration' in history) {
+  history.scrollRestoration = 'manual';
+}
+
 // Initialize Mermaid
 mermaid.initialize({
   startOnLoad: true,
@@ -791,7 +796,10 @@ async function buildTree(data, container, currentPath = '', level = 0) {
     // Add click event for .md files
     item.addEventListener('click', async (e) => {
       e.stopPropagation();
+      const mainContent = document.querySelector('.main-content');
+      console.log('[Tree Click] File clicked:', filePath, 'main-content scrollTop:', mainContent?.scrollTop);
       await loadFile(filePath);
+      console.log('[Tree Click] After loadFile, main-content scrollTop:', mainContent?.scrollTop);
     });
 
     fragment.appendChild(item);
@@ -1128,6 +1136,18 @@ async function expandParentFolders(filePath) {
 // Load file and render
 async function loadFile(path, hash = '', updateUrl = true) {
   try {
+    // Save current scroll position before navigating (for back button)
+    if (updateUrl) {
+      const mainContent = document.querySelector('.main-content');
+      const currentState = window.history.state;
+      if (currentState && mainContent) {
+        window.history.replaceState({
+          ...currentState,
+          scrollTop: mainContent.scrollTop
+        }, '', window.location.href);
+      }
+    }
+
     // Update breadcrumb
     document.getElementById('breadcrumb').textContent = path;
 
@@ -1172,12 +1192,22 @@ async function loadFile(path, hash = '', updateUrl = true) {
       }, '', newUrl);
     }
 
-    // Scroll to anchor if provided
+    // Handle scrolling after all DOM operations complete
+    const mainContent = document.querySelector('.main-content');
+
     if (hash) {
-      await new Promise(resolve => setTimeout(resolve, 200));
+      // Hash provided: scroll to specific section
+      await new Promise(resolve => setTimeout(resolve, 100));
       const targetElement = document.getElementById(hash);
       if (targetElement) {
         targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    } else {
+      // No hash: scroll main-content to top
+      if (mainContent) {
+        console.log('[Scroll Debug] main-content scrollTop before:', mainContent.scrollTop);
+        mainContent.scrollTop = 0;
+        console.log('[Scroll Debug] main-content scrollTop after:', mainContent.scrollTop);
       }
     }
 
@@ -1464,6 +1494,18 @@ async function init() {
         try {
           await expandPathToFile(event.state.path);
           await loadFile(event.state.path, event.state.hash || '', false);
+
+          // Restore scroll position after loading
+          if (event.state.scrollTop !== undefined) {
+            const mainContent = document.querySelector('.main-content');
+            if (mainContent) {
+              // Use requestAnimationFrame to ensure DOM is ready
+              requestAnimationFrame(() => {
+                mainContent.scrollTop = event.state.scrollTop;
+                console.log('[Back Navigation] Restored scrollTop:', event.state.scrollTop);
+              });
+            }
+          }
         } catch (error) {
           console.error('Failed to load file from history:', error);
         }
