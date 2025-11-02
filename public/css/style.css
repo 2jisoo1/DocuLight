@@ -381,9 +381,9 @@ body {
 
 /* Document Title (filename) - appears before markdown content */
 .document-title {
-  font-size: 2.5em;
+  font-size: 3em;          /* Larger - 48px */
   font-weight: 700;
-  color: #222;
+  color: #555;             /* Lighter gray */
   margin-top: 0;
   margin-bottom: 32px;
   padding-bottom: 16px;
@@ -438,27 +438,27 @@ body {
   color: #4A90E2;
 }
 
-/* GitHub-style heading sizes with clear hierarchy */
+/* GitHub-style heading sizes with clear hierarchy - More distinct */
 .markdown-content h1 {
-  font-size: 2em;      /* 32px - Largest */
-  font-weight: 600;
+  font-size: 2.5em;    /* 40px - Very Large (more distinct) */
+  font-weight: 700;
   border-bottom: 2px solid var(--border-color);
   padding-bottom: 0.5rem;
-  margin-top: 24px;
-  margin-bottom: 16px;
+  margin-top: 32px;
+  margin-bottom: 20px;
 }
 
 .markdown-content h2 {
-  font-size: 1.5em;    /* 24px - Large */
+  font-size: 1.85em;   /* 29.6px - Large (more distinct) */
   font-weight: 600;
   border-bottom: 1px solid var(--border-color);
   padding-bottom: 0.3rem;
-  margin-top: 24px;
-  margin-bottom: 16px;
+  margin-top: 28px;
+  margin-bottom: 18px;
 }
 
 .markdown-content h3 {
-  font-size: 1.25em;   /* 20px - Medium-Large */
+  font-size: 1.4em;    /* 22.4px - Medium-Large (more distinct) */
   font-weight: 600;
   margin-top: 24px;
   margin-bottom: 16px;
