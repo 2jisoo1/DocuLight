@@ -436,22 +436,44 @@ async function renderMarkdown(content) {
     }
   });
 
-  // Render mermaid diagrams
+  // Render mermaid diagrams with individual error handling
   const mermaidBlocks = contentDiv.querySelectorAll('code.language-mermaid');
-  mermaidBlocks.forEach((block, index) => {
+  for (let index = 0; index < mermaidBlocks.length; index++) {
+    const block = mermaidBlocks[index];
     const code = block.textContent;
-    const id = `mermaid-${index}`;
+    const id = `mermaid-${index}-${Date.now()}`;
     const container = document.createElement('div');
     container.id = id;
     container.className = 'mermaid';
     container.textContent = code;
-    block.parentElement.replaceWith(container);
-  });
+    container.setAttribute('data-original-code', code);
 
-  // Re-render mermaid
-  await mermaid.run({
-    querySelector: '.mermaid'
-  });
+    // Replace the code block with mermaid container
+    block.parentElement.replaceWith(container);
+
+    // Try to render this specific diagram
+    try {
+      await mermaid.run({
+        nodes: [container]
+      });
+    } catch (error) {
+      console.error(`Mermaid rendering failed for diagram ${index}:`, error);
+
+      // Fallback: show original code block with error message
+      const fallbackContainer = document.createElement('div');
+      fallbackContainer.className = 'mermaid-error';
+      fallbackContainer.innerHTML = `
+        <div style="border: 1px solid #ffcccc; background: #fff5f5; padding: 10px; margin: 10px 0; border-radius: 4px;">
+          <strong style="color: #cc0000;">⚠️ Mermaid Diagram Rendering Error</strong>
+          <details style="margin-top: 8px;">
+            <summary style="cursor: pointer; color: #666;">View diagram code</summary>
+            <pre style="background: #f5f5f5; padding: 10px; margin-top: 8px; border-radius: 4px; overflow-x: auto;"><code class="language-mermaid">${code.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>
+          </details>
+        </div>
+      `;
+      container.replaceWith(fallbackContainer);
+    }
+  }
 
   // Add copy buttons to code blocks
   addCopyButtons(contentDiv);
