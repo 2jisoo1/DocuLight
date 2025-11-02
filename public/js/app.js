@@ -1106,6 +1106,10 @@ async function loadFile(path, hash = '', updateUrl = true) {
     const content = await fetchRaw(path);
     await renderMarkdown(content);
 
+    // Remove folder-list-view class (if previously set)
+    const contentDiv = document.getElementById('markdown-content');
+    contentDiv.classList.remove('folder-list-view');
+
     // Update active state
     document.querySelectorAll('.tree-item').forEach(item => {
       item.classList.remove('active');
