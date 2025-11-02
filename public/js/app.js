@@ -483,6 +483,9 @@ async function renderMarkdown(content) {
 
   // Step 9.3: Add document navigation (prev/next)
   addDocumentNavigation(contentDiv);
+
+  // Add click handlers for internal links (SPA navigation)
+  addInternalLinkHandlers(contentDiv);
 }
 
 /**
@@ -560,6 +563,40 @@ function addDocumentNavigation(contentDiv) {
   navContainer.appendChild(prevDiv);
   navContainer.appendChild(nextDiv);
   contentDiv.appendChild(navContainer);
+}
+
+/**
+ * Add click handlers for internal /doc/ links (SPA navigation)
+ * Prevents page reload and uses loadFile/loadFolder instead
+ */
+function addInternalLinkHandlers(contentDiv) {
+  const links = contentDiv.querySelectorAll('a[href^="/doc/"]');
+
+  links.forEach(link => {
+    link.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const href = link.getAttribute('href');
+
+      if (!href || !href.startsWith('/doc/')) return;
+
+      // Extract path from /doc/... URL
+      const rawPath = href.substring(5); // Remove '/doc/'
+      const decodedPath = rawPath.split('/').map(seg => decodeURIComponent(seg)).join('/');
+
+      try {
+        // Try to load as file first
+        await loadFile(decodedPath + '.md');
+      } catch (error) {
+        // If file not found, try as folder
+        try {
+          await loadFolder(decodedPath);
+        } catch (folderError) {
+          console.error('Failed to load path:', decodedPath, folderError);
+          ErrorHandler.showError('Not found', `Path "${decodedPath}" does not exist`);
+        }
+      }
+    });
+  });
 }
 
 // Copy heading link to clipboard
@@ -904,13 +941,15 @@ async function collapseAll() {
 
 // Generate markdown for folder list view (Step 9.2)
 function generateFolderListMarkdown(folderPath, treeData) {
-  // Extract folder name for title
+  // Extract folder name for title (decode for display)
   const folderName = folderPath.split('/').filter(p => p).pop() || 'Root';
+  const decodedFolderName = decodeURIComponent(folderName);
 
-  let markdown = `# 📂 ${folderName}\n\n`;
+  let markdown = `# 📂 ${decodedFolderName}\n\n`;
 
-  // Show current path
-  markdown += `**Path**: \`${folderPath || '/'}\`\n\n`;
+  // Show current path (decode for display)
+  const decodedPath = folderPath.split('/').map(seg => decodeURIComponent(seg)).join('/');
+  markdown += `**Path**: \`${decodedPath || '/'}\`\n\n`;
 
   // Subdirectories section
   if (treeData.dirs && treeData.dirs.length > 0) {
@@ -919,7 +958,10 @@ function generateFolderListMarkdown(folderPath, treeData) {
     for (const dir of treeData.dirs) {
       const dirPath = folderPath ? `${folderPath}/${dir.name}` : dir.name;
       const cleanDirPath = dirPath.replace(/^\//, '');
-      markdown += `- **[${dir.name}](/doc/${cleanDirPath})**\n`;
+      // Encode path for URL, but display decoded name
+      const encodedPath = cleanDirPath.split('/').map(seg => encodeURIComponent(seg)).join('/');
+      const displayDirName = decodeURIComponent(dir.name);
+      markdown += `- **[${displayDirName}](/doc/${encodedPath})**\n`;
     }
 
     markdown += '\n';
@@ -936,13 +978,16 @@ function generateFolderListMarkdown(folderPath, treeData) {
       const filePath = folderPath ? `${folderPath}/${file.name}` : file.name;
       const cleanFilePath = filePath.replace(/^\//, '').replace(/\.md$/, '');
 
-      // Display name without .md extension
-      const displayName = file.name.replace(/\.md$/, '');
+      // Display name without .md extension (decode for display)
+      const displayName = decodeURIComponent(file.name.replace(/\.md$/, ''));
+
+      // Encode path for URL
+      const encodedPath = cleanFilePath.split('/').map(seg => encodeURIComponent(seg)).join('/');
 
       // File size (human readable)
       const sizeKB = (file.size / 1024).toFixed(1);
 
-      markdown += `- [📄 ${displayName}](/doc/${cleanFilePath}) _${sizeKB} KB_\n`;
+      markdown += `- [📄 ${displayName}](/doc/${encodedPath}) _${sizeKB} KB_\n`;
     }
 
     markdown += '\n';
