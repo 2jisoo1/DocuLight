@@ -13,7 +13,7 @@ mermaid.initialize({
 
 // IndexedDB management
 const DB_NAME = 'DocuLight';
-const DB_VERSION = 1;
+const DB_VERSION = 2;  // Step 12: Upgraded for TOC state
 let db;
 
 // Global state: flattened file list for navigation (Step 9.3)
@@ -41,6 +41,11 @@ async function initDB() {
       // Last opened file store
       if (!db.objectStoreNames.contains('lastOpened')) {
         db.createObjectStore('lastOpened', { keyPath: 'key' });
+      }
+
+      // TOC state store (Step 12: Phase 1)
+      if (!db.objectStoreNames.contains('tocState')) {
+        db.createObjectStore('tocState', { keyPath: 'key' });
       }
     };
   });
@@ -96,6 +101,38 @@ async function getLastOpened() {
     request.onsuccess = () => {
       const result = request.result;
       resolve(result ? result.path : null);
+    };
+
+    request.onerror = () => reject(request.error);
+  });
+}
+
+// Save TOC state (Step 12: Phase 3)
+async function saveTOCState(isOpen, width) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('tocState', 'readwrite');
+    const store = tx.objectStore('tocState');
+    const request = store.put({
+      key: 'toc',
+      isOpen,
+      width,
+      ts: Date.now()
+    });
+
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+// Get TOC state (Step 12: Phase 3)
+async function getTOCState() {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('tocState', 'readonly');
+    const store = tx.objectStore('tocState');
+    const request = store.get('toc');
+
+    request.onsuccess = () => {
+      resolve(request.result || null);
     };
 
     request.onerror = () => reject(request.error);
@@ -603,6 +640,204 @@ function addInternalLinkHandlers(contentDiv) {
 }
 
 /**
+ * Generate TOC data from document headings
+ * Step 12: Phase 2
+ *
+ * @returns {Array} TOC data [{id, level, text}, ...]
+ */
+function generateTOC() {
+  const contentDiv = document.getElementById('markdown-content');
+  if (!contentDiv) return [];
+
+  const headings = contentDiv.querySelectorAll('h1, h2, h3, h4, h5, h6');
+  const tocData = [];
+
+  headings.forEach(heading => {
+    // Skip document title
+    if (heading.classList.contains('document-title')) return;
+
+    // Skip if no ID
+    if (!heading.id) return;
+
+    const level = parseInt(heading.tagName.substring(1)); // h1 -> 1
+    const text = heading.textContent.replace('🔗', '').trim();
+
+    tocData.push({
+      id: heading.id,
+      level: level,
+      text: text
+    });
+  });
+
+  return tocData;
+}
+
+/**
+ * Render TOC in sidebar
+ * Step 12: Phase 2
+ *
+ * @param {Array} tocData - TOC data from generateTOC()
+ */
+function renderTOC(tocData) {
+  const tocTree = document.getElementById('toc-tree');
+  if (!tocTree) return;
+
+  tocTree.innerHTML = '';
+
+  if (tocData.length === 0) {
+    tocTree.innerHTML = '<p class="toc-empty">No headings found</p>';
+    return;
+  }
+
+  tocData.forEach(item => {
+    const tocItem = document.createElement('div');
+    tocItem.className = 'toc-item';
+    tocItem.dataset.level = item.level;
+    tocItem.dataset.headingId = item.id;
+    tocItem.textContent = item.text;
+    tocItem.title = item.text;  // Tooltip for long titles
+
+    // Click handler
+    tocItem.addEventListener('click', () => {
+      scrollToHeading(item.id);
+
+      // Mobile: close TOC after click
+      if (window.innerWidth <= 768) {
+        closeTOCSidebar();
+      }
+
+      // Update URL hash
+      updateURLHash(item.id);
+    });
+
+    tocTree.appendChild(tocItem);
+  });
+}
+
+/**
+ * Scroll to heading
+ * Step 12: Phase 2
+ *
+ * @param {string} headingId - Heading element ID
+ */
+function scrollToHeading(headingId) {
+  const targetElement = document.getElementById(headingId);
+  if (!targetElement) return;
+
+  // Scroll to target
+  targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  // Update active state
+  updateActiveTOCItem(headingId);
+}
+
+/**
+ * Update active TOC item
+ * Step 12: Phase 2
+ *
+ * @param {string} headingId - Heading element ID
+ */
+function updateActiveTOCItem(headingId) {
+  // Remove all active states
+  document.querySelectorAll('.toc-item').forEach(item => {
+    item.classList.remove('active');
+  });
+
+  // Add active to clicked item
+  const activeItem = document.querySelector(`.toc-item[data-heading-id="${headingId}"]`);
+  if (activeItem) {
+    activeItem.classList.add('active');
+
+    // Scroll TOC to make active item visible
+    activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+/**
+ * Update URL hash
+ * Step 12: Phase 2
+ *
+ * @param {string} headingId - Heading element ID
+ */
+function updateURLHash(headingId) {
+  const breadcrumb = document.getElementById('breadcrumb');
+  if (!breadcrumb) return;
+
+  const currentPath = breadcrumb.textContent.trim();
+  if (!currentPath || currentPath === 'Select a document') return;
+
+  // Build URL with hash
+  const cleanPath = currentPath.replace(/\.md$/, '');
+  const encodedPath = cleanPath.split('/').map(seg => encodeURIComponent(seg)).join('/');
+  const encodedHash = encodeURIComponent(headingId);
+
+  window.history.pushState({
+    path: currentPath,
+    cleanPath: cleanPath,
+    hash: headingId
+  }, '', `/doc/${encodedPath}#${encodedHash}`);
+}
+
+/**
+ * Close TOC sidebar
+ * Step 12: Phase 2
+ */
+function closeTOCSidebar() {
+  const tocSidebar = document.getElementById('toc-sidebar');
+  const tocOverlay = document.getElementById('toc-overlay');
+
+  if (tocSidebar) {
+    tocSidebar.classList.remove('open');
+  }
+
+  if (tocOverlay) {
+    tocOverlay.classList.remove('active');
+  }
+}
+
+// Global Intersection Observer for TOC
+let tocObserver = null;
+
+/**
+ * Initialize TOC scroll sync (Intersection Observer)
+ * Step 12: Phase 3
+ */
+function initTOCScrollSync() {
+  // Cleanup previous observer
+  if (tocObserver) {
+    tocObserver.disconnect();
+  }
+
+  const headings = document.querySelectorAll('#markdown-content h1, #markdown-content h2, #markdown-content h3, #markdown-content h4, #markdown-content h5, #markdown-content h6');
+
+  if (headings.length === 0) return;
+
+  // Observer options
+  const options = {
+    root: document.querySelector('.main-content'),
+    rootMargin: '-80px 0px -80% 0px',  // Top 80px excluded, bottom 80% excluded
+    threshold: 0
+  };
+
+  tocObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const headingId = entry.target.id;
+        if (headingId) {
+          updateActiveTOCItem(headingId);
+        }
+      }
+    });
+  }, options);
+
+  headings.forEach(heading => {
+    if (heading.id && !heading.classList.contains('document-title')) {
+      tocObserver.observe(heading);
+    }
+  });
+}
+
+/**
  * Add document title (filename without .md) at the top of content
  */
 function addDocumentTitle(path, contentDiv) {
@@ -1059,10 +1294,26 @@ async function expandPathToFile(filePath) {
   for (const part of parts) {
     currentPath = currentPath ? `${currentPath}/${part}` : part;
 
-    // Find the folder wrapper in DOM
-    const wrapper = document.querySelector(`.tree-item-wrapper[data-path="${currentPath}"]`);
+    // Find the folder wrapper in DOM with retry logic
+    // (Wait for buildTree state restoration to complete)
+    const maxRetries = 10;
+    const retryDelay = 300; // ms
+    let wrapper = null;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      wrapper = document.querySelector(`.tree-item-wrapper[data-path="${currentPath}"]`);
+
+      if (wrapper) break; // Found it!
+
+      if (attempt < maxRetries - 1) {
+        // Wait and retry
+        console.log(`Waiting for folder ${currentPath} (attempt ${attempt + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      }
+    }
+
     if (!wrapper) {
-      console.warn(`Folder not found in tree: ${currentPath}`);
+      console.warn(`Folder not found after ${maxRetries} retries: ${currentPath}`);
       continue;
     }
 
@@ -1108,10 +1359,26 @@ async function expandParentFolders(filePath) {
   for (const part of parts) {
     currentPath = currentPath ? `${currentPath}/${part}` : part;
 
-    // Find the folder wrapper in DOM
-    const wrapper = document.querySelector(`.tree-item-wrapper[data-path="${currentPath}"]`);
+    // Find the folder wrapper in DOM with retry logic
+    // (Wait for buildTree state restoration to complete)
+    const maxRetries = 10;
+    const retryDelay = 300; // ms
+    let wrapper = null;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      wrapper = document.querySelector(`.tree-item-wrapper[data-path="${currentPath}"]`);
+
+      if (wrapper) break; // Found it!
+
+      if (attempt < maxRetries - 1) {
+        // Wait and retry
+        console.log(`Waiting for folder ${currentPath} (attempt ${attempt + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      }
+    }
+
     if (!wrapper) {
-      console.warn(`Folder not found in tree: ${currentPath}`);
+      console.warn(`Folder not found after ${maxRetries} retries: ${currentPath}`);
       continue;
     }
 
@@ -1166,6 +1433,15 @@ async function loadFile(path, hash = '', updateUrl = true) {
 
     // Add document title (filename without .md)
     addDocumentTitle(path, contentDiv);
+
+    // Generate and render TOC (Step 12: Phase 2)
+    const tocData = generateTOC();
+    renderTOC(tocData);
+
+    // Initialize scroll sync (Step 12: Phase 3)
+    if (tocData.length > 0) {
+      initTOCScrollSync();
+    }
 
     // Update active state
     document.querySelectorAll('.tree-item').forEach(item => {
@@ -1836,6 +2112,65 @@ function initMobilePanel(config) {
 
 // Global reference for mobile panel control
 let leftMobilePanel = null;
+let rightTOCPanel = null;
+
+/**
+ * Initialize TOC toggle button
+ * Step 12: Phase 2-3
+ */
+async function initTOCToggle() {
+  const tocToggleBtn = document.getElementById('toc-toggle-btn');
+  const tocSidebar = document.getElementById('toc-sidebar');
+  const tocOverlay = document.getElementById('toc-overlay');
+
+  if (!tocToggleBtn || !tocSidebar) {
+    console.warn('TOC elements not found');
+    return;
+  }
+
+  // Restore state from IndexedDB (Phase 3)
+  const savedState = await getTOCState();
+  if (savedState) {
+    if (savedState.isOpen) {
+      tocSidebar.classList.add('open');
+    }
+    if (savedState.width) {
+      tocSidebar.style.width = `${savedState.width}px`;
+    }
+  }
+
+  // Toggle button click
+  tocToggleBtn.addEventListener('click', async () => {
+    const isOpen = tocSidebar.classList.toggle('open');
+
+    // Mobile: show overlay
+    if (window.innerWidth <= 768 && tocOverlay) {
+      tocOverlay.classList.toggle('active', isOpen);
+    }
+
+    // Save state (Phase 3)
+    await saveTOCState(isOpen, tocSidebar.offsetWidth);
+  });
+
+  // Close button click
+  const tocCloseBtn = document.getElementById('toc-close-btn');
+  if (tocCloseBtn) {
+    tocCloseBtn.addEventListener('click', async () => {
+      closeTOCSidebar();
+      // Save state
+      await saveTOCState(false, tocSidebar.offsetWidth);
+    });
+  }
+
+  // Overlay click (mobile)
+  if (tocOverlay) {
+    tocOverlay.addEventListener('click', async () => {
+      closeTOCSidebar();
+      // Save state
+      await saveTOCState(false, tocSidebar.offsetWidth);
+    });
+  }
+}
 
 // Close mobile menu on popstate
 window.addEventListener('popstate', () => {
@@ -1865,5 +2200,18 @@ document.addEventListener('DOMContentLoaded', () => {
     closeBtnId: null,
     overlayId: 'mobile-overlay',
     autoCloseOnItemClick: true
+  });
+
+  // TOC toggle button (Step 12: Phase 2)
+  initTOCToggle();
+
+  // Right TOC resizer (Step 12: Phase 3)
+  initPanelResizer({
+    resizerId: 'right-resizer',
+    panelSelector: '.toc-sidebar',
+    direction: 'right',
+    minWidth: 150,
+    maxWidth: 500,
+    storageKey: 'tocWidth'
   });
 });

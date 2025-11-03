@@ -101,6 +101,17 @@
         <div class="breadcrumb" id="breadcrumb">
           <span>Select a document</span>
         </div>
+        <!-- TOC Toggle Button (Step 12: Phase 1) -->
+        <button id="toc-toggle-btn" class="icon-btn" title="Table of Contents" aria-label="Toggle table of contents">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="8" y1="6" x2="21" y2="6"></line>
+            <line x1="8" y1="12" x2="21" y2="12"></line>
+            <line x1="8" y1="18" x2="21" y2="18"></line>
+            <line x1="3" y1="6" x2="3.01" y2="6"></line>
+            <line x1="3" y1="12" x2="3.01" y2="12"></line>
+            <line x1="3" y1="18" x2="3.01" y2="18"></line>
+          </svg>
+        </button>
       </div>
       <div class="markdown-content" id="markdown-content">
         <div class="welcome">
@@ -111,6 +122,25 @@
         </div>
       </div>
     </main>
+
+    <!-- Right Resizer (Step 12: Phase 1) -->
+    <div class="resizer" id="right-resizer"></div>
+
+    <!-- TOC Sidebar (Step 12: Phase 1) -->
+    <aside class="toc-sidebar" id="toc-sidebar">
+      <div class="toc-header">
+        <h2>On This Page</h2>
+        <button id="toc-close-btn" class="icon-btn" aria-label="Close table of contents">×</button>
+      </div>
+      <div class="toc-container">
+        <nav class="toc-tree" id="toc-tree">
+          <!-- TOC will be generated here -->
+        </nav>
+      </div>
+    </aside>
+
+    <!-- TOC Mobile Overlay (Step 12: Phase 1) -->
+    <div class="toc-overlay" id="toc-overlay"></div>
   </div>
 
   <script src="/js/app.js"></script>
