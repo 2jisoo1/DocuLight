@@ -589,17 +589,13 @@ function addInternalLinkHandlers(contentDiv) {
       const decodedPath = rawPath.split('/').map(seg => decodeURIComponent(seg)).join('/');
 
       // Check if it's a file or folder by trying to fetch as file first
-      console.log('[Link Click] Checking path:', decodedPath);
-
       const fileResponse = await fetch(`/api/raw?path=${encodeURIComponent(decodedPath + '.md')}`);
 
       if (fileResponse.ok) {
         // It's a file
-        console.log('[Link Click] Loading as file:', decodedPath + '.md');
         await loadFile(decodedPath + '.md');
       } else {
         // Not a file, try as folder
-        console.log('[Link Click] Loading as folder:', decodedPath);
         await showFolderList(decodedPath);
       }
     });
@@ -798,10 +794,7 @@ async function buildTree(data, container, currentPath = '', level = 0) {
     // Add click event for .md files
     item.addEventListener('click', async (e) => {
       e.stopPropagation();
-      const mainContent = document.querySelector('.main-content');
-      console.log('[Tree Click] File clicked:', filePath, 'main-content scrollTop:', mainContent?.scrollTop);
       await loadFile(filePath);
-      console.log('[Tree Click] After loadFile, main-content scrollTop:', mainContent?.scrollTop);
     });
 
     fragment.appendChild(item);
@@ -1213,9 +1206,7 @@ async function loadFile(path, hash = '', updateUrl = true) {
     } else {
       // No hash: scroll main-content to top
       if (mainContent) {
-        console.log('[Scroll Debug] main-content scrollTop before:', mainContent.scrollTop);
         mainContent.scrollTop = 0;
-        console.log('[Scroll Debug] main-content scrollTop after:', mainContent.scrollTop);
       }
     }
 
@@ -1510,7 +1501,6 @@ async function init() {
               // Use requestAnimationFrame to ensure DOM is ready
               requestAnimationFrame(() => {
                 mainContent.scrollTop = event.state.scrollTop;
-                console.log('[Back Navigation] Restored scrollTop:', event.state.scrollTop);
               });
             }
           }
