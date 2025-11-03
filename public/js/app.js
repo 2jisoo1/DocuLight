@@ -778,17 +778,12 @@ async function buildTree(data, container, currentPath = '', level = 0) {
     item.dataset.path = filePath;
     item.style.paddingLeft = `${level * 1.2}rem`;  // 폴더와 동일한 레벨 (level + 1 제거)
 
-    const fileIcon = document.createElement('span');
-    fileIcon.className = 'tree-icon';
-    fileIcon.textContent = '📄';
-
     // Remove .md extension from display name
     const displayName = file.name.slice(0, -3);
 
     const nameSpan = document.createElement('span');
     nameSpan.textContent = displayName;
 
-    item.appendChild(fileIcon);
     item.appendChild(nameSpan);
 
     // Add click event for .md files
