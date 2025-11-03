@@ -30,15 +30,24 @@ body {
   overflow: hidden;
 }
 
-/* Sidebar */
-.sidebar {
-  width: var(--sidebar-width);
+/* ========================================
+   Common Panel Styles (Sidebar & TOC)
+   ======================================== */
+
+/* Base panel layout */
+.sidebar,
+.toc-sidebar {
   background-color: var(--bg-secondary);
-  border-right: none;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   flex-shrink: 0;
+}
+
+/* Specific styles for left sidebar */
+.sidebar {
+  width: var(--sidebar-width);
+  border-right: none;
 }
 
 /* Resizer */
@@ -65,7 +74,9 @@ body {
   bottom: 0;
 }
 
-.sidebar-header {
+/* Panel headers (shared pattern) */
+.sidebar-header,
+.toc-header {
   position: relative;
   padding: 0.5rem 1rem;
   border-bottom: 1px solid var(--border-color);
@@ -642,30 +653,35 @@ body {
   margin: 1rem 0;
 }
 
-/* Scrollbar Styles - Thin and elegant */
+/* Scrollbar Styles - Thin and elegant (Common for panels and content) */
 .tree-container::-webkit-scrollbar,
+.toc-container::-webkit-scrollbar,
 .main-content::-webkit-scrollbar {
   width: 6px;
 }
 
 .tree-container::-webkit-scrollbar-track,
+.toc-container::-webkit-scrollbar-track,
 .main-content::-webkit-scrollbar-track {
   background: transparent;
 }
 
 .tree-container::-webkit-scrollbar-thumb,
+.toc-container::-webkit-scrollbar-thumb,
 .main-content::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.2);
   border-radius: 3px;
 }
 
 .tree-container::-webkit-scrollbar-thumb:hover,
+.toc-container::-webkit-scrollbar-thumb:hover,
 .main-content::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.35);
 }
 
 /* Firefox scrollbar */
 .tree-container,
+.toc-container,
 .main-content {
   scrollbar-width: thin;
   scrollbar-color: rgba(0, 0, 0, 0.2) transparent;

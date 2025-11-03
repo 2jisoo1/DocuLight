@@ -1071,14 +1071,14 @@ async function expandPathToFile(filePath) {
     if (childrenContainer && childrenContainer.style.display === 'none') {
       // Need to expand
       const dirItem = wrapper.querySelector('.tree-item.directory');
-      const expandIcon = dirItem.querySelector('.expand-icon');
+      const expandIcon = wrapper.querySelector('.expand-icon');
 
       if (dirItem && expandIcon) {
-        // Simulate click to expand
-        dirItem.click();
+        // Calculate level for toggleDirectory
+        const level = parseInt(dirItem.style.paddingLeft) / 1.2;
 
-        // Wait for DOM to update
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Directly call toggleDirectory and wait for completion
+        await toggleDirectory(currentPath, wrapper, childrenContainer, expandIcon, level + 1);
       }
     }
   }
@@ -1118,12 +1118,16 @@ async function expandParentFolders(filePath) {
     // Check if already expanded
     const childrenContainer = wrapper.querySelector('.tree-children');
     if (childrenContainer && childrenContainer.style.display === 'none') {
-      // Need to expand - click the expand icon
+      // Need to expand
+      const dirItem = wrapper.querySelector('.tree-item.directory');
       const expandIcon = wrapper.querySelector('.expand-icon');
-      if (expandIcon) {
-        expandIcon.click();
-        // Wait for DOM to update
-        await new Promise(resolve => setTimeout(resolve, 100));
+
+      if (dirItem && expandIcon) {
+        // Calculate level for toggleDirectory
+        const level = parseInt(dirItem.style.paddingLeft) / 1.2;
+
+        // Directly call toggleDirectory and wait for completion
+        await toggleDirectory(currentPath, wrapper, childrenContainer, expandIcon, level + 1);
       }
     }
   }
@@ -1132,6 +1136,11 @@ async function expandParentFolders(filePath) {
 // Load file and render
 async function loadFile(path, hash = '', updateUrl = true) {
   try {
+    // Close mobile menu if open (mobile only)
+    if (window.innerWidth <= 768 && leftMobilePanel) {
+      leftMobilePanel.close();
+    }
+
     // Save current scroll position before navigating (for back button)
     if (updateUrl) {
       const mainContent = document.querySelector('.main-content');
@@ -1675,10 +1684,34 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-// Initialize resizer
-function initResizer() {
-  const resizer = document.getElementById('resizer');
-  const sidebar = document.querySelector('.sidebar');
+/**
+ * Initialize panel resizer (works for both left and right panels)
+ * @param {Object} config
+ * @param {string} config.resizerId - Resizer element ID
+ * @param {string} config.panelSelector - Panel element selector
+ * @param {string} config.direction - 'left' or 'right'
+ * @param {number} config.minWidth - Minimum panel width
+ * @param {number} config.maxWidth - Maximum panel width
+ * @param {string} config.storageKey - localStorage key for saving width
+ */
+function initPanelResizer(config) {
+  const {
+    resizerId,
+    panelSelector,
+    direction = 'left',
+    minWidth = 100,
+    maxWidth = 500,
+    storageKey
+  } = config;
+
+  const resizer = document.getElementById(resizerId);
+  const panel = document.querySelector(panelSelector);
+
+  if (!resizer || !panel) {
+    console.warn('Panel resizer elements not found:', config);
+    return;
+  }
+
   let isResizing = false;
   let startX = 0;
   let startWidth = 0;
@@ -1686,7 +1719,7 @@ function initResizer() {
   resizer.addEventListener('mousedown', (e) => {
     isResizing = true;
     startX = e.clientX;
-    startWidth = sidebar.offsetWidth;
+    startWidth = panel.offsetWidth;
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
     resizer.classList.add('resizing');
@@ -1695,14 +1728,15 @@ function initResizer() {
   document.addEventListener('mousemove', (e) => {
     if (!isResizing) return;
 
-    const delta = e.clientX - startX;
+    // Calculate delta based on direction
+    const delta = direction === 'left'
+      ? e.clientX - startX          // Left: drag right to increase
+      : startX - e.clientX;          // Right: drag left to increase
+
     const newWidth = startWidth + delta;
-    const minWidth = 100;
-    const maxWidth = window.innerWidth - 100;
 
     if (newWidth >= minWidth && newWidth <= maxWidth) {
-      sidebar.style.width = `${newWidth}px`;
-      localStorage.setItem('sidebarWidth', newWidth);
+      panel.style.width = `${newWidth}px`;
     }
   });
 
@@ -1712,62 +1746,124 @@ function initResizer() {
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       resizer.classList.remove('resizing');
+
+      // Save width
+      if (storageKey) {
+        localStorage.setItem(storageKey, panel.offsetWidth);
+      }
     }
   });
 
   // Restore saved width
-  const savedWidth = localStorage.getItem('sidebarWidth');
-  if (savedWidth) {
-    sidebar.style.width = `${savedWidth}px`;
+  if (storageKey) {
+    const savedWidth = localStorage.getItem(storageKey);
+    if (savedWidth) {
+      panel.style.width = `${savedWidth}px`;
+    }
   }
 }
 
-// Initialize mobile menu
-function initMobileMenu() {
-  const menuBtn = document.getElementById('mobile-menu-btn');
-  const overlay = document.getElementById('mobile-overlay');
-  const sidebar = document.querySelector('.sidebar');
+/**
+ * Initialize mobile panel (overlay + toggle)
+ * @param {Object} config
+ * @param {string} config.panelSelector - Panel element selector
+ * @param {string} config.toggleBtnId - Toggle button ID
+ * @param {string} config.closeBtnId - Close button ID (optional)
+ * @param {string} config.overlayId - Overlay element ID
+ * @param {boolean} config.autoCloseOnItemClick - Auto close when item clicked
+ * @returns {Object} { open, close, toggle } - Control functions
+ */
+function initMobilePanel(config) {
+  const {
+    panelSelector,
+    toggleBtnId,
+    closeBtnId = null,
+    overlayId,
+    autoCloseOnItemClick = false
+  } = config;
 
-  if (!menuBtn || !overlay || !sidebar) return;
+  const panel = document.querySelector(panelSelector);
+  const toggleBtn = document.getElementById(toggleBtnId);
+  const closeBtn = closeBtnId ? document.getElementById(closeBtnId) : null;
+  const overlay = document.getElementById(overlayId);
 
-  // Toggle menu
-  menuBtn.addEventListener('click', () => {
-    sidebar.classList.add('open');
+  if (!panel || !toggleBtn || !overlay) {
+    console.warn('Mobile panel elements not found:', config);
+    return null;
+  }
+
+  const open = () => {
+    panel.classList.add('open');
     overlay.classList.add('active');
-  });
+  };
 
-  // Close menu when clicking overlay
-  overlay.addEventListener('click', () => {
-    sidebar.classList.remove('open');
+  const close = () => {
+    panel.classList.remove('open');
     overlay.classList.remove('active');
-  });
+  };
 
-  // Close menu on file selection (mobile only)
-  const originalLoadFile = window.loadFile;
-  window.loadFile = async function(...args) {
-    await originalLoadFile.apply(this, args);
-    if (window.innerWidth <= 768) {
-      sidebar.classList.remove('open');
-      overlay.classList.remove('active');
+  const toggle = () => {
+    if (panel.classList.contains('open')) {
+      close();
+    } else {
+      open();
     }
   };
+
+  // Toggle button click
+  toggleBtn.addEventListener('click', toggle);
+
+  // Close button click
+  if (closeBtn) {
+    closeBtn.addEventListener('click', close);
+  }
+
+  // Overlay click
+  overlay.addEventListener('click', close);
+
+  // Auto close on item click (mobile only)
+  if (autoCloseOnItemClick) {
+    panel.addEventListener('click', (e) => {
+      const clickedItem = e.target.closest('.toc-item, .tree-item.file');
+      if (clickedItem && window.innerWidth <= 768) {
+        close();
+      }
+    });
+  }
+
+  return { open, close, toggle };
 }
+
+// Global reference for mobile panel control
+let leftMobilePanel = null;
 
 // Close mobile menu on popstate
 window.addEventListener('popstate', () => {
-  if (window.innerWidth <= 768) {
-    const sidebar = document.querySelector('.sidebar');
-    const overlay = document.getElementById('mobile-overlay');
-    if (sidebar && overlay) {
-      sidebar.classList.remove('open');
-      overlay.classList.remove('active');
-    }
+  if (window.innerWidth <= 768 && leftMobilePanel) {
+    leftMobilePanel.close();
   }
 });
 
 // Start application when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   init();
-  initResizer();
-  initMobileMenu();
+
+  // Left sidebar resizer (refactored)
+  initPanelResizer({
+    resizerId: 'resizer',
+    panelSelector: '.sidebar',
+    direction: 'left',
+    minWidth: 100,
+    maxWidth: window.innerWidth - 100,
+    storageKey: 'sidebarWidth'
+  });
+
+  // Left mobile panel (refactored)
+  leftMobilePanel = initMobilePanel({
+    panelSelector: '.sidebar',
+    toggleBtnId: 'mobile-menu-btn',
+    closeBtnId: null,
+    overlayId: 'mobile-overlay',
+    autoCloseOnItemClick: true
+  });
 });
