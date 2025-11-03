@@ -63,9 +63,9 @@ async function getTreeData(config, logger, userPath = '/') {
     }
   }
 
-  // Sort alphabetically
-  dirs.sort((a, b) => a.name.localeCompare(b.name));
-  files.sort((a, b) => a.name.localeCompare(b.name));
+  // Sort naturally (numeric-aware, like Obsidian)
+  dirs.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+  files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
 
   logger.info('Tree retrieved', {
     path: userPath,
@@ -141,8 +141,8 @@ async function getFullTreeData(config, logger, startPath = '/', options = {}) {
       }
     }
 
-    dirs.sort((a, b) => a.name.localeCompare(b.name));
-    files.sort((a, b) => a.name.localeCompare(b.name));
+    dirs.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+    files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
     return { dirs, files };
   }
 
