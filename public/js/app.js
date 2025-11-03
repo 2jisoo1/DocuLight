@@ -1650,6 +1650,9 @@ async function init() {
     // Initialize search feature (Step 8.4)
     initSearchFeature();
 
+    // Initialize TOC toggle (Step 12: Phase 2-3)
+    await initTOCToggle();
+
     // Sidebar header click - navigate to welcome or index
     const sidebarTitle = document.querySelector('.sidebar-title');
     if (sidebarTitle) {
@@ -2202,10 +2205,8 @@ document.addEventListener('DOMContentLoaded', () => {
     autoCloseOnItemClick: true
   });
 
-  // TOC toggle button (Step 12: Phase 2)
-  initTOCToggle();
-
   // Right TOC resizer (Step 12: Phase 3)
+  // Note: TOC toggle is initialized inside init() after db is ready
   initPanelResizer({
     resizerId: 'right-resizer',
     panelSelector: '.toc-sidebar',
