@@ -588,17 +588,19 @@ function addInternalLinkHandlers(contentDiv) {
       const rawPath = href.substring(5); // Remove '/doc/'
       const decodedPath = rawPath.split('/').map(seg => decodeURIComponent(seg)).join('/');
 
-      try {
-        // Try to load as file first
+      // Check if it's a file or folder by trying to fetch as file first
+      console.log('[Link Click] Checking path:', decodedPath);
+
+      const fileResponse = await fetch(`/api/raw?path=${encodeURIComponent(decodedPath + '.md')}`);
+
+      if (fileResponse.ok) {
+        // It's a file
+        console.log('[Link Click] Loading as file:', decodedPath + '.md');
         await loadFile(decodedPath + '.md');
-      } catch (error) {
-        // If file not found, try as folder
-        try {
-          await loadFolder(decodedPath);
-        } catch (folderError) {
-          console.error('Failed to load path:', decodedPath, folderError);
-          ErrorHandler.showError('Not found', `Path "${decodedPath}" does not exist`);
-        }
+      } else {
+        // Not a file, try as folder
+        console.log('[Link Click] Loading as folder:', decodedPath);
+        await showFolderList(decodedPath);
       }
     });
   });
@@ -879,6 +881,12 @@ async function showFolderList(folderPath) {
     // Add folder-list-view class to content div
     const contentDiv = document.getElementById('markdown-content');
     contentDiv.classList.add('folder-list-view');
+
+    // Scroll to top when showing folder list
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) {
+      mainContent.scrollTop = 0;
+    }
 
     // Update URL (clean URL without .md)
     const cleanPath = folderPath.replace(/^\//, '');
