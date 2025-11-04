@@ -28,12 +28,6 @@ async function getHtml(req, res, next) {
       throw error;
     }
 
-    // Trigger background scan (async, non-blocking)
-    // This runs independently and doesn't affect response time
-    cacheManager.triggerScanIfNeeded().catch(error => {
-      logger.warn('Background scan failed', { error: error.message });
-    });
-
     // Get cached HTML or render on demand
     const cached = await cacheManager.getOrRender(userPath);
 
@@ -43,7 +37,7 @@ async function getHtml(req, res, next) {
       throw error;
     }
 
-    // Respond with HTML and TOC
+    // Respond with HTML and TOC (respond first!)
     res.json({
       html: cached.html,
       toc: cached.toc,
@@ -57,6 +51,12 @@ async function getHtml(req, res, next) {
       fromCache: cached.fromCache,
       htmlSize: cached.html.length,
       tocItems: cached.toc.length
+    });
+
+    // Trigger background scan AFTER response (async, non-blocking)
+    // This runs in background and prepares for next requests
+    cacheManager.triggerScanIfNeeded().catch(error => {
+      logger.warn('Background scan failed', { error: error.message });
     });
   } catch (error) {
     next(error);
