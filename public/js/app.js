@@ -1972,6 +1972,7 @@ function escapeHtml(text) {
  * @param {number} config.minWidth - Minimum panel width
  * @param {number} config.maxWidth - Maximum panel width
  * @param {string} config.storageKey - localStorage key for saving width
+ * @param {Function} config.onResize - Callback when panel is resized (optional)
  */
 function initPanelResizer(config) {
   const {
@@ -1980,7 +1981,8 @@ function initPanelResizer(config) {
     direction = 'left',
     minWidth = 100,
     maxWidth = 500,
-    storageKey
+    storageKey,
+    onResize = null
   } = config;
 
   const resizer = document.getElementById(resizerId);
@@ -2002,6 +2004,14 @@ function initPanelResizer(config) {
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
     resizer.classList.add('resizing');
+
+    // Disable transition during resize for smooth real-time update
+    if (onResize) {
+      const mainContent = document.querySelector('.main-content');
+      if (mainContent) {
+        mainContent.style.transition = 'none';
+      }
+    }
   });
 
   document.addEventListener('mousemove', (e) => {
@@ -2016,6 +2026,11 @@ function initPanelResizer(config) {
 
     if (newWidth >= minWidth && newWidth <= maxWidth) {
       panel.style.width = `${newWidth}px`;
+
+      // Call onResize during drag for real-time update
+      if (onResize) {
+        onResize(newWidth);
+      }
     }
   });
 
@@ -2026,9 +2041,22 @@ function initPanelResizer(config) {
       document.body.style.userSelect = '';
       resizer.classList.remove('resizing');
 
+      // Re-enable transition after resize
+      if (onResize) {
+        const mainContent = document.querySelector('.main-content');
+        if (mainContent) {
+          mainContent.style.transition = '';  // Restore default
+        }
+      }
+
       // Save width
       if (storageKey) {
         localStorage.setItem(storageKey, panel.offsetWidth);
+      }
+
+      // Final onResize call (for any cleanup)
+      if (onResize) {
+        onResize(panel.offsetWidth);
       }
     }
   });
@@ -2125,6 +2153,7 @@ async function initTOCToggle() {
   const tocToggleBtn = document.getElementById('toc-toggle-btn');
   const tocSidebar = document.getElementById('toc-sidebar');
   const tocOverlay = document.getElementById('toc-overlay');
+  const mainContent = document.querySelector('.main-content');
 
   if (!tocToggleBtn || !tocSidebar) {
     console.warn('TOC elements not found');
@@ -2136,6 +2165,10 @@ async function initTOCToggle() {
   if (savedState) {
     if (savedState.isOpen) {
       tocSidebar.classList.add('open');
+      // Adjust main-content margin for desktop
+      if (window.innerWidth > 768 && mainContent) {
+        mainContent.style.marginRight = `${savedState.width || 250}px`;
+      }
     }
     if (savedState.width) {
       tocSidebar.style.width = `${savedState.width}px`;
@@ -2145,6 +2178,15 @@ async function initTOCToggle() {
   // Toggle button click
   tocToggleBtn.addEventListener('click', async () => {
     const isOpen = tocSidebar.classList.toggle('open');
+
+    // Desktop: adjust main-content margin
+    if (window.innerWidth > 768 && mainContent) {
+      if (isOpen) {
+        mainContent.style.marginRight = `${tocSidebar.offsetWidth}px`;
+      } else {
+        mainContent.style.marginRight = '0';
+      }
+    }
 
     // Mobile: show overlay
     if (window.innerWidth <= 768 && tocOverlay) {
@@ -2160,6 +2202,10 @@ async function initTOCToggle() {
   if (tocCloseBtn) {
     tocCloseBtn.addEventListener('click', async () => {
       closeTOCSidebar();
+      // Desktop: reset margin
+      if (window.innerWidth > 768 && mainContent) {
+        mainContent.style.marginRight = '0';
+      }
       // Save state
       await saveTOCState(false, tocSidebar.offsetWidth);
     });
@@ -2213,6 +2259,18 @@ document.addEventListener('DOMContentLoaded', () => {
     direction: 'right',
     minWidth: 150,
     maxWidth: 500,
-    storageKey: 'tocWidth'
+    storageKey: 'tocWidth',
+    onResize: (newWidth) => {
+      // Update main-content margin when TOC is resized (desktop only)
+      const mainContent = document.querySelector('.main-content');
+      const tocSidebar = document.getElementById('toc-sidebar');
+
+      if (mainContent && tocSidebar && window.innerWidth > 768) {
+        // Only update if TOC is open
+        if (tocSidebar.classList.contains('open')) {
+          mainContent.style.marginRight = `${newWidth}px`;
+        }
+      }
+    }
   });
 });

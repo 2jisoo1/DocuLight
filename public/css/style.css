@@ -285,6 +285,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow-y: auto;  /* Scrollbar at browser edge */
+  transition: margin-right 0.3s ease;  /* Smooth transition for TOC */
 }
 
 .content-header {
@@ -1187,21 +1188,13 @@ body {
   transform: translateX(0);  /* Visible when open */
 }
 
-/* Right resizer - only visible when TOC is open */
+/* Right resizer - positioned at left edge of TOC */
 #right-resizer {
-  position: fixed;
-  right: 250px;  /* Width of TOC sidebar */
+  position: absolute;
+  left: 0;
   top: 0;
   bottom: 0;
-  z-index: 901;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.3s ease;
-}
-
-.toc-sidebar.open ~ #right-resizer {
-  opacity: 1;
-  pointer-events: auto;
+  z-index: 10;
 }
 
 /* TOC Header */
