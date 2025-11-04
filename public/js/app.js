@@ -1480,6 +1480,13 @@ async function loadFile(path, hash = '', updateUrl = true) {
       initTOCScrollSync();
     }
 
+    // Add document navigation (prev/next) - Step 9.3
+    // This was previously called in renderMarkdown(), but needs to be called here too
+    // when using server-side cached HTML
+    if (htmlContent) {
+      addDocumentNavigation(contentDiv);
+    }
+
     // Update active state
     document.querySelectorAll('.tree-item').forEach(item => {
       item.classList.remove('active');
