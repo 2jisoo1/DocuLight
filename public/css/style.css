@@ -1174,13 +1174,34 @@ body {
 .toc-sidebar {
   width: 250px;  /* Default width */
   border-left: 1px solid var(--border-color);
-  position: relative;
+  position: fixed;  /* Remove from layout flow */
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 900;
   transform: translateX(100%);  /* Hidden by default */
   transition: transform 0.3s ease;
 }
 
 .toc-sidebar.open {
   transform: translateX(0);  /* Visible when open */
+}
+
+/* Right resizer - only visible when TOC is open */
+#right-resizer {
+  position: fixed;
+  right: 250px;  /* Width of TOC sidebar */
+  top: 0;
+  bottom: 0;
+  z-index: 901;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.toc-sidebar.open ~ #right-resizer {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* TOC Header */

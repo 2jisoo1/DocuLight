@@ -748,8 +748,8 @@ function updateActiveTOCItem(headingId) {
   if (activeItem) {
     activeItem.classList.add('active');
 
-    // Scroll TOC to make active item visible
-    activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    // Scroll TOC to center active item for better visibility
+    activeItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 }
 
