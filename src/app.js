@@ -15,6 +15,7 @@ const { getDocumentation } = require('./controllers/doc-controller');
 const { getIndexConfig } = require('./controllers/config-controller');
 const backupUtils = require('./utils/backup-utils');
 const { createConfigWatcher } = require('./utils/config-watcher');
+const CacheManager = require('./services/cache-manager');
 
 // Runtime state
 let config;
@@ -211,6 +212,24 @@ async function start(options = {}) {
     logger = createLogger(cfg);
     app.locals.config = cfg;
     app.locals.logger = logger;
+
+    // Initialize cache manager (Step 13: Phase 6)
+    if (cfg.cache && cfg.cache.enabled) {
+      try {
+        const cacheManager = new CacheManager(cfg, logger);
+        await cacheManager.initialize();
+        app.locals.cacheManager = cacheManager;
+        logger.info('Cache manager initialized', {
+          scanThrottle: cfg.cache.scanThrottle,
+          maxMemorySize: cfg.cache.maxMemorySize
+        });
+      } catch (error) {
+        logger.error('Failed to initialize cache manager', { error: error.message });
+        // Continue without cache manager - API will fall back to /api/raw
+      }
+    } else {
+      logger.info('Cache manager disabled (cache.enabled = false)');
+    }
 
     // Mount API routers once using the loaded config
     // Unmount previous API router if present (so new config is applied)

@@ -91,7 +91,7 @@
     cert: "/path/to/cert.pem",
     key: "/path/to/key.pem",
     ca: "/path/to/ca.pem"  // Optional: CA certificate
-  }
+  },
 
   // Hot-reload options (optional)
   // hotReload.allowPortSslAutoRestart: when true, watcher will attempt an automatic restart even if port or SSL config changed.
@@ -100,4 +100,53 @@
   // hotReload: {
   //   allowPortSslAutoRestart: false
   // }
+
+  // HTML Caching System (Step 13)
+  cache: {
+    // Enable/disable caching system
+    // Set to false to use client-side rendering (old behavior)
+    enabled: true,
+
+    // Throttle for request-based scan (milliseconds)
+    // Prevents excessive scans on concurrent user requests
+    // Recommended values:
+    //   - 200: Low traffic, fast updates
+    //   - 500: Moderate traffic (default)
+    //   - 1000: High traffic, reduce server load
+    scanThrottle: 500,
+
+    // Maximum memory cache size (MB)
+    // LRU eviction when exceeded
+    // Recommended: 100MB for ~200 files (35KB avg)
+    maxMemorySize: 100,
+
+    // Maximum disk cache size (MB)
+    // Old caches deleted when exceeded
+    maxDiskSize: 500,
+
+    // Pre-render all files on server startup
+    // false: lazy rendering (on first request) - faster startup
+    // true: eager rendering (slower startup, faster first request)
+    preRenderOnStartup: true,
+
+    // Server-side Mermaid diagram rendering
+    // Requires Puppeteer (heavyweight, slow first render)
+    // false: send mermaid code to client (recommended, faster)
+    // true: render SVG on server (complete, but slow)
+    mermaidSSR: false,
+
+    // Cache directory (relative to project root)
+    // Will be created automatically if missing
+    cacheDir: "./.cache",
+
+    // HTML compression level
+    // 0: none (faster, more disk space, recommended)
+    // 1: gzip (slower, less disk space)
+    compressionLevel: 0,
+
+    // Auto-cleanup old cache files (days)
+    // Files not accessed for this many days will be deleted
+    // Set to 0 to disable cleanup
+    cleanupAfterDays: 30
+  }
 }

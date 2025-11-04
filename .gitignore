@@ -31,6 +31,8 @@ coverage/
 # Document root (if local)
 /data/
 
+# HTML Cache (Step 13)
+.cache/
 
 .playwright-mcp/
 trash/

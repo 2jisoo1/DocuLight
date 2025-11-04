@@ -11,6 +11,7 @@ function errorHandler(logger) {
 
     // Map common error codes to HTTP status codes
     const errorMap = {
+      INVALID_PATH: { status: 400, message: 'Invalid path parameter' },
       PATH_TRAVERSAL: { status: 400, message: 'Access outside docsRoot is not allowed' },
       UNAUTHORIZED: { status: 401, message: 'Authentication required' },
       PERMISSION_DENIED: { status: 403, message: 'Permission denied' },
@@ -20,7 +21,8 @@ function errorHandler(logger) {
       FILE_BUSY: { status: 409, message: 'File is busy, please try again' },
       LOCK_TIMEOUT: { status: 409, message: 'Resource is locked, please try again' },
       PAYLOAD_TOO_LARGE: { status: 413, message: 'File size exceeds limit' },
-      UNSUPPORTED_TYPE: { status: 415, message: 'Unsupported file type' }
+      UNSUPPORTED_TYPE: { status: 415, message: 'Unsupported file type' },
+      SERVICE_UNAVAILABLE: { status: 503, message: 'Service temporarily unavailable' }
     };
 
     // Check if error has a known code

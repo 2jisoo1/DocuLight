@@ -1423,19 +1423,56 @@ async function loadFile(path, hash = '', updateUrl = true) {
     // Update breadcrumb
     document.getElementById('breadcrumb').textContent = path;
 
-    // Fetch and render
-    const content = await fetchRaw(path);
-    await renderMarkdown(content);
+    // Step 13: Phase 6 - Try server-side HTML cache first
+    let htmlContent;
+    let tocData;
+    let fromCache = false;
+
+    try {
+      const response = await fetch(`/api/html?path=${encodeURIComponent(path)}`);
+
+      if (response.ok) {
+        const data = await response.json();
+        htmlContent = data.html;
+        tocData = data.toc;
+        fromCache = data.fromCache;
+
+        console.log('Loaded from server cache', {
+          path,
+          fromCache,
+          htmlSize: htmlContent.length,
+          tocItems: tocData.length
+        });
+      } else {
+        throw new Error(`Server cache unavailable: HTTP ${response.status}`);
+      }
+    } catch (cacheError) {
+      // Fallback to client-side rendering
+      console.warn('Falling back to client-side rendering:', cacheError.message);
+      const content = await fetchRaw(path);
+      await renderMarkdown(content);
+      tocData = generateTOC();
+    }
 
     // Remove folder-list-view class (if previously set)
     const contentDiv = document.getElementById('markdown-content');
     contentDiv.classList.remove('folder-list-view');
 
+    // If we got HTML from cache, inject it directly
+    if (htmlContent) {
+      contentDiv.innerHTML = htmlContent;
+
+      // Process Mermaid diagrams if present
+      const mermaidBlocks = contentDiv.querySelectorAll('pre.mermaid-code');
+      if (mermaidBlocks.length > 0 && window.mermaid) {
+        mermaid.run({ nodes: Array.from(mermaidBlocks) });
+      }
+    }
+
     // Add document title (filename without .md)
     addDocumentTitle(path, contentDiv);
 
-    // Generate and render TOC (Step 12: Phase 2)
-    const tocData = generateTOC();
+    // Render TOC (either from cache or generated)
     renderTOC(tocData);
 
     // Initialize scroll sync (Step 12: Phase 3)
