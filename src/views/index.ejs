@@ -102,15 +102,8 @@
           <span>Select a document</span>
         </div>
         <!-- TOC Toggle Button (Step 12: Phase 1) -->
-        <button id="toc-toggle-btn" class="icon-btn" title="Table of Contents" aria-label="Toggle table of contents">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="8" y1="6" x2="21" y2="6"></line>
-            <line x1="8" y1="12" x2="21" y2="12"></line>
-            <line x1="8" y1="18" x2="21" y2="18"></line>
-            <line x1="3" y1="6" x2="3.01" y2="6"></line>
-            <line x1="3" y1="12" x2="3.01" y2="12"></line>
-            <line x1="3" y1="18" x2="3.01" y2="18"></line>
-          </svg>
+        <button id="toc-toggle-btn" class="toc-toggle-btn" title="Table of Contents" aria-label="Toggle table of contents">
+          <img src="/images/toc-icon.svg" alt="TOC" width="16" height="16">
         </button>
       </div>
       <div class="markdown-content" id="markdown-content">
@@ -129,7 +122,7 @@
       <div class="resizer" id="right-resizer"></div>
 
       <div class="toc-header">
-        <h2>On This Page</h2>
+        <h2>Contents</h2>
         <button id="toc-close-btn" class="icon-btn" aria-label="Close table of contents">×</button>
       </div>
       <div class="toc-container">

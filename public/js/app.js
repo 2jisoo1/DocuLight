@@ -1478,10 +1478,24 @@ async function loadFile(path, hash = '', updateUrl = true) {
 
     if (hash) {
       // Hash provided: scroll to specific section
-      await new Promise(resolve => setTimeout(resolve, 100));
-      const targetElement = document.getElementById(hash);
-      if (targetElement) {
-        targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Wait for rendering and retry if element not found
+      const maxRetries = 5;
+      const retryDelay = 200;
+
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+
+        const targetElement = document.getElementById(hash);
+        if (targetElement) {
+          targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          // Update TOC active state
+          updateActiveTOCItem(hash);
+          break;
+        }
+
+        if (attempt < maxRetries - 1) {
+          console.log(`Waiting for target element #${hash} (attempt ${attempt + 1}/${maxRetries})`);
+        }
       }
     } else {
       // No hash: scroll main-content to top
@@ -1515,7 +1529,7 @@ async function checkIndexFile() {
 }
 
 // Show welcome screen programmatically
-function showWelcomeScreen() {
+async function showWelcomeScreen() {
   const contentDiv = document.getElementById('markdown-content');
   const breadcrumb = document.getElementById('breadcrumb');
 
@@ -1532,10 +1546,27 @@ function showWelcomeScreen() {
     </div>
   `;
 
+  // Clear TOC (Issue 2: Welcome 페이지에서 이전 TOC 표시 방지)
+  renderTOC([]);
+
   // Clear active state from tree
   document.querySelectorAll('.tree-item').forEach(item => {
     item.classList.remove('active');
   });
+
+  // Clear lastOpened from IndexedDB (Issue 1)
+  try {
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('lastOpened', 'readwrite');
+      const store = tx.objectStore('lastOpened');
+      const request = store.delete('file');
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    console.warn('Failed to clear lastOpened:', error);
+  }
 
   // Clear URL
   window.history.pushState({}, '', '/');
@@ -1666,11 +1697,11 @@ async function init() {
             await loadFile(indexFile, '', true);
           } catch (error) {
             console.warn('Failed to load index file:', error.message);
-            showWelcomeScreen();
+            await showWelcomeScreen();
           }
         } else {
           // Show welcome screen
-          showWelcomeScreen();
+          await showWelcomeScreen();
         }
       });
 
@@ -1690,7 +1721,8 @@ async function init() {
 
     // Check URL for document path
     const pathname = window.location.pathname;
-    const hash = window.location.hash.substring(1); // Remove '#'
+    const hashRaw = window.location.hash.substring(1); // Remove '#'
+    const hash = hashRaw ? decodeURIComponent(hashRaw) : ''; // Decode hash
     let pathFromUrl = null;
 
     if (pathname.startsWith('/doc/')) {
@@ -2027,9 +2059,9 @@ function initPanelResizer(config) {
     if (newWidth >= minWidth && newWidth <= maxWidth) {
       panel.style.width = `${newWidth}px`;
 
-      // Call onResize during drag for real-time update
+      // Call onResize during drag for real-time update (not final)
       if (onResize) {
-        onResize(newWidth);
+        onResize(newWidth, false);
       }
     }
   });
@@ -2054,9 +2086,9 @@ function initPanelResizer(config) {
         localStorage.setItem(storageKey, panel.offsetWidth);
       }
 
-      // Final onResize call (for any cleanup)
+      // Final onResize call (for any cleanup and DB save)
       if (onResize) {
-        onResize(panel.offsetWidth);
+        onResize(panel.offsetWidth, true);  // isFinal = true
       }
     }
   });
@@ -2154,10 +2186,25 @@ async function initTOCToggle() {
   const tocSidebar = document.getElementById('toc-sidebar');
   const tocOverlay = document.getElementById('toc-overlay');
   const mainContent = document.querySelector('.main-content');
+  const contentHeader = document.querySelector('.content-header');
 
   if (!tocToggleBtn || !tocSidebar) {
     console.warn('TOC elements not found');
     return;
+  }
+
+  // Scroll listener for floating button
+  if (mainContent && contentHeader) {
+    mainContent.addEventListener('scroll', () => {
+      const scrollTop = mainContent.scrollTop;
+      const headerHeight = contentHeader.offsetHeight;
+
+      if (scrollTop > headerHeight) {
+        tocToggleBtn.classList.add('floating');
+      } else {
+        tocToggleBtn.classList.remove('floating');
+      }
+    });
   }
 
   // Restore state from IndexedDB (Phase 3)
@@ -2165,6 +2212,10 @@ async function initTOCToggle() {
   if (savedState) {
     if (savedState.isOpen) {
       tocSidebar.classList.add('open');
+
+      // Hide toggle button when restoring open state
+      tocToggleBtn.classList.add('hidden');
+
       // Adjust main-content margin for desktop
       if (window.innerWidth > 768 && mainContent) {
         mainContent.style.marginRight = `${savedState.width || 250}px`;
@@ -2178,6 +2229,17 @@ async function initTOCToggle() {
   // Toggle button click
   tocToggleBtn.addEventListener('click', async () => {
     const isOpen = tocSidebar.classList.toggle('open');
+
+    // Hide/show toggle button when TOC opens/closes
+    if (isOpen) {
+      // TOC opened: hide non-floating button
+      if (!tocToggleBtn.classList.contains('floating')) {
+        tocToggleBtn.classList.add('hidden');
+      }
+    } else {
+      // TOC closed: show button
+      tocToggleBtn.classList.remove('hidden');
+    }
 
     // Desktop: adjust main-content margin
     if (window.innerWidth > 768 && mainContent) {
@@ -2202,6 +2264,8 @@ async function initTOCToggle() {
   if (tocCloseBtn) {
     tocCloseBtn.addEventListener('click', async () => {
       closeTOCSidebar();
+      // Show toggle button
+      tocToggleBtn.classList.remove('hidden');
       // Desktop: reset margin
       if (window.innerWidth > 768 && mainContent) {
         mainContent.style.marginRight = '0';
@@ -2215,6 +2279,8 @@ async function initTOCToggle() {
   if (tocOverlay) {
     tocOverlay.addEventListener('click', async () => {
       closeTOCSidebar();
+      // Show toggle button
+      tocToggleBtn.classList.remove('hidden');
       // Save state
       await saveTOCState(false, tocSidebar.offsetWidth);
     });
@@ -2260,7 +2326,7 @@ document.addEventListener('DOMContentLoaded', () => {
     minWidth: 150,
     maxWidth: 500,
     storageKey: 'tocWidth',
-    onResize: (newWidth) => {
+    onResize: (newWidth, isFinal = false) => {
       // Update main-content margin when TOC is resized (desktop only)
       const mainContent = document.querySelector('.main-content');
       const tocSidebar = document.getElementById('toc-sidebar');
@@ -2270,6 +2336,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tocSidebar.classList.contains('open')) {
           mainContent.style.marginRight = `${newWidth}px`;
         }
+      }
+
+      // Save to IndexedDB when resize is complete
+      if (isFinal && tocSidebar) {
+        const isOpen = tocSidebar.classList.contains('open');
+        saveTOCState(isOpen, newWidth);
       }
     }
   });

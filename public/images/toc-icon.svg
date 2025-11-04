@@ -1,0 +1,7 @@
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Rectangle (네모) - 회색 -->
+  <rect x="1" y="2" width="10" height="12" stroke="#999" stroke-width="1.5" fill="none" rx="1"/>
+
+  <!-- Vertical bar (막대기) on the right - 회색 -->
+  <line x1="13.5" y1="3" x2="13.5" y2="13" stroke="#999" stroke-width="1.5" stroke-linecap="round"/>
+</svg>

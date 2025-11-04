@@ -136,6 +136,46 @@ body {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  position: relative;
+}
+
+/* TOC Toggle Button - positioned at far right */
+.toc-toggle-btn {
+  margin-left: auto;  /* Push to far right */
+  background: none;
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
+
+.toc-toggle-btn:hover {
+  background-color: var(--bg-hover);
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+}
+
+/* Hide toggle button when TOC is open (controlled by JS) */
+.toc-toggle-btn.hidden {
+  display: none;
+}
+
+/* Floating TOC button (appears when header scrolls out of view) */
+.toc-toggle-btn.floating {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 1000;
+  background-color: var(--bg-primary);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
 
 .icon-btn {
@@ -1203,6 +1243,18 @@ body {
   font-weight: 600;
   color: var(--text-primary);
   margin: 0;
+}
+
+/* TOC Close Button - larger size */
+#toc-close-btn {
+  font-size: 1.5rem;  /* Larger X */
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 /* TOC Container */
