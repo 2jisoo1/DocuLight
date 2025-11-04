@@ -325,7 +325,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow-y: auto;  /* Scrollbar at browser edge */
-  transition: margin-right 0.3s ease;  /* Smooth transition for TOC */
+  transition: margin-right 0.15s ease;  /* Faster transition for TOC */
 }
 
 .content-header {
@@ -1221,7 +1221,7 @@ body {
   bottom: 0;
   z-index: 900;
   transform: translateX(100%);  /* Hidden by default */
-  transition: transform 0.3s ease;
+  transition: transform 0.15s ease;  /* Faster animation */
 }
 
 .toc-sidebar.open {
