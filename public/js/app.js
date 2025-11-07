@@ -2102,12 +2102,18 @@ function initSearchFeature() {
         await new Promise(resolve => setTimeout(resolve, 100));
 
         scrollToSearchTerm(searchQuery, matchIndex);
+
+        // Wait a bit more to ensure scrollToSearchTerm completes
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
     } catch (error) {
       console.error('Failed to load search result:', error);
     } finally {
-      // Reset flag after navigation completes
-      isNavigatingToResult = false;
+      // Reset flag after ALL operations complete
+      // Use setTimeout to ensure flag resets after any pending events
+      setTimeout(() => {
+        isNavigatingToResult = false;
+      }, 100);
     }
   });
 }
