@@ -1937,9 +1937,6 @@ function initSearchFeature() {
   // Flag to track IME composition state (for Korean, Japanese, Chinese input)
   let isComposing = false;
 
-  // Store last search query to prevent value manipulation
-  let lastSearchQuery = '';
-
   /**
    * Toggle search panel visibility
    */
@@ -2007,21 +2004,12 @@ function initSearchFeature() {
     const query = e.target.value.trim();
     console.log('[DEBUG] Input event triggered, query:', query);
 
-    // Ignore if query hasn't actually changed (prevents spurious events)
-    if (query === lastSearchQuery) {
-      console.log('[DEBUG] Query unchanged, ignoring');
-      return;
-    }
-
-    lastSearchQuery = query;
-
     // Clear previous timeout
     clearTimeout(searchTimeout);
 
     // Clear results if query is too short
     if (query.length < 2) {
       searchResults.innerHTML = '';
-      lastSearchQuery = '';  // Reset when cleared
       return;
     }
 
