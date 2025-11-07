@@ -326,6 +326,10 @@ body {
   flex-direction: column;
   overflow-y: auto;  /* Scrollbar at browser edge */
   transition: margin-right 0.15s ease;  /* Faster transition for TOC */
+
+  /* Performance optimization for smooth scrolling */
+  will-change: scroll-position;
+  -webkit-overflow-scrolling: touch;  /* Smooth scrolling on iOS */
 }
 
 .content-header {
@@ -345,6 +349,10 @@ body {
   width: 100%;
   max-width: var(--max-width);
   margin: 0 auto;
+
+  /* Performance optimization for large documents */
+  contain: layout style;  /* CSS containment for better performance */
+  content-visibility: auto;  /* Lazy rendering for off-screen content */
 }
 
 /* Welcome Message */
