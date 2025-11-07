@@ -27,7 +27,7 @@ async function searchDocumentsController(req, res, next) {
       path: '/',
       highlight: true,       // REST API uses HTML highlighting
       includeContext: true,  // Include context for better results
-      maxMatchesPerFile: 3   // Limit matches per file for readability
+      maxMatchesPerFile: 50  // Increased from 3 to 50 for comprehensive results
     });
 
     res.json(result);

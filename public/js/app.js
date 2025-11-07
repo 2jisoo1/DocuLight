@@ -1401,7 +1401,7 @@ async function expandParentFolders(filePath) {
 }
 
 // Load file and render
-async function loadFile(path, hash = '', updateUrl = true) {
+async function loadFile(path, hash = '', updateUrl = true, skipScroll = false) {
   try {
     // Close mobile menu if open (mobile only)
     if (window.innerWidth <= 768 && leftMobilePanel) {
@@ -1576,8 +1576,8 @@ async function loadFile(path, hash = '', updateUrl = true) {
           console.log(`Waiting for target element #${hash} (attempt ${attempt + 1}/${maxRetries})`);
         }
       }
-    } else {
-      // No hash: scroll main-content to top
+    } else if (!skipScroll) {
+      // No hash: scroll main-content to top (unless skipScroll is true)
       if (mainContent) {
         mainContent.scrollTop = 0;
       }
@@ -1931,6 +1931,9 @@ function initSearchFeature() {
   // Debounce timer for search input
   let searchTimeout;
 
+  // Flag to prevent re-searching during result navigation
+  let isNavigatingToResult = false;
+
   /**
    * Toggle search panel visibility
    */
@@ -1970,6 +1973,11 @@ function initSearchFeature() {
    * Real-time search with debounce (300ms)
    */
   searchInput.addEventListener('input', (e) => {
+    // Ignore input events during result navigation
+    if (isNavigatingToResult) {
+      return;
+    }
+
     const query = e.target.value.trim();
 
     // Clear previous timeout
@@ -2004,6 +2012,7 @@ function initSearchFeature() {
           const itemDiv = document.createElement('div');
           itemDiv.className = 'search-result-item';
           itemDiv.dataset.path = result.path;  // Store path directly in dataset
+          itemDiv.dataset.query = query;  // Store search query for text fragment scroll
 
           // File path
           const pathDiv = document.createElement('div');
@@ -2011,48 +2020,37 @@ function initSearchFeature() {
           pathDiv.textContent = result.path;
           itemDiv.appendChild(pathDiv);
 
-          // First match content (with HTML highlighting)
-          if (result.matches.length > 0) {
+          // Matches container (card style)
+          const matchesContainer = document.createElement('div');
+          matchesContainer.className = 'search-matches-container';
+
+          // Show ALL matches (no limit, no expand button)
+          result.matches.forEach((match, idx) => {
             const contentDiv = document.createElement('div');
             contentDiv.className = 'search-result-content';
-            contentDiv.innerHTML = DOMPurify.sanitize(result.matches[0].content, {
+            contentDiv.dataset.matchIndex = idx;  // Store match index for specific scroll
+            contentDiv.innerHTML = DOMPurify.sanitize(match.content, {
               ALLOWED_TAGS: ['mark'],
               ALLOWED_ATTR: []
             });
-            itemDiv.appendChild(contentDiv);
-          }
+            matchesContainer.appendChild(contentDiv);
+          });
 
-          // Match count meta info
+          itemDiv.appendChild(matchesContainer);
+
+          // Total match count (if more than 1)
           if (result.matches.length > 1) {
-            const metaDiv = document.createElement('div');
-            metaDiv.className = 'search-result-meta';
-            metaDiv.textContent = `+${result.matches.length - 1} more match${result.matches.length > 2 ? 'es' : ''}`;
-            itemDiv.appendChild(metaDiv);
+            const countDiv = document.createElement('div');
+            countDiv.className = 'search-match-count';
+            countDiv.textContent = `${result.matches.length} matches in this file`;
+            itemDiv.appendChild(countDiv);
           }
 
           searchResults.appendChild(itemDiv);
         });
 
-        // Add click event listeners to results
-        searchResults.querySelectorAll('.search-result-item').forEach(item => {
-          item.addEventListener('click', async (e) => {
-            e.preventDefault();
-            const path = item.dataset.path;
-
-            try {
-              // Close search panel
-              searchPanel.style.display = 'none';
-              treeMenu.style.display = 'block';
-              searchInput.value = '';
-              searchResults.innerHTML = '';
-
-              // Load file
-              await loadFile(path);
-            } catch (error) {
-              console.error('Failed to load search result:', error);
-            }
-          });
-        });
+        // Event listeners are now handled by event delegation (see below)
+        // No need to attach listeners here
       } catch (error) {
         console.error('Search failed:', error);
         searchResults.innerHTML = `
@@ -2063,6 +2061,55 @@ function initSearchFeature() {
       }
     }, 300); // 300ms debounce
   });
+
+  /**
+   * Event delegation for search result clicks
+   * This ensures clicks work even after DOM changes
+   * Supports clicking on specific match cards to scroll to that match
+   */
+  searchResults.addEventListener('click', async (e) => {
+    // Check if a specific match card was clicked
+    const clickedCard = e.target.closest('.search-result-content');
+    const clickedItem = e.target.closest('.search-result-item');
+
+    if (!clickedItem) return; // Not a search result item
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const path = clickedItem.dataset.path;
+    const searchQuery = clickedItem.dataset.query;
+
+    if (!path) return;
+
+    // Determine which match to scroll to
+    let matchIndex = 0;  // Default: first match
+    if (clickedCard && clickedCard.dataset.matchIndex !== undefined) {
+      matchIndex = parseInt(clickedCard.dataset.matchIndex);
+    }
+
+    try {
+      // Set flag to prevent re-searching during navigation
+      isNavigatingToResult = true;
+
+      // Keep search panel open
+      // Load file (skipScroll=true to prevent scroll to top)
+      await loadFile(path, '', true, true);
+
+      // Scroll to specific match and highlight it (no animation)
+      if (searchQuery) {
+        // Wait for rendering to complete
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        scrollToSearchTerm(searchQuery, matchIndex);
+      }
+    } catch (error) {
+      console.error('Failed to load search result:', error);
+    } finally {
+      // Reset flag after navigation completes
+      isNavigatingToResult = false;
+    }
+  });
 }
 
 /**
@@ -2072,6 +2119,75 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+/**
+ * Scroll to search term and highlight it (Custom implementation for SPA)
+ * @param {string} searchQuery - The search term to find and scroll to
+ * @param {number} matchIndex - Index of the match to scroll to (0-based, default: 0)
+ */
+function scrollToSearchTerm(searchQuery, matchIndex = 0) {
+  const contentDiv = document.getElementById('markdown-content');
+  if (!contentDiv) return;
+
+  // Create a case-insensitive regex for the search term
+  const regex = new RegExp(searchQuery, 'gi');
+
+  // TreeWalker to find text nodes
+  const walker = document.createTreeWalker(
+    contentDiv,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode: function(node) {
+        // Skip script and style tags
+        if (node.parentElement.tagName === 'SCRIPT' ||
+            node.parentElement.tagName === 'STYLE') {
+          return NodeFilter.FILTER_REJECT;
+        }
+        // Only accept nodes that contain the search term
+        return regex.test(node.textContent) ?
+          NodeFilter.FILTER_ACCEPT :
+          NodeFilter.FILTER_SKIP;
+      }
+    }
+  );
+
+  // Find all matching text nodes
+  const matches = [];
+  let node;
+  while (node = walker.nextNode()) {
+    matches.push(node);
+  }
+
+  // Get the target match (default to first if index out of range)
+  const targetMatch = matches[matchIndex] || matches[0];
+
+  if (targetMatch) {
+    // Reset regex lastIndex
+    regex.lastIndex = 0;
+
+    // Get parent element
+    const parent = targetMatch.parentElement;
+
+    // Replace text with highlighted version
+    const originalHTML = parent.innerHTML;
+    const highlightedHTML = parent.innerHTML.replace(regex, (match) => {
+      return `<mark class="search-highlight">${match}</mark>`;
+    });
+
+    parent.innerHTML = highlightedHTML;
+
+    // Find the mark element and scroll to it (no animation)
+    const mark = parent.querySelector('.search-highlight');
+    if (mark) {
+      mark.scrollIntoView({ behavior: 'auto', block: 'center' });
+
+      // Remove highlight after 3 seconds
+      setTimeout(() => {
+        parent.innerHTML = originalHTML;
+      }, 3000);
+    }
+  }
 }
 
 /**

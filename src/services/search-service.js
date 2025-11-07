@@ -239,7 +239,7 @@ async function searchDocuments(config, logger, query, options = {}) {
               // Add to results if matches found
               if (matches.length > 0) {
                 results.push({
-                  path: '/' + relativePath.replace(/\\/g, '/'),
+                  path: relativePath.replace(/\\/g, '/'),
                   name: entry.name,
                   matches: matches
                 });
