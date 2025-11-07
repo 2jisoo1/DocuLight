@@ -1934,6 +1934,12 @@ function initSearchFeature() {
   // Flag to prevent re-searching during result navigation
   let isNavigatingToResult = false;
 
+  // Flag to track IME composition state (for Korean, Japanese, Chinese input)
+  let isComposing = false;
+
+  // Store last search query to prevent value manipulation
+  let lastSearchQuery = '';
+
   /**
    * Toggle search panel visibility
    */
@@ -1970,15 +1976,44 @@ function initSearchFeature() {
   }
 
   /**
+   * Handle IME composition events (Korean, Japanese, Chinese input)
+   */
+  searchInput.addEventListener('compositionstart', () => {
+    isComposing = true;
+    console.log('[DEBUG] IME composition started');
+  });
+
+  searchInput.addEventListener('compositionend', () => {
+    isComposing = false;
+    console.log('[DEBUG] IME composition ended');
+  });
+
+  /**
    * Real-time search with debounce (300ms)
    */
   searchInput.addEventListener('input', (e) => {
     // Ignore input events during result navigation
     if (isNavigatingToResult) {
+      console.log('[DEBUG] Input event ignored - navigating to result');
+      return;
+    }
+
+    // Ignore input events during IME composition
+    if (isComposing) {
+      console.log('[DEBUG] Input event ignored - IME composing');
       return;
     }
 
     const query = e.target.value.trim();
+    console.log('[DEBUG] Input event triggered, query:', query);
+
+    // Ignore if query hasn't actually changed (prevents spurious events)
+    if (query === lastSearchQuery) {
+      console.log('[DEBUG] Query unchanged, ignoring');
+      return;
+    }
+
+    lastSearchQuery = query;
 
     // Clear previous timeout
     clearTimeout(searchTimeout);
@@ -1986,6 +2021,7 @@ function initSearchFeature() {
     // Clear results if query is too short
     if (query.length < 2) {
       searchResults.innerHTML = '';
+      lastSearchQuery = '';  // Reset when cleared
       return;
     }
 
@@ -2082,15 +2118,25 @@ function initSearchFeature() {
 
     if (!path) return;
 
+    // Set flag IMMEDIATELY before any async operations
+    // This prevents race condition with input event
+    console.log('[DEBUG] Setting isNavigatingToResult = true');
+    isNavigatingToResult = true;
+
+    // Lock search input to prevent browser/IME from changing value
+    const savedValue = searchInput.value;
+    searchInput.readOnly = true;
+    console.log('[DEBUG] Search input locked (readOnly)');
+
     // Determine which match to scroll to
     let matchIndex = 0;  // Default: first match
     if (clickedCard && clickedCard.dataset.matchIndex !== undefined) {
       matchIndex = parseInt(clickedCard.dataset.matchIndex);
     }
 
+    console.log('[DEBUG] Navigating to:', path, 'matchIndex:', matchIndex);
+
     try {
-      // Set flag to prevent re-searching during navigation
-      isNavigatingToResult = true;
 
       // Keep search panel open
       // Load file (skipScroll=true to prevent scroll to top)
@@ -2109,9 +2155,11 @@ function initSearchFeature() {
     } catch (error) {
       console.error('Failed to load search result:', error);
     } finally {
-      // Reset flag after ALL operations complete
-      // Use setTimeout to ensure flag resets after any pending events
+      // Reset all flags and unlock input after operations complete
       setTimeout(() => {
+        searchInput.value = savedValue;  // Restore value if changed
+        searchInput.readOnly = false;    // Unlock input
+        console.log('[DEBUG] Search input unlocked, isNavigatingToResult = false');
         isNavigatingToResult = false;
       }, 100);
     }
