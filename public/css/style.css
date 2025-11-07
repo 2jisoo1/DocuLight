@@ -1185,7 +1185,7 @@ body {
   border: 1px solid #e9ecef;
   border-radius: 4px;
   font-size: 0.85rem;
-  color: var(--text-secondary);
+  color: #5a6c7d;  /* Slightly darker gray for better readability */
   line-height: 1.5;
   white-space: normal;  /* Allow wrapping */
   overflow: visible;
@@ -1196,7 +1196,8 @@ body {
 
 .search-result-content:hover {
   background: #e9ecef;
-  border-color: #3498db;  /* Blue border on hover */
+  border-color: #000;  /* Black border on hover */
+  color: #2c3e50;  /* Darker gray (almost black) on hover */
   transform: translateX(2px);  /* Slight shift on hover */
 }
 
