@@ -2,6 +2,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const ignore = require('ignore');
 const { validatePath } = require('../utils/path-validator');
+const { parseFrontmatterFromFile } = require('./frontmatter-service');
 
 /**
  * Tree Service - Directory tree operations
@@ -56,8 +57,20 @@ async function getTreeData(config, logger, userPath = '/') {
     } else if (entry.isFile()) {
       const filePath = path.join(absolutePath, entry.name);
       const fileStats = await fs.stat(filePath);
+
+      // Parse frontmatter only for .md files
+      let displayName = null;
+      let description = null;
+      if (entry.name.endsWith('.md')) {
+        const frontmatter = await parseFrontmatterFromFile(filePath);
+        displayName = frontmatter.name;
+        description = frontmatter.description;
+      }
+
       files.push({
         name: entry.name,
+        displayName,
+        description,
         size: fileStats.size
       });
     }
@@ -132,8 +145,20 @@ async function getFullTreeData(config, logger, startPath = '/', options = {}) {
         });
       } else if (entry.isFile()) {
         const fileStats = await fs.stat(entryAbsolute);
+
+        // Parse frontmatter only for .md files
+        let displayName = null;
+        let description = null;
+        if (entry.name.endsWith('.md')) {
+          const frontmatter = await parseFrontmatterFromFile(entryAbsolute);
+          displayName = frontmatter.name;
+          description = frontmatter.description;
+        }
+
         files.push({
           name: entry.name,
+          displayName,
+          description,
           path: '/' + relativePath.replace(/\\/g, '/'),
           type: 'file',
           size: fileStats.size

@@ -11,6 +11,7 @@ const requestLogger = require('./middleware/request-logger');
 const errorHandler = require('./middleware/error-handler');
 const createApiRouter = require('./routes/api');
 const createMcpRouter = require('./routes/mcp');
+const createContextMcpRouter = require('./routes/context-mcp');
 const { getDocumentation } = require('./controllers/doc-controller');
 const { getIndexConfig } = require('./controllers/config-controller');
 const backupUtils = require('./utils/backup-utils');
@@ -275,6 +276,13 @@ async function start(options = {}) {
     if (!app.locals.mcpMounted) {
       app.use(createMcpRouter());
       app.locals.mcpMounted = true;
+    }
+
+    // Ensure Context MCP router is mounted once
+    if (!app.locals.contextMcpMounted) {
+      app.use(createContextMcpRouter());
+      app.locals.contextMcpMounted = true;
+      logger.info('Context MCP router mounted');
     }
 
     // Remove all existing 404 and error handlers by filtering the stack

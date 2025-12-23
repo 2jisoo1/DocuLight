@@ -352,7 +352,8 @@ async function fetchAllFilesRecursive(path = '/', result = []) {
         const filePath = path === '/' ? file.name : `${path}/${file.name}`;
         result.push({
           path: filePath,
-          name: file.name
+          name: file.name,
+          displayName: file.displayName || null
         });
       });
     }
@@ -567,7 +568,7 @@ function addDocumentNavigation(contentDiv) {
   prevDiv.className = 'nav-prev';
   if (nav.prev) {
     const cleanPath = nav.prev.path.replace(/\.md$/, '');
-    const displayName = nav.prev.name.replace(/\.md$/, '');
+    const displayName = nav.prev.displayName || nav.prev.name.replace(/\.md$/, '');
     const prevLink = document.createElement('a');
     prevLink.href = `/doc/${cleanPath}`;
     prevLink.innerHTML = `
@@ -587,7 +588,7 @@ function addDocumentNavigation(contentDiv) {
   nextDiv.className = 'nav-next';
   if (nav.next) {
     const cleanPath = nav.next.path.replace(/\.md$/, '');
-    const displayName = nav.next.name.replace(/\.md$/, '');
+    const displayName = nav.next.displayName || nav.next.name.replace(/\.md$/, '');
     const nextLink = document.createElement('a');
     nextLink.href = `/doc/${cleanPath}`;
     nextLink.innerHTML = `
@@ -1014,7 +1015,7 @@ async function buildTree(data, container, currentPath = '', level = 0) {
     item.style.paddingLeft = `${level * 1.2}rem`;  // 폴더와 동일한 레벨 (level + 1 제거)
 
     // Remove .md extension from display name
-    const displayName = file.name.slice(0, -3);
+    const displayName = file.displayName || file.name.slice(0, -3);
 
     const nameSpan = document.createElement('span');
     nameSpan.textContent = displayName;
@@ -2531,6 +2532,522 @@ window.addEventListener('popstate', () => {
   }
 });
 
+// ============================================================
+// Phase 7: Drag-and-Drop Local Preview
+// ============================================================
+
+/**
+ * Local Preview State Management
+ * Allows viewing local .md files without uploading to server
+ */
+const LocalPreview = {
+  // State
+  isActive: false,
+  fileName: null,
+  state: 'IDLE', // IDLE | DRAG_OVER | PROCESSING | PREVIEWING | ERROR
+
+  // Configuration
+  MAX_FILE_SIZE: 10 * 1024 * 1024, // 10MB
+  ALLOWED_EXTENSIONS: ['.md', '.markdown'],
+  ALLOWED_MIME_TYPES: ['text/markdown', 'text/x-markdown', 'text/plain', ''],
+
+  /**
+   * Initialize drag-and-drop event listeners
+   */
+  init() {
+    const body = document.body;
+
+    // Drag enter
+    body.addEventListener('dragenter', (e) => {
+      e.preventDefault();
+      if (this.hasMarkdownFile(e)) {
+        this.setState('DRAG_OVER');
+        this.showDropOverlay();
+      }
+    });
+
+    // Drag over (required to enable drop event)
+    body.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (this.hasMarkdownFile(e)) {
+        e.dataTransfer.dropEffect = 'copy';
+      }
+    });
+
+    // Drag leave
+    body.addEventListener('dragleave', (e) => {
+      // relatedTarget is null when leaving the window
+      if (!e.relatedTarget || e.relatedTarget === document.documentElement) {
+        this.setState('IDLE');
+        this.hideDropOverlay();
+      }
+    });
+
+    // Drop
+    body.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      this.hideDropOverlay();
+
+      const file = this.getMarkdownFile(e);
+      if (file) {
+        await this.renderLocalFile(file);
+      } else {
+        this.setState('IDLE');
+      }
+    });
+
+    // Keyboard shortcut: Ctrl+O to open file dialog
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
+        e.preventDefault();
+        this.openFileDialog();
+      }
+      // ESC to close preview
+      if (e.key === 'Escape' && this.isActive) {
+        this.close();
+      }
+    });
+
+    // Create hidden file input for keyboard access
+    this.createHiddenFileInput();
+
+    console.log('[LocalPreview] Initialized');
+  },
+
+  /**
+   * State change with screen reader announcement
+   */
+  setState(newState) {
+    const oldState = this.state;
+    this.state = newState;
+    console.log(`[LocalPreview] State: ${oldState} → ${newState}`);
+
+    // Screen reader announcement
+    this.announceToScreenReader(this.getStateMessage(newState));
+  },
+
+  /**
+   * Get message for each state
+   */
+  getStateMessage(state) {
+    const messages = {
+      'IDLE': '',
+      'DRAG_OVER': 'Drop markdown file here',
+      'PROCESSING': 'Reading file...',
+      'PREVIEWING': 'Local file preview opened',
+      'ERROR': 'Error processing file'
+    };
+    return messages[state] || '';
+  },
+
+  /**
+   * Screen reader announcement via ARIA live region
+   */
+  announceToScreenReader(message) {
+    if (!message) return;
+
+    let liveRegion = document.getElementById('local-preview-live-region');
+    if (!liveRegion) {
+      liveRegion = document.createElement('div');
+      liveRegion.id = 'local-preview-live-region';
+      liveRegion.setAttribute('role', 'status');
+      liveRegion.setAttribute('aria-live', 'polite');
+      liveRegion.setAttribute('aria-atomic', 'true');
+      liveRegion.className = 'sr-only';
+      document.body.appendChild(liveRegion);
+    }
+
+    liveRegion.textContent = message;
+  },
+
+  /**
+   * Create hidden file input for keyboard access
+   */
+  createHiddenFileInput() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.id = 'local-preview-file-input';
+    input.accept = '.md,.markdown';
+    input.style.display = 'none';
+    input.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        await this.renderLocalFile(file);
+      }
+      input.value = ''; // Allow re-selecting same file
+    });
+    document.body.appendChild(input);
+  },
+
+  /**
+   * Open file dialog (Ctrl+O)
+   */
+  openFileDialog() {
+    const input = document.getElementById('local-preview-file-input');
+    if (input) {
+      input.click();
+    }
+  },
+
+  /**
+   * Check if drag event has markdown file
+   */
+  hasMarkdownFile(e) {
+    if (!e.dataTransfer?.items) return false;
+
+    for (const item of e.dataTransfer.items) {
+      if (item.kind === 'file') {
+        const type = item.type;
+        if (type === 'text/markdown' || type === 'text/x-markdown') {
+          return true;
+        }
+        // Some browsers don't provide type, allow and verify on drop
+        return true;
+      }
+    }
+    return false;
+  },
+
+  /**
+   * Extract and validate markdown file from drop event
+   */
+  getMarkdownFile(e) {
+    const files = e.dataTransfer?.files;
+    if (!files || files.length === 0) return null;
+
+    const file = files[0];
+
+    // 1. Extension validation
+    const ext = '.' + file.name.split('.').pop().toLowerCase();
+    if (!this.ALLOWED_EXTENSIONS.includes(ext)) {
+      ErrorHandler.show('Only Markdown files (.md, .markdown) can be previewed.', 'warning');
+      return null;
+    }
+
+    // 2. MIME type validation (some browsers return empty string)
+    if (file.type && !this.ALLOWED_MIME_TYPES.includes(file.type)) {
+      console.warn(`[LocalPreview] Unexpected MIME type: ${file.type}`);
+    }
+
+    // 3. File size validation
+    if (file.size > this.MAX_FILE_SIZE) {
+      const sizeMB = (file.size / 1024 / 1024).toFixed(1);
+      ErrorHandler.show(`File too large (${sizeMB}MB). Maximum 10MB allowed.`, 'error');
+      return null;
+    }
+
+    // 4. Empty file validation
+    if (file.size === 0) {
+      ErrorHandler.show('File is empty.', 'warning');
+      return null;
+    }
+
+    return file;
+  },
+
+  /**
+   * Show drop overlay
+   */
+  showDropOverlay() {
+    let overlay = document.getElementById('drop-overlay');
+
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'drop-overlay';
+      overlay.className = 'drop-overlay';
+      overlay.innerHTML = `
+        <div class="drop-message">
+          <span class="drop-icon">📄</span>
+          <span class="drop-text">Drop .md file here</span>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+    }
+
+    overlay.classList.remove('hidden');
+  },
+
+  /**
+   * Hide drop overlay
+   */
+  hideDropOverlay() {
+    const overlay = document.getElementById('drop-overlay');
+    if (overlay) {
+      overlay.classList.add('hidden');
+    }
+  },
+
+  /**
+   * Render local markdown file
+   */
+  async renderLocalFile(file) {
+    this.setState('PROCESSING');
+
+    try {
+      // 1. Read file
+      const content = await this.readFileAsText(file);
+
+      // 2. Validate UTF-8 encoding
+      if (!this.isValidUtf8(content)) {
+        throw new Error('File is not UTF-8 encoded.');
+      }
+
+      // 3. Parse frontmatter (client-side)
+      const { content: markdown, metadata } = this.parseFrontmatter(content);
+
+      // 4. Render markdown (already updates DOM and sanitizes with DOMPurify)
+      await renderMarkdown(markdown);
+
+      // 5. Get contentArea (already populated by renderMarkdown)
+      const contentArea = document.getElementById('markdown-content');
+
+      // 6. Process local images directly on existing DOM
+      this.processLocalImagesOnDOM(contentArea);
+
+      // 7. Update TOC (Table of Contents)
+      const tocData = generateTOC();
+      renderTOC(tocData);
+      if (tocData.length > 0) {
+        initTOCScrollSync();
+      }
+
+      // 8. Show local preview banner
+      this.showPreviewBanner(file.name, metadata);
+
+      // 9. Update state
+      this.isActive = true;
+      this.fileName = file.name;
+      this.setState('PREVIEWING');
+
+      // 10. Render Mermaid diagrams
+      if (typeof mermaid !== 'undefined') {
+        try {
+          await mermaid.run({ nodes: contentArea.querySelectorAll('.mermaid') });
+        } catch (mermaidError) {
+          console.warn('[LocalPreview] Mermaid error:', mermaidError);
+        }
+      }
+
+      // 11. Hide navigation (local files have no prev/next)
+      this.hideNavigation();
+
+      // 12. Clear tree selection
+      const activeItems = document.querySelectorAll('.file-tree .active');
+      activeItems.forEach(item => item.classList.remove('active'));
+
+      // 13. Accessibility: move focus
+      contentArea.setAttribute('tabindex', '-1');
+      contentArea.focus();
+
+      // 14. Update URL
+      history.pushState({ localPreview: true, fileName: file.name }, '', '#local-preview');
+
+      console.log('[LocalPreview] Rendered:', file.name, {
+        size: file.size,
+        hasMetadata: Object.keys(metadata).length > 0
+      });
+
+    } catch (error) {
+      this.setState('ERROR');
+      console.error('[LocalPreview] Error:', error);
+      ErrorHandler.show('Error reading file: ' + error.message, 'error');
+    }
+  },
+
+  /**
+   * Validate UTF-8 encoding (simple heuristic)
+   */
+  isValidUtf8(str) {
+    const replacementCount = (str.match(/\uFFFD/g) || []).length;
+    return replacementCount < str.length * 0.01; // Less than 1% is OK
+  },
+
+  /**
+   * Process local image paths (HTML string version)
+   */
+  processLocalImages(html) {
+    const container = document.createElement('div');
+    container.innerHTML = html;
+
+    container.querySelectorAll('img').forEach(img => {
+      const src = img.getAttribute('src');
+      if (!src) return;
+
+      // External URLs and data URIs are preserved
+      if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:')) {
+        return;
+      }
+
+      // Relative paths show warning
+      img.classList.add('local-preview-broken-image');
+      img.setAttribute('title', `Local image: ${src}\n(Cannot display in preview)`);
+      img.setAttribute('alt', `[Image: ${src}]`);
+      img.removeAttribute('src'); // Prevent 404 request
+      img.setAttribute('data-local-src', src);
+    });
+
+    return container.innerHTML;
+  },
+
+  /**
+   * Process local image paths directly on DOM element
+   */
+  processLocalImagesOnDOM(container) {
+    container.querySelectorAll('img').forEach(img => {
+      const src = img.getAttribute('src');
+      if (!src) return;
+
+      // External URLs and data URIs are preserved
+      if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:')) {
+        return;
+      }
+
+      // Relative paths show warning
+      img.classList.add('local-preview-broken-image');
+      img.setAttribute('title', `Local image: ${src}\n(Cannot display in preview)`);
+      img.setAttribute('alt', `[Image: ${src}]`);
+      img.removeAttribute('src'); // Prevent 404 request
+      img.setAttribute('data-local-src', src);
+    });
+  },
+
+  /**
+   * Read file as text
+   */
+  readFileAsText(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result);
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsText(file);
+    });
+  },
+
+  /**
+   * Parse frontmatter (client-side)
+   * Same logic as server's frontmatter-service.js
+   */
+  parseFrontmatter(content) {
+    if (!content || typeof content !== 'string') {
+      return { content: content || '', metadata: {} };
+    }
+
+    // Frontmatter delimited by 4+ hyphens
+    const regex = /^(?:\ufeff)?-{4,}\r?\n([\s\S]*?)\r?\n-{4,}(?:\r?\n|$)/;
+    const match = content.match(regex);
+
+    if (!match) {
+      return { content, metadata: {} };
+    }
+
+    const frontmatterBlock = match[1];
+    const metadata = {};
+
+    // Parse key: value pairs
+    const lines = frontmatterBlock.split(/\r?\n/);
+    for (const line of lines) {
+      const colonIndex = line.indexOf(':');
+      if (colonIndex > 0) {
+        const key = line.slice(0, colonIndex).trim().toLowerCase();
+        const value = line.slice(colonIndex + 1).trim();
+        if (value) {
+          metadata[key] = value;
+        }
+      }
+    }
+
+    const remainingContent = content.slice(match[0].length);
+    return { content: remainingContent, metadata };
+  },
+
+  /**
+   * Show local preview banner
+   */
+  showPreviewBanner(fileName, metadata) {
+    // Remove existing banner
+    this.hidePreviewBanner();
+
+    const banner = document.createElement('div');
+    banner.id = 'local-preview-banner';
+    banner.className = 'local-preview-banner';
+
+    const displayName = metadata.name || fileName;
+
+    banner.innerHTML = `
+      <div class="file-info">
+        <span class="file-icon">📄</span>
+        <span class="file-name">${this.escapeHtml(displayName)}</span>
+        <span class="preview-label">Local Preview</span>
+      </div>
+      <button class="close-btn" onclick="LocalPreview.close()">Close</button>
+    `;
+
+    // Insert at top of content area
+    const contentWrapper = document.getElementById('content-wrapper')
+      || document.getElementById('markdown-content').parentElement;
+    contentWrapper.insertBefore(banner, contentWrapper.firstChild);
+  },
+
+  /**
+   * Hide preview banner
+   */
+  hidePreviewBanner() {
+    const banner = document.getElementById('local-preview-banner');
+    if (banner) {
+      banner.remove();
+    }
+  },
+
+  /**
+   * Hide navigation
+   */
+  hideNavigation() {
+    const nav = document.querySelector('.doc-navigation');
+    if (nav) {
+      nav.style.display = 'none';
+    }
+  },
+
+  /**
+   * Show navigation
+   */
+  showNavigation() {
+    const nav = document.querySelector('.doc-navigation');
+    if (nav) {
+      nav.style.display = '';
+    }
+  },
+
+  /**
+   * Close local preview
+   */
+  close() {
+    this.hidePreviewBanner();
+    this.showNavigation();
+    this.isActive = false;
+    this.fileName = null;
+    this.setState('IDLE');
+
+    // Reset content area
+    const contentArea = document.getElementById('markdown-content');
+    contentArea.innerHTML = '<p class="placeholder">Select a document from the tree</p>';
+
+    // Restore URL
+    history.pushState({}, '', window.location.pathname);
+
+    console.log('[LocalPreview] Closed');
+  },
+
+  /**
+   * Escape HTML
+   */
+  escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+};
+
 // Start application when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   init();
@@ -2582,4 +3099,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
   });
+
+  // Phase 7: Initialize Local Preview (drag-and-drop)
+  LocalPreview.init();
 });

@@ -1418,3 +1418,194 @@ body {
     background-color: transparent;
   }
 }
+
+/* ========================================
+   Phase 7: Drag-and-Drop Local Preview
+   ======================================== */
+
+/* Drop overlay */
+.drop-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(59, 130, 246, 0.1);
+  border: 3px dashed #3b82f6;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.drop-overlay.hidden {
+  display: none;
+}
+
+.drop-message {
+  background: white;
+  padding: 2rem 3rem;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  text-align: center;
+}
+
+.drop-icon {
+  font-size: 3rem;
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.drop-text {
+  font-size: 1.25rem;
+  color: #374151;
+}
+
+/* Local preview banner */
+.local-preview-banner {
+  background: linear-gradient(90deg, #fef3c7, #fde68a);
+  border-bottom: 1px solid #f59e0b;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.875rem;
+}
+
+.local-preview-banner .file-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.local-preview-banner .file-icon {
+  font-size: 1.25rem;
+}
+
+.local-preview-banner .file-name {
+  font-weight: 600;
+  color: #92400e;
+}
+
+.local-preview-banner .preview-label {
+  color: #b45309;
+  font-size: 0.75rem;
+  background: rgba(245, 158, 11, 0.2);
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+}
+
+.local-preview-banner .close-btn {
+  background: none;
+  border: 1px solid #d97706;
+  color: #d97706;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: all 0.15s;
+}
+
+.local-preview-banner .close-btn:hover {
+  background: #d97706;
+  color: white;
+}
+
+/* Screen reader only (visually hidden) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Broken image style for local preview */
+.local-preview-broken-image {
+  display: inline-block;
+  min-width: 100px;
+  min-height: 60px;
+  background: #f3f4f6;
+  border: 2px dashed #d1d5db;
+  border-radius: 4px;
+  position: relative;
+}
+
+.local-preview-broken-image::before {
+  content: '\1F5BC'; /* Picture frame emoji */
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 1.5rem;
+  opacity: 0.5;
+}
+
+.local-preview-broken-image::after {
+  content: attr(data-local-src);
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  right: 4px;
+  font-size: 0.625rem;
+  color: #6b7280;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .drop-overlay {
+    background: rgba(0, 0, 0, 0.3);
+    border-color: #000;
+  }
+
+  .local-preview-banner {
+    background: #fff;
+    border: 2px solid #000;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .drop-overlay {
+    background: rgba(59, 130, 246, 0.2);
+  }
+
+  .drop-message {
+    background: #1f2937;
+    color: #f9fafb;
+  }
+
+  .drop-text {
+    color: #f9fafb;
+  }
+
+  .local-preview-banner {
+    background: linear-gradient(90deg, #78350f, #92400e);
+    border-color: #b45309;
+  }
+
+  .local-preview-banner .file-name {
+    color: #fef3c7;
+  }
+
+  .local-preview-banner .preview-label {
+    color: #fef3c7;
+  }
+
+  .local-preview-broken-image {
+    background: #374151;
+    border-color: #4b5563;
+  }
+
+  .local-preview-broken-image::after {
+    color: #9ca3af;
+  }
+}
