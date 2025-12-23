@@ -27,6 +27,13 @@ coverage/
 # Temporary files
 *.tmp
 *.temp
+*.bak
+*.backup
+*.orig
+*~
+
+# Test results
+test-results/
 
 # Document root (if local)
 /data/
