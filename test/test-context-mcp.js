@@ -20,12 +20,13 @@ const mockConfig = {
 
 console.log('Running Context MCP tests...\n');
 
-// Test 1: Module imports
+// Test 1: Module imports (including searchDocuments)
 {
-  const { getContextDocuments, getDocumentContent } = require('../src/services/context-service');
+  const { getContextDocuments, getDocumentContent, searchDocuments } = require('../src/services/context-service');
   assert.strictEqual(typeof getContextDocuments, 'function');
   assert.strictEqual(typeof getDocumentContent, 'function');
-  console.log('✅ Test 1: Module imports correctly');
+  assert.strictEqual(typeof searchDocuments, 'function');
+  console.log('✅ Test 1: Module imports correctly (including searchDocuments)');
 }
 
 // Test 2: JSON-RPC utilities

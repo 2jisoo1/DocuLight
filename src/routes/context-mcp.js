@@ -7,7 +7,7 @@
 
 const express = require('express');
 const { createJsonRpcResponse, createJsonRpcError } = require('../utils/jsonrpc-utils');
-const { getContextDocuments, getDocumentContent } = require('../services/context-service');
+const { getContextDocuments, getDocumentContent, searchDocuments } = require('../services/context-service');
 
 /**
  * Context MCP Tool 목록
@@ -39,6 +39,46 @@ const TOOLS = [
         }
       },
       required: ['path']
+    }
+  },
+  {
+    name: 'search_documents',
+    description: 'Search for text across all markdown documents. Returns matching excerpts with surrounding context. Results are limited to 500 total matches across 1000 files maximum.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Search keyword or phrase (required, 1-200 chars, trimmed)',
+          minLength: 1,
+          maxLength: 200
+        },
+        context_chars: {
+          type: 'number',
+          description: 'Characters before/after match (default: 50, range: 10-500)',
+          default: 50,
+          minimum: 10,
+          maximum: 500
+        },
+        case_sensitive: {
+          type: 'boolean',
+          description: 'Case-sensitive search (default: false)',
+          default: false
+        },
+        path: {
+          type: 'string',
+          description: 'Directory path to search in (default: /)',
+          default: '/'
+        },
+        max_results: {
+          type: 'number',
+          description: 'Max matches per file (default: 10, range: 1-100)',
+          default: 10,
+          minimum: 1,
+          maximum: 100
+        }
+      },
+      required: ['query']
     }
   }
 ];
@@ -88,6 +128,32 @@ async function executeTool(config, logger, name, args) {
       };
     }
 
+    case 'search_documents': {
+      const searchResults = await searchDocuments(config, logger, args.query, {
+        context_chars: args.context_chars,
+        case_sensitive: args.case_sensitive,
+        path: args.path,
+        max_results: args.max_results
+      });
+
+      if (searchResults.total_matches === 0) {
+        return { content: [{ type: 'text', text: `# Search Results for '${searchResults.query}'\n\nNo matches found.` }] };
+      }
+
+      let output = `# Search Results for '${searchResults.query}'\n\n`;
+      output += `Found ${searchResults.total_matches} matches in ${searchResults.total_files} files`;
+      if (searchResults.truncated) output += ` (truncated)`;
+      output += '\n\n';
+
+      searchResults.results.forEach(file => {
+        output += `## ${file.path} (${file.name})\n\n`;
+        file.matches.forEach((m, i) => output += `${i + 1}. Line ${m.line}: ${m.excerpt}\n`);
+        output += '\n';
+      });
+
+      return { content: [{ type: 'text', text: output }] };
+    }
+
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -118,6 +184,7 @@ function createContextMcpRouter() {
           usage: {
             list: 'GET /context?action=list&path=/',
             read: 'GET /context?action=read&path=/path/to/doc.md',
+            search: 'GET /context?action=search&query=keyword',
             post: 'POST /context with JSON-RPC 2.0 body'
           }
         });
@@ -152,9 +219,31 @@ function createContextMcpRouter() {
         });
       }
 
+      // action=search: search documents
+      if (action === 'search') {
+        const { query, context_chars, case_sensitive, max_results } = req.query;
+
+        if (!query || query.trim().length === 0) {
+          return res.status(400).json({ error: { code: 'INVALID_PARAMS', message: 'query required' } });
+        }
+
+        logger.info('Context MCP: GET search', { query, path: docPath });
+        try {
+          const searchResults = await searchDocuments(config, logger, query, {
+            context_chars: context_chars ? parseInt(context_chars, 10) : undefined,
+            case_sensitive: case_sensitive === 'true',
+            path: docPath || '/',
+            max_results: max_results ? parseInt(max_results, 10) : undefined
+          });
+          return res.json({ success: true, ...searchResults });
+        } catch (error) {
+          return res.status(400).json({ error: { code: 'INVALID_PARAMS', message: error.message } });
+        }
+      }
+
       // Unknown action
       return res.status(400).json({
-        error: { code: 'INVALID_ACTION', message: `Unknown action: ${action}. Use 'list' or 'read'` }
+        error: { code: 'INVALID_ACTION', message: `Unknown action: ${action}. Use 'list', 'read', or 'search'` }
       });
     } catch (error) {
       logger.error('Context MCP GET error', { action, path: docPath, error: error.message });

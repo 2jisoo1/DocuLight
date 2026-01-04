@@ -138,6 +138,7 @@ name: Invalid (not at file start)
 |--------|------|------|
 | `list_context_documents` | description이 있는 문서 목록 | 불필요 |
 | `read_document` | 문서 내용 읽기 | 불필요 |
+| `search_documents` | 문서 전문 검색 (Phase 8) | 불필요 |
 
 ---
 
@@ -1093,6 +1094,7 @@ Phase 3에서 구현한 Context MCP는 POST (JSON-RPC 2.0) 방식만 지원했�
 | `GET /context` | 서버 정보 및 도구 목록 |
 | `GET /context?action=list&path=/` | 문서 목록 조회 |
 | `GET /context?action=read&path=/doc.md` | 문서 내용 읽기 |
+| `GET /context?action=search&query=xxx` | 문서 검색 (Phase 8) |
 
 ### 테스트
 ```bash
@@ -1104,6 +1106,9 @@ curl "http://localhost:3000/context?action=list&path=/"
 
 # 문서 내용
 curl "http://localhost:3000/context?action=read&path=/README.md"
+
+# 문서 검색 (Phase 8)
+curl "http://localhost:3000/context?action=search&query=config&context_chars=50"
 ```
 
 ---
@@ -2469,3 +2474,14 @@ Phase 7 의존성:
 ├── TreeManager.clearSelection() (선택) - 트리 선택 해제
 └── mermaid (선택) - 다이어그램 렌더링
 ```
+
+---
+
+## Phase 8: 문서 검색 기능 (Search Documents)
+
+> **분리됨**: 상세 설계는 [plan.step13.1.md](./plan.step13.1.md) 참조
+
+### 요약
+- **Tool**: `search_documents`
+- **GET**: `/context?action=search&query=xxx`
+- **제한**: 500 matches, 1000 files, query 200자
