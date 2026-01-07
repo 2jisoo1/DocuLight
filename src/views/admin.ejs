@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= config.ui?.title || 'DocLight' %> - Admin</title>
+  <!-- CSS Variable for max-width (shared with normal viewer) -->
+  <style>
+    :root {
+      --max-width: <%= config.ui?.maxWidth || '1224px' %>;
+    }
+  </style>
+  <!-- Include normal viewer styles for markdown-content rendering -->
+  <link rel="stylesheet" href="/css/style.css">
+  <!-- Admin-specific styles (override as needed) -->
+  <link rel="stylesheet" href="/css/admin.css">
+  <!-- Highlight.js styles -->
+  <link rel="stylesheet" href="/lib/highlight-github.min.css">
+  <link rel="icon" href="<%= config.ui?.icon || '/images/icon.png' %>">
+</head>
+<body>
+  <!-- 인증 모달 -->
+  <div id="auth-modal" class="modal">
+    <div class="modal-content">
+      <h2><%= config.ui?.title || 'DocLight' %> Admin</h2>
+      <div class="form-group">
+        <label for="api-key-input">API Key</label>
+        <input type="password" id="api-key-input" placeholder="Enter API key" autocomplete="current-password">
+      </div>
+      <div id="auth-error" class="error-message" style="display: none;"></div>
+      <div class="modal-buttons">
+        <button id="auth-cancel" class="btn btn-secondary">Cancel</button>
+        <button id="auth-login" class="btn btn-primary">Login</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 메인 레이아웃 -->
+  <div id="admin-app" style="display: none;">
+    <!-- 툴바 -->
+    <div id="admin-toolbar">
+      <div class="toolbar-left">
+        <span class="app-title"><%= config.ui?.title || 'DocLight' %> Admin</span>
+      </div>
+      <div class="toolbar-right">
+        <span id="session-name"></span>
+        <button id="logout-btn" class="btn btn-small">Logout</button>
+      </div>
+    </div>
+
+    <!-- 사이드바 -->
+    <div id="admin-sidebar">
+      <div class="sidebar-header">
+        <span>Files</span>
+        <button id="refresh-tree" class="btn-icon" title="Refresh">&#x1F504;</button>
+      </div>
+      <div id="file-tree"></div>
+    </div>
+
+    <!-- 리사이저 -->
+    <div id="sidebar-resizer"></div>
+
+    <!-- 컨텐츠 -->
+    <div id="admin-content">
+      <div id="content-placeholder">
+        <p>Select a file from the tree</p>
+      </div>
+      <div id="file-viewer" style="display: none;"></div>
+
+      <!-- Phase 6: Editor -->
+      <div id="editor-container" style="display: none;">
+        <div class="editor-toolbar">
+          <div class="editor-toolbar-left">
+            <span class="editor-path"></span>
+            <span class="dirty-indicator"></span>
+          </div>
+          <div class="editor-toolbar-right">
+            <button class="mode-edit btn btn-small active">Edit</button>
+            <button class="mode-preview btn btn-small">Preview</button>
+            <button class="editor-save btn btn-primary btn-small" disabled>Save</button>
+            <button class="editor-close btn btn-secondary btn-small">Close</button>
+          </div>
+        </div>
+        <textarea id="editor-textarea" placeholder="Enter content..."></textarea>
+        <div id="editor-preview" class="markdown-content"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 5: Rename Modal -->
+  <div id="rename-modal" class="modal">
+    <div class="modal-content">
+      <h2>Rename</h2>
+      <input type="hidden" id="rename-path">
+      <div class="form-group">
+        <label>Current name</label>
+        <div id="rename-current-name" class="current-name"></div>
+      </div>
+      <div class="form-group">
+        <label for="rename-new-name">New name</label>
+        <input type="text" id="rename-new-name" placeholder="Enter new name">
+      </div>
+      <div id="rename-error" class="error-message" style="display: none;"></div>
+      <div class="modal-buttons">
+        <button id="rename-cancel" class="btn btn-secondary">Cancel</button>
+        <button id="rename-save" class="btn btn-primary">Rename</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 5: Delete Confirm Modal -->
+  <div id="delete-modal" class="modal">
+    <div class="modal-content">
+      <h2>Delete</h2>
+      <input type="hidden" id="delete-paths">
+      <p>Are you sure you want to delete the following items?</p>
+      <ul id="delete-list" class="delete-list"></ul>
+      <div id="delete-error" class="error-message" style="display: none;"></div>
+      <div class="modal-buttons">
+        <button id="delete-cancel" class="btn btn-secondary">Cancel</button>
+        <button id="delete-confirm" class="btn btn-danger">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 5: Create Modal -->
+  <div id="create-modal" class="modal">
+    <div class="modal-content">
+      <h2 id="create-title">New File</h2>
+      <input type="hidden" id="create-parent-path">
+      <input type="hidden" id="create-type">
+      <div class="form-group">
+        <label for="create-name">Name</label>
+        <input type="text" id="create-name" placeholder="Enter name">
+      </div>
+      <div id="create-error" class="error-message" style="display: none;"></div>
+      <div class="modal-buttons">
+        <button id="create-cancel" class="btn btn-secondary">Cancel</button>
+        <button id="create-save" class="btn btn-primary">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 6: Unsaved Changes Modal -->
+  <div id="unsaved-modal" class="modal">
+    <div class="modal-content">
+      <h2>Unsaved Changes</h2>
+      <p>You have unsaved changes in <span class="file-path"></span></p>
+      <p class="text-secondary">Do you want to save before leaving?</p>
+      <div class="modal-buttons">
+        <button class="btn btn-secondary btn-cancel">Cancel</button>
+        <button class="btn btn-danger btn-discard">Discard</button>
+        <button class="btn btn-primary btn-save">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 6: Conflict Modal -->
+  <div id="conflict-modal" class="modal">
+    <div class="modal-content">
+      <h2>File Conflict</h2>
+      <p>This file was modified by another user.</p>
+      <p class="text-secondary">Server version: <span class="server-time"></span></p>
+      <div class="modal-buttons">
+        <button class="btn btn-secondary btn-reload">Reload</button>
+        <button class="btn btn-danger btn-overwrite">Overwrite</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 스크립트 (로컬 라이브러리 - 일반 뷰어와 동일) -->
+  <script src="/lib/highlight.min.js"></script>
+  <script src="/lib/marked.min.js"></script>
+  <script src="/lib/mermaid.min.js"></script>
+  <script src="/lib/purify.min.js"></script>
+  <script src="/js/admin.js"></script>
+</body>
+</html>

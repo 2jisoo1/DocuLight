@@ -1,0 +1,857 @@
+/**
+ * DocLight Admin Styles
+ * Phase 4: Frontend Base Structure
+ */
+
+/* Reset */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* Variables */
+:root {
+  --sidebar-width: 280px;
+  --toolbar-height: 48px;
+  --primary-color: #0066cc;
+  --primary-hover: #0052a3;
+  --bg-color: #f5f5f5;
+  --sidebar-bg: #fff;
+  --border-color: #e0e0e0;
+  --text-color: #333;
+  --text-secondary: #666;
+  --selected-bg: #e3f2fd;
+  --hover-bg: #f0f0f0;
+  --error-color: #d32f2f;
+  --success-color: #388e3c;
+}
+
+/* Body */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  font-size: 14px;
+  color: var(--text-color);
+  background: var(--bg-color);
+  line-height: 1.5;
+}
+
+/* Modal */
+.modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  padding: 32px;
+  border-radius: 8px;
+  width: 400px;
+  max-width: 90%;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.modal-content h2 {
+  margin-bottom: 24px;
+  text-align: center;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.form-group input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+}
+
+.error-message {
+  color: var(--error-color);
+  font-size: 13px;
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  background: #ffebee;
+  border-radius: 4px;
+}
+
+.modal-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+/* Buttons */
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--primary-color);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.btn-secondary {
+  background: #e0e0e0;
+  color: var(--text-color);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #d0d0d0;
+}
+
+.btn-small {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.btn-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.btn-icon:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+/* Layout */
+#admin-app {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 4px 1fr;
+  grid-template-rows: var(--toolbar-height) 1fr;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Toolbar */
+#admin-toolbar {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 16px;
+  background: var(--primary-color);
+  color: white;
+  z-index: 100;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.app-title {
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+#session-name {
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+#logout-btn {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+#logout-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Sidebar */
+#admin-sidebar {
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--border-color);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* Tree */
+#file-tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.tree-empty {
+  padding: 16px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.tree-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.1s;
+}
+
+.tree-item:hover {
+  background: var(--hover-bg);
+}
+
+.tree-item.selected {
+  background: var(--selected-bg);
+}
+
+.tree-icon {
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+}
+
+.folder-icon {
+  cursor: pointer;
+}
+
+.tree-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Resizer */
+#sidebar-resizer {
+  background: var(--border-color);
+  cursor: col-resize;
+  transition: background 0.2s;
+}
+
+#sidebar-resizer:hover {
+  background: var(--primary-color);
+}
+
+/* Content */
+#admin-content {
+  background: white;
+  padding: 0;
+  overflow-y: auto;
+}
+
+#content-placeholder {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  color: var(--text-secondary);
+  font-size: 16px;
+}
+
+#file-viewer {
+  background: white;
+  padding: 2rem;
+  max-width: var(--max-width);
+  margin: 0 auto;
+  /* Matches normal viewer styling */
+}
+
+/* Loading & Error States */
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-secondary);
+}
+
+.error {
+  text-align: center;
+  padding: 40px;
+  color: var(--error-color);
+}
+
+/* Markdown Content - uses shared styles from style.css (.markdown-content class) */
+/* Admin-specific markdown overrides (if any) can be added here */
+
+/* Code Block */
+.code-block {
+  background: #f5f5f5;
+  padding: 16px;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* Image Preview */
+.image-preview {
+  text-align: center;
+}
+
+.image-preview img {
+  max-width: 100%;
+  max-height: 70vh;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Mermaid Diagrams */
+.mermaid {
+  text-align: center;
+  margin: 1em 0;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #aaa;
+}
+
+/* Phase 5: Context Menu */
+.context-menu {
+  position: fixed;
+  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 180px;
+  z-index: 1001;
+  padding: 4px 0;
+  animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.1s;
+}
+
+.context-menu-item:hover {
+  background: var(--hover-bg);
+}
+
+.context-menu-item.disabled {
+  color: #999;
+  cursor: not-allowed;
+}
+
+.context-menu-item.disabled:hover {
+  background: none;
+}
+
+.menu-icon {
+  margin-right: 10px;
+  font-size: 14px;
+}
+
+.context-menu-separator {
+  height: 1px;
+  background: var(--border-color);
+  margin: 4px 8px;
+}
+
+/* Phase 5: Tree item cut state */
+.tree-item.cut {
+  opacity: 0.5;
+}
+
+/* Phase 5: Delete list */
+.delete-list {
+  max-height: 200px;
+  overflow-y: auto;
+  margin: 16px 0;
+  padding: 12px;
+  background: #f9f9f9;
+  border-radius: 4px;
+  list-style: none;
+}
+
+.delete-list li {
+  padding: 4px 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+
+.delete-list li::before {
+  content: "\2022";
+  color: var(--error-color);
+  margin-right: 8px;
+}
+
+/* Phase 5: Current name display */
+.current-name {
+  padding: 8px 12px;
+  background: #f5f5f5;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* Phase 5: Danger button */
+.btn-danger {
+  background: var(--error-color);
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #c62828;
+}
+
+/* Phase 5: Notifications */
+.notification {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  padding: 12px 20px;
+  background: var(--text-color);
+  color: white;
+  border-radius: 6px;
+  font-size: 14px;
+  z-index: 2000;
+  animation: slideIn 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.notification-error {
+  background: var(--error-color);
+}
+
+.notification-warning {
+  background: #f57c00;
+}
+
+.notification-success {
+  background: var(--success-color);
+}
+
+.notification.fade-out {
+  animation: fadeOut 0.3s ease forwards;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Phase 6: Editor */
+#editor-container {
+  display: none;
+  flex-direction: column;
+  height: 100%;
+  background: white;
+  overflow: hidden;
+  /* No card effect - matches normal viewer */
+}
+
+.editor-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border-color);
+  background: #f8f8f8;
+  flex-shrink: 0;
+}
+
+.editor-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.editor-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.editor-path {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 13px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dirty-indicator {
+  color: #ff9800;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.mode-edit,
+.mode-preview {
+  padding: 4px 12px;
+  border: 1px solid var(--border-color);
+  background: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.mode-edit:hover,
+.mode-preview:hover {
+  background: var(--hover-bg);
+}
+
+.mode-edit.active,
+.mode-preview.active {
+  background: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
+
+#editor-textarea {
+  flex: 1;
+  width: 100%;
+  padding: 16px;
+  border: none;
+  resize: none;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  tab-size: 2;
+  background: white;
+}
+
+#editor-textarea:focus {
+  outline: none;
+}
+
+#editor-preview {
+  flex: 1;
+  padding: 16px 32px;
+  overflow-y: auto;
+  display: none;
+  background: white;
+}
+
+/* Phase 6: Text secondary helper */
+.text-secondary {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+/* ============================================================
+   Phase 7: Drag and Drop
+   ============================================================ */
+
+/* 드래그 중인 항목 */
+.tree-item.dragging {
+  opacity: 0.5;
+}
+
+/* 유효한 드롭 대상 */
+.tree-item.drop-target {
+  background: #e8f5e9 !important;
+  border: 2px dashed #4caf50;
+  border-radius: 4px;
+}
+
+/* 무효한 드롭 대상 */
+.tree-item.drop-invalid {
+  background: #ffebee !important;
+  border: 2px dashed #f44336;
+  cursor: not-allowed;
+}
+
+/* 부모 폴더 이동 드롭존 */
+.parent-drop-zone {
+  display: none;
+  padding: 12px 16px;
+  text-align: center;
+  color: #666;
+  border: 2px dashed transparent;
+  margin: 4px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  transition: all 0.2s ease;
+}
+
+.parent-drop-zone.drop-target {
+  background: #e3f2fd;
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+/* 드래그 이미지 (JS에서 스타일 설정됨) */
+.drag-image {
+  pointer-events: none;
+}
+
+/* 로딩 오버레이 */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 3000;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid var(--primary-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* ============================================================
+   Upload Module Styles
+   ============================================================ */
+
+/* Drop zone highlight */
+.upload-drop-target {
+  outline: 3px dashed var(--primary-color) !important;
+  outline-offset: -3px;
+  background-color: rgba(0, 102, 204, 0.05) !important;
+}
+
+/* Directory highlight when dragging over */
+.upload-dir-target {
+  background-color: rgba(0, 102, 204, 0.15) !important;
+  outline: 2px dashed var(--primary-color);
+  outline-offset: -2px;
+}
+
+/* Floating upload toast in content area */
+.upload-toast {
+  position: absolute;
+  top: 64px;
+  right: 16px;
+  background: rgba(33, 33, 33, 0.8);
+  border-radius: 8px;
+  padding: 12px 16px;
+  min-width: 220px;
+  max-width: 320px;
+  max-height: 60vh;
+  overflow: hidden;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Individual upload item in toast */
+.upload-toast .upload-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: white;
+  animation: slideIn 0.2s ease;
+}
+
+.upload-toast .upload-item.fade-out {
+  animation: fadeOut 0.3s ease forwards;
+}
+
+.upload-toast .upload-filename {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: 8px;
+  color: white;
+}
+
+.upload-toast .upload-percent {
+  min-width: 32px;
+  text-align: right;
+  font-weight: 500;
+  color: #90caf9;
+}
+
+.upload-toast .upload-percent.complete {
+  color: #81c784;
+}
+
+.upload-toast .upload-percent.error {
+  color: #ef5350;
+  padding: 0;
+  text-align: right;
+}
+
+/* Image viewer styles */
+.image-viewer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  padding: 20px;
+}
+
+.image-viewer img {
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.image-viewer .image-filename {
+  margin-top: 12px;
+  font-size: 13px;
+  color: #666;
+  font-family: monospace;
+}
+
+/* Unsupported file styles */
+.unsupported-file {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  color: #666;
+  text-align: center;
+  padding: 40px;
+}
+
+.unsupported-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+  opacity: 0.6;
+}
+
+.unsupported-message {
+  font-size: 18px;
+  margin: 0 0 8px 0;
+  color: #555;
+}
+
+.unsupported-filename {
+  font-family: monospace;
+  font-size: 14px;
+  color: #999;
+  background: #f5f5f5;
+  padding: 4px 12px;
+  border-radius: 4px;
+  margin: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  :root {
+    --sidebar-width: 240px;
+  }
+
+  #admin-app {
+    grid-template-columns: var(--sidebar-width) 1fr;
+  }
+
+  #sidebar-resizer {
+    display: none;
+  }
+
+  #file-viewer {
+    padding: 16px;
+  }
+}
