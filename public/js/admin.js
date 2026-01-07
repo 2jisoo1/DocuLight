@@ -31,6 +31,92 @@ const AdminState = {
 };
 
 // ============================================================
+// TOC Module (Admin-specific TOC handling)
+// ============================================================
+const AdminTOC = {
+  isVisible: false,
+
+  init() {
+    const toggleBtn = document.getElementById('admin-toc-toggle');
+    const closeBtn = document.getElementById('admin-toc-close');
+    const overlay = document.getElementById('admin-toc-overlay');
+    const resizer = document.getElementById('admin-toc-resizer');
+
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => this.toggle());
+    }
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => this.hide());
+    }
+    if (overlay) {
+      overlay.addEventListener('click', () => this.hide());
+    }
+
+    // Resizer handling
+    if (resizer) {
+      this.initResizer(resizer);
+    }
+  },
+
+  show() {
+    const sidebar = document.getElementById('admin-toc-sidebar');
+    const overlay = document.getElementById('admin-toc-overlay');
+    if (sidebar) {
+      sidebar.classList.add('visible');
+      this.isVisible = true;
+    }
+    if (overlay && window.innerWidth <= 768) {
+      overlay.classList.add('visible');
+    }
+  },
+
+  hide() {
+    const sidebar = document.getElementById('admin-toc-sidebar');
+    const overlay = document.getElementById('admin-toc-overlay');
+    if (sidebar) {
+      sidebar.classList.remove('visible');
+      this.isVisible = false;
+    }
+    if (overlay) {
+      overlay.classList.remove('visible');
+    }
+  },
+
+  toggle() {
+    this.isVisible ? this.hide() : this.show();
+  },
+
+  initResizer(resizer) {
+    let isResizing = false;
+    let startX, startWidth;
+    const sidebar = document.getElementById('admin-toc-sidebar');
+
+    resizer.addEventListener('mousedown', (e) => {
+      isResizing = true;
+      startX = e.clientX;
+      startWidth = sidebar.offsetWidth;
+      document.body.style.cursor = 'ew-resize';
+      document.body.style.userSelect = 'none';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isResizing) return;
+      const diff = startX - e.clientX;
+      const newWidth = Math.min(Math.max(startWidth + diff, 200), 500);
+      sidebar.style.width = `${newWidth}px`;
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isResizing) {
+        isResizing = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      }
+    });
+  }
+};
+
+// ============================================================
 // API Module
 // ============================================================
 const AdminAPI = {
@@ -512,108 +598,44 @@ const ViewerModule = {
     }
   },
 
-  // Shared markdown rendering (matches normal viewer)
+  // Shared markdown rendering (using DocLightUtils module)
   async renderMarkdown(container, content) {
     try {
-      if (typeof marked === 'undefined') {
-        container.innerHTML = `<pre>${this.escapeHtml(content)}</pre>`;
+      if (typeof DocLightUtils === 'undefined' || typeof marked === 'undefined') {
+        container.innerHTML = `<pre>${DocLightUtils?.escapeHtml?.(content) || content}</pre>`;
         return;
       }
 
-      // Custom renderer (same as normal viewer)
-      const renderer = new marked.Renderer();
-      const originalHeading = renderer.heading.bind(renderer);
-
-      // Custom heading renderer with ID for TOC
-      renderer.heading = function(text, level, raw) {
-        const id = raw
-          .toLowerCase()
-          .replace(/[^\w\s\-가-힣]/gu, '')
-          .replace(/\s+/g, '-')
-          .replace(/-+/g, '-')
-          .trim();
-        return `<h${level} id="${id}">${text}</h${level}>\n`;
-      };
-
-      // Custom image renderer with lazy loading
-      renderer.image = function(href, title, text) {
-        const titleAttr = title ? ` title="${title}"` : '';
-        return `<img src="${href}" alt="${text}"${titleAttr} loading="lazy">`;
-      };
-
-      // Configure marked options
-      marked.setOptions({
-        breaks: true,
-        gfm: true,
-        renderer: renderer
+      // Use shared renderMarkdown with TOC support
+      const tocTree = document.getElementById('admin-toc-tree');
+      await DocLightUtils.renderMarkdown(content, container, {
+        enableWikiLinks: true,
+        enableTOC: true,
+        enableCopyButtons: true,
+        enableHeadingAnchors: true,
+        tocTreeElement: tocTree,
+        onTOCItemClick: (item) => {
+          // Admin-specific: close TOC on mobile
+          if (window.innerWidth <= 768) {
+            AdminTOC.hide();
+          }
+        }
       });
 
-      // Parse markdown
-      const rawHtml = marked.parse(content);
-
-      // DOMPurify sanitize (same config as normal viewer)
-      let html = rawHtml;
-      if (typeof DOMPurify !== 'undefined') {
-        html = DOMPurify.sanitize(rawHtml, {
-          ADD_ATTR: ['class', 'data-language', 'data-highlighted', 'id', 'loading', 'title', 'alt', 'src', 'width', 'height'],
-          ADD_TAGS: ['span']
-        });
+      // Show TOC sidebar if there are headings
+      if (tocTree && tocTree.children.length > 0 && !tocTree.querySelector('.toc-empty')) {
+        AdminTOC.show();
       }
-
-      // Use markdown-content class (same as normal viewer)
-      container.innerHTML = `<div class="markdown-content">${html}</div>`;
-
-      // Syntax highlighting
-      if (typeof hljs !== 'undefined') {
-        container.querySelectorAll('pre code:not(.hljs)').forEach(block => {
-          if (!block.classList.contains('language-mermaid')) {
-            hljs.highlightElement(block);
-          }
-        });
-      }
-
-      // Mermaid diagrams
-      await this.renderMermaid(container);
 
     } catch (error) {
       console.error('Markdown render error:', error);
-      container.innerHTML = `<pre>${this.escapeHtml(content)}</pre>`;
+      container.innerHTML = `<pre>${DocLightUtils?.escapeHtml?.(content) || content}</pre>`;
     }
   },
 
-  async renderMermaid(container) {
-    if (typeof mermaid === 'undefined') return;
-
-    const mermaidBlocks = container.querySelectorAll('code.language-mermaid');
-    for (let index = 0; index < mermaidBlocks.length; index++) {
-      const block = mermaidBlocks[index];
-      const code = block.textContent;
-      const id = `mermaid-${index}-${Date.now()}`;
-      const wrapper = document.createElement('div');
-      wrapper.id = id;
-      wrapper.className = 'mermaid';
-      wrapper.textContent = code;
-      wrapper.setAttribute('data-original-code', code);
-
-      block.parentElement.replaceWith(wrapper);
-
-      try {
-        await mermaid.run({ nodes: [wrapper] });
-      } catch (error) {
-        console.error(`Mermaid rendering failed for diagram ${index}:`, error);
-        // Show error fallback
-        wrapper.innerHTML = `<div class="mermaid-error">
-          <p>⚠️ Diagram rendering failed</p>
-          <pre><code>${this.escapeHtml(code)}</code></pre>
-        </div>`;
-      }
-    }
-  },
-
+  // Delegate to shared escapeHtml
   escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+    return DocLightUtils?.escapeHtml?.(text) || text;
   },
 
   isImageFile(path) {
@@ -2380,6 +2402,9 @@ async function init() {
 
   // 리사이저 초기화
   ResizerModule.init();
+
+  // TOC 모듈 초기화
+  AdminTOC.init();
 
   // Mermaid 초기화
   if (typeof mermaid !== 'undefined') {

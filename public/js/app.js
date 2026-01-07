@@ -391,41 +391,10 @@ function calculateNavigation(currentPath) {
   return { prev, next };
 }
 
-/**
- * Wiki 링크 [[path]] → [name](url) 변환
- * Step 9.4: Wiki Links Support
- *
- * @param {string} markdown - 원본 마크다운 콘텐츠
- * @returns {string} - Wiki 링크가 표준 마크다운 링크로 변환된 콘텐츠
- *
- * 예시:
- * - 입력: [[/guide/setup]]
- * - 출력: [setup](/doc/guide/setup)
- */
-function preprocessWikiLinks(markdown) {
-  // Wiki 링크 패턴: [[경로]]
-  const wikiLinkPattern = /\[\[([^\]]+)\]\]/g;
-
-  return markdown.replace(wikiLinkPattern, (match, fullPath) => {
-    // 1. 경로 정규화: trim + .md 제거
-    let cleanPath = fullPath.trim().replace(/\.md$/, '');
-
-    // 2. 파일명 추출 (표시용)
-    const parts = cleanPath.split('/').filter(p => p);
-    const displayName = parts[parts.length - 1] || cleanPath;
-
-    // 3. Clean URL 생성 (/doc prefix)
-    const url = `/doc${cleanPath.startsWith('/') ? cleanPath : '/' + cleanPath}`;
-
-    // 4. 표준 마크다운 링크 형식으로 변환
-    return `[${displayName}](${url})`;
-  });
-}
-
-// Render markdown
+// Render markdown (uses DocLightUtils for preprocessing)
 async function renderMarkdown(content) {
-  // Step 9.4: Preprocess Wiki links [[]] before markdown parsing
-  const preprocessed = preprocessWikiLinks(content);
+  // Step 9.4: Preprocess Wiki links [[]] before markdown parsing (using shared module)
+  const preprocessed = DocLightUtils.preprocessWikiLinks(content);
 
   // Configure marked with custom renderer to add IDs to headings
   const renderer = new marked.Renderer();
@@ -479,44 +448,8 @@ async function renderMarkdown(content) {
     }
   });
 
-  // Render mermaid diagrams with individual error handling
-  const mermaidBlocks = contentDiv.querySelectorAll('code.language-mermaid');
-  for (let index = 0; index < mermaidBlocks.length; index++) {
-    const block = mermaidBlocks[index];
-    const code = block.textContent;
-    const id = `mermaid-${index}-${Date.now()}`;
-    const container = document.createElement('div');
-    container.id = id;
-    container.className = 'mermaid';
-    container.textContent = code;
-    container.setAttribute('data-original-code', code);
-
-    // Replace the code block with mermaid container
-    block.parentElement.replaceWith(container);
-
-    // Try to render this specific diagram
-    try {
-      await mermaid.run({
-        nodes: [container]
-      });
-    } catch (error) {
-      console.error(`Mermaid rendering failed for diagram ${index}:`, error);
-
-      // Fallback: show original code block with error message
-      const fallbackContainer = document.createElement('div');
-      fallbackContainer.className = 'mermaid-error';
-      fallbackContainer.innerHTML = `
-        <div style="border: 1px solid #ffcccc; background: #fff5f5; padding: 10px; margin: 10px 0; border-radius: 4px;">
-          <strong style="color: #cc0000;">⚠️ Mermaid Diagram Rendering Error</strong>
-          <details style="margin-top: 8px;">
-            <summary style="cursor: pointer; color: #666;">View diagram code</summary>
-            <pre style="background: #f5f5f5; padding: 10px; margin-top: 8px; border-radius: 4px; overflow-x: auto;"><code class="language-mermaid">${code.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>
-          </details>
-        </div>
-      `;
-      container.replaceWith(fallbackContainer);
-    }
-  }
+  // Render mermaid diagrams (using shared module)
+  await DocLightUtils.renderMermaidDiagrams(contentDiv);
 
   // Add copy buttons to code blocks
   addCopyButtons(contentDiv);
@@ -1463,41 +1396,8 @@ async function loadFile(path, hash = '', updateUrl = true, skipScroll = false) {
     if (htmlContent) {
       contentDiv.innerHTML = htmlContent;
 
-      // Process Mermaid diagrams if present
-      const mermaidBlocks = contentDiv.querySelectorAll('code.language-mermaid');
-      for (let index = 0; index < mermaidBlocks.length; index++) {
-        const block = mermaidBlocks[index];
-        const code = block.textContent;
-        const id = `mermaid-${index}-${Date.now()}`;
-        const container = document.createElement('div');
-        container.id = id;
-        container.className = 'mermaid';
-        container.textContent = code;
-        container.setAttribute('data-original-code', code);
-
-        // Replace the code block with mermaid container
-        block.parentElement.replaceWith(container);
-
-        // Try to render this specific diagram
-        try {
-          await mermaid.run({ nodes: [container] });
-        } catch (error) {
-          console.error(`Mermaid rendering failed for diagram ${index}:`, error);
-          // Fallback: show original code block with error message
-          const fallbackContainer = document.createElement('div');
-          fallbackContainer.className = 'mermaid-error';
-          fallbackContainer.innerHTML = `
-            <div style="border: 1px solid #ffcccc; background: #fff5f5; padding: 10px; margin: 10px 0; border-radius: 4px;">
-              <strong style="color: #cc0000;">⚠️ Mermaid Diagram Rendering Error</strong>
-              <details style="margin-top: 8px;">
-                <summary style="cursor: pointer; color: #666;">View diagram code</summary>
-                <pre style="background: #f5f5f5; padding: 10px; margin-top: 8px; border-radius: 4px; overflow-x: auto;"><code class="language-mermaid">${code.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>
-              </details>
-            </div>
-          `;
-          container.replaceWith(fallbackContainer);
-        }
-      }
+      // Process Mermaid diagrams if present (using shared module)
+      await DocLightUtils.renderMermaidDiagrams(contentDiv);
 
       // Add copy buttons to code blocks (same as renderMarkdown)
       addCopyButtons(contentDiv);

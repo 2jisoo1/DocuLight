@@ -14,8 +14,7 @@
   <link rel="stylesheet" href="/css/style.css">
   <!-- Admin-specific styles (override as needed) -->
   <link rel="stylesheet" href="/css/admin.css">
-  <!-- Highlight.js styles -->
-  <link rel="stylesheet" href="/lib/highlight-github.min.css">
+  <%- include('partials/head-libs') %>
   <link rel="icon" href="<%= config.ui?.icon || '/images/icon.png' %>">
 </head>
 <body>
@@ -65,7 +64,12 @@
       <div id="content-placeholder">
         <p>Select a file from the tree</p>
       </div>
-      <div id="file-viewer" style="display: none;"></div>
+      <div id="file-viewer" style="display: none;">
+        <!-- TOC Toggle Button -->
+        <button id="admin-toc-toggle" class="toc-toggle-btn" title="Table of Contents" aria-label="Toggle table of contents">
+          <img src="/images/toc-icon.svg" alt="TOC" width="16" height="16">
+        </button>
+      </div>
 
       <!-- Phase 6: Editor -->
       <div id="editor-container" style="display: none;">
@@ -168,11 +172,18 @@
     </div>
   </div>
 
-  <!-- 스크립트 (로컬 라이브러리 - 일반 뷰어와 동일) -->
-  <script src="/lib/highlight.min.js"></script>
-  <script src="/lib/marked.min.js"></script>
-  <script src="/lib/mermaid.min.js"></script>
-  <script src="/lib/purify.min.js"></script>
+  <!-- TOC Sidebar (Admin) -->
+  <%- include('partials/toc-sidebar', {
+    tocId: 'admin-toc-sidebar',
+    resizerId: 'admin-toc-resizer',
+    closeId: 'admin-toc-close',
+    treeId: 'admin-toc-tree'
+  }) %>
+
+  <!-- TOC Overlay (Mobile) -->
+  <div class="toc-overlay" id="admin-toc-overlay"></div>
+
+  <!-- Admin Script -->
   <script src="/js/admin.js"></script>
 </body>
 </html>
