@@ -886,6 +886,7 @@ body {
 
 #admin-toc-sidebar.visible {
   display: flex;
+  transform: translateX(0);  /* Override style.css .toc-sidebar transform */
 }
 
 /* TOC Resizer */
