@@ -561,11 +561,19 @@ const ViewerModule = {
         return;
       }
 
+      // TOC 토글 버튼 참조
+      const tocToggle = document.getElementById('admin-toc-toggle');
+
       // 파일 유형별 렌더링
       if (path.endsWith('.md')) {
         // 마크다운 렌더링
         await this.renderMarkdown(viewer, result.content);
+        // TOC 토글 버튼 표시
+        if (tocToggle) tocToggle.style.display = 'flex';
       } else if (this.isImageFile(path)) {
+        // TOC 숨기기 (비마크다운 파일)
+        if (tocToggle) tocToggle.style.display = 'none';
+        AdminTOC.hide();
         // 이미지 파일 표시
         const filename = path.split('/').pop();
         viewer.innerHTML = `
@@ -577,9 +585,15 @@ const ViewerModule = {
           </div>
         `;
       } else if (this.isTextFile(path)) {
+        // TOC 숨기기 (비마크다운 파일)
+        if (tocToggle) tocToggle.style.display = 'none';
+        AdminTOC.hide();
         // 텍스트 파일 표시
         viewer.innerHTML = `<pre class="code-block">${this.escapeHtml(result.content)}</pre>`;
       } else {
+        // TOC 숨기기 (비마크다운 파일)
+        if (tocToggle) tocToggle.style.display = 'none';
+        AdminTOC.hide();
         // 지원하지 않는 파일
         const filename = path.split('/').pop();
         viewer.innerHTML = `

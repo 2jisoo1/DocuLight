@@ -61,15 +61,14 @@
 
     <!-- 컨텐츠 -->
     <div id="admin-content">
+      <!-- TOC Toggle Button (outside file-viewer to preserve during content updates) -->
+      <button id="admin-toc-toggle" class="toc-toggle-btn" title="Table of Contents" aria-label="Toggle table of contents" style="display: none;">
+        <img src="/images/toc-icon.svg" alt="TOC" width="16" height="16">
+      </button>
       <div id="content-placeholder">
         <p>Select a file from the tree</p>
       </div>
-      <div id="file-viewer" style="display: none;">
-        <!-- TOC Toggle Button -->
-        <button id="admin-toc-toggle" class="toc-toggle-btn" title="Table of Contents" aria-label="Toggle table of contents">
-          <img src="/images/toc-icon.svg" alt="TOC" width="16" height="16">
-        </button>
-      </div>
+      <div id="file-viewer" style="display: none;"></div>
 
       <!-- Phase 6: Editor -->
       <div id="editor-container" style="display: none;">
