@@ -6,10 +6,32 @@
 
   // API authentication key for write/delete/download operations
   // IMPORTANT: Change this to a secure random string
+  // DEPRECATED: Use apiKeys array instead for multiple users
   apiKey: "CHANGE_THIS_TO_SECURE_KEY",
 
+  // Multiple API keys with permissions (recommended over single apiKey)
+  // Each key can have different permissions and names
+  // If both apiKey and apiKeys exist, apiKeys takes precedence
+  // apiKeys: [
+  //   {
+  //     key: "admin-key-here",           // Required: unique API key
+  //     name: "Admin",                    // Optional: display name (default: "API Key N")
+  //     permissions: ["read", "write", "delete"]  // Optional: permissions (default: all)
+  //   },
+  //   {
+  //     key: "editor-key-here",
+  //     name: "Editor",
+  //     permissions: ["read", "write"]   // Can read and write, but not delete
+  //   },
+  //   {
+  //     key: "reader-key-here",
+  //     name: "Reader",
+  //     permissions: ["read"]            // Read-only access
+  //   }
+  // ],
+
   // Maximum upload file size in megabytes
-  maxUploadMB: 10,
+  maxUploadMB: 1000,
 
   // Port number for the server
   port: 3000,
@@ -100,6 +122,31 @@
   // hotReload: {
   //   allowPortSslAutoRestart: false
   // }
+
+  // Admin Mode settings (optional)
+  // Controls session management and admin capabilities
+  // admin: {
+  //   // Session timeout in milliseconds (default: 3600000 = 1 hour)
+  //   // Minimum: 60000 (1 minute)
+  //   sessionTimeout: 3600000,
+  //
+  //   // Allow file uploads in admin mode (default: true)
+  //   allowUpload: true,
+  //
+  //   // Allow file/folder deletion in admin mode (default: true)
+  //   allowDelete: true,
+  //
+  //   // Maximum upload size in MB (default: same as maxUploadMB)
+  //   maxUploadSize: 10,
+  //
+  //   // File extensions that can be edited in admin mode
+  //   // (default: [".md", ".txt", ".json", ".json5", ".yaml", ".yml"])
+  //   editableExtensions: [".md", ".txt", ".json", ".json5", ".yaml", ".yml"],
+  //
+  //   // Maximum file size for editing in bytes (default: 1048576 = 1MB)
+  //   // Files larger than this cannot be opened in the editor
+  //   maxEditableSize: 1048576
+  // },
 
   // HTML Caching System (Step 13)
   cache: {

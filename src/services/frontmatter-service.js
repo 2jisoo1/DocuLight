@@ -2,13 +2,13 @@
  * Frontmatter 파싱 서비스
  *
  * 지원 형식:
- * ----
+ * ---
  * name: 문서 이름
  * description: 설명
- * ----
+ * ---
  *
  * 규칙:
- * - 구분자: 4개 이상의 하이픈
+ * - 구분자: 3개 이상의 하이픈
  * - 시작/종료 구분자 개수 달라도 됨
  * - 파일 시작 부분에만 존재 (BOM 허용)
  */
@@ -18,14 +18,14 @@ const fs = require('fs').promises;
 /**
  * 정규식 설명:
  * ^(?:\ufeff)?     - 파일 시작 (BOM 선택적 허용)
- * -{4,}            - 4개 이상의 하이픈 (시작 구분자)
+ * -{3,}            - 4개 이상의 하이픈 (시작 구분자)
  * \r?\n            - 줄바꿈 (CRLF 또는 LF)
  * ([\s\S]*?)       - frontmatter 내용 (non-greedy 캡처)
  * \r?\n            - 줄바꿈
- * -{4,}            - 4개 이상의 하이픈 (종료 구분자, 시작과 개수 달라도 됨)
+ * -{3,}            - 4개 이상의 하이픈 (종료 구분자, 시작과 개수 달라도 됨)
  * (?:\r?\n|$)      - 줄바꿈 또는 파일 끝 (frontmatter 후 내용 없어도 됨)
  */
-const FRONTMATTER_REGEX = /^(?:\ufeff)?-{4,}\r?\n([\s\S]*?)\r?\n-{4,}(?:\r?\n|$)/;
+const FRONTMATTER_REGEX = /^(?:\ufeff)?-{3,}\r?\n([\s\S]*?)\r?\n-{3,}(?:\r?\n|$)/;
 
 /**
  * Parse frontmatter from markdown content

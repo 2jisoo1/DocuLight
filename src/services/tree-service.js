@@ -99,11 +99,11 @@ async function getTreeData(config, logger, userPath = '/') {
  * @param {Object} config - Application configuration
  * @param {Object} logger - Logger instance
  * @param {string} startPath - Starting directory path (default: '/')
- * @param {Object} options - Options { maxDepth?: number }
+ * @param {Object} options - Options { maxDepth?: number, includeAllFiles?: boolean, includeMetadata?: boolean }
  * @returns {Promise<Object>} Recursive tree with stats
  */
 async function getFullTreeData(config, logger, startPath = '/', options = {}) {
-  const { maxDepth } = options;
+  const { maxDepth, includeAllFiles = false, includeMetadata = false } = options;
 
   // Validate and convert to absolute path
   const absoluteStart = validatePath(config.docsRoot, startPath);
@@ -144,7 +144,13 @@ async function getFullTreeData(config, logger, startPath = '/', options = {}) {
           ...subTree
         });
       } else if (entry.isFile()) {
+        // Filter non-markdown files unless includeAllFiles is true
+        if (!includeAllFiles && !entry.name.endsWith('.md')) {
+          continue;
+        }
+
         const fileStats = await fs.stat(entryAbsolute);
+        const extension = path.extname(entry.name).toLowerCase();
 
         // Parse frontmatter only for .md files
         let displayName = null;
@@ -155,14 +161,23 @@ async function getFullTreeData(config, logger, startPath = '/', options = {}) {
           description = frontmatter.description;
         }
 
-        files.push({
+        const fileNode = {
           name: entry.name,
           displayName,
           description,
           path: '/' + relativePath.replace(/\\/g, '/'),
           type: 'file',
+          extension,
           size: fileStats.size
-        });
+        };
+
+        // Include metadata if requested
+        if (includeMetadata) {
+          fileNode.modifiedAt = fileStats.mtime.toISOString();
+          fileNode.createdAt = fileStats.birthtime.toISOString();
+        }
+
+        files.push(fileNode);
       }
     }
 

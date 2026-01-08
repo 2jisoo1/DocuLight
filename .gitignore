@@ -30,7 +30,7 @@ coverage/
 *.bak
 *.backup
 *.orig
-*~
+.claude/
 
 # Test results
 test-results/
@@ -40,6 +40,9 @@ test-results/
 
 # HTML Cache (Step 13)
 .cache/
-
 .playwright-mcp/
 trash/
+
+test-source/
+nul
+.github/

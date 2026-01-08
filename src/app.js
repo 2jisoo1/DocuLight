@@ -3,6 +3,7 @@ const http = require('http');
 const https = require('https');
 const path = require('path');
 const fs = require('fs');
+const cookieParser = require('cookie-parser');
 const { loadConfig } = require('./utils/config-loader');
 const { createLogger } = require('./utils/logger');
 const { loadSSLOptions } = require('./utils/ssl-validator');
@@ -12,6 +13,8 @@ const errorHandler = require('./middleware/error-handler');
 const createApiRouter = require('./routes/api');
 const createMcpRouter = require('./routes/mcp');
 const createContextMcpRouter = require('./routes/context-mcp');
+const adminApiRouter = require('./routes/admin-api');
+const sessionService = require('./services/session-service');
 const { getDocumentation } = require('./controllers/doc-controller');
 const { getIndexConfig } = require('./controllers/config-controller');
 const backupUtils = require('./utils/backup-utils');
@@ -39,6 +42,7 @@ app.set('views', path.join(__dirname, 'views'));
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 app.use(express.static(path.join(__dirname, '../public')));
 
 // Dynamic wrappers for middleware that depend on config/logger so they reflect runtime updates
@@ -79,6 +83,9 @@ app.get('/api/documentation/:docType', (req, res, next) => getDocumentation(req,
 
 // Config API endpoints
 app.get('/api/config/index', getIndexConfig);
+
+// Admin API routes (Phase 2: Admin Mode)
+app.use('/api/admin', adminApiRouter);
 
 // Convert file path to web path (e.g., ./public/images/icon.png → /images/icon.png)
 function resolveIconPath(configIconPath) {
@@ -189,6 +196,18 @@ app.get('/doc/*', (req, res) => {
     uiIcon: resolveIconPath(iconPath),
     uiMaxWidth: (cfg.ui && cfg.ui.maxWidth) || '1024px'
   });
+});
+
+// Admin page route (Phase 4: Admin Mode)
+app.get('/admin', (req, res) => {
+  const cfg = req.app.locals.config || {};
+  res.render('admin', { config: cfg });
+});
+
+// Admin SPA routes (client-side routing support)
+app.get('/admin/*', (req, res) => {
+  const cfg = req.app.locals.config || {};
+  res.render('admin', { config: cfg });
 });
 
 // Health check endpoint
@@ -344,6 +363,10 @@ async function start(options = {}) {
 
     logger.info('DocuLight server started', { port: PORT, docsRoot: cfg.docsRoot, ssl: !!(cfg.ssl && cfg.ssl.enabled) });
 
+    // Start session cleanup timer (Phase 2: Admin Mode)
+    sessionService.startCleanupTimer();
+    logger.info('Session cleanup timer started');
+
     // On first successful start, delete any existing .bak (as requested) and then create a fresh backup
     const configPath = path.join(process.cwd(), 'config.json5');
     const backupPath = path.join(process.cwd(), 'config.json5.bak');
@@ -419,6 +442,11 @@ async function stop(timeoutMs = 60000) {
       app.locals.configWatcher.close();
       delete app.locals.configWatcher;
     }
+  } catch (e) { /* ignore */ }
+
+  // Stop session cleanup timer (Phase 2: Admin Mode)
+  try {
+    sessionService.stopCleanupTimer();
   } catch (e) { /* ignore */ }
 
   return result;

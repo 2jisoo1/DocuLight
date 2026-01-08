@@ -18,17 +18,28 @@ function validatePath(rootPath, userPath) {
     return normalizedRoot;
   }
 
-  // Reject absolute paths in userPath (except the special case "/" handled above)
-  if (path.isAbsolute(userPath)) {
-    throw new Error('PATH_TRAVERSAL: Absolute paths are not allowed');
+  // Handle paths starting with '/' as relative to docRoot
+  // This allows API paths like '/test.md' to mean 'docRoot/test.md'
+  let normalizedUserPath = userPath;
+  if (userPath.startsWith('/')) {
+    normalizedUserPath = userPath.substring(1);
+  }
+
+  // Reject truly absolute paths (with drive letters on Windows or not starting with /)
+  if (path.isAbsolute(normalizedUserPath)) {
+    const error = new Error('PATH_TRAVERSAL: Absolute paths are not allowed');
+    error.code = 'PATH_TRAVERSAL';
+    throw error;
   }
 
   // Normalize and resolve the path
-  const resolvedPath = path.resolve(rootPath, userPath);
+  const resolvedPath = path.resolve(rootPath, normalizedUserPath);
 
   // Check if resolved path starts with root path
   if (!resolvedPath.startsWith(normalizedRoot + path.sep) && resolvedPath !== normalizedRoot) {
-    throw new Error('PATH_TRAVERSAL: Access outside docsRoot is not allowed');
+    const error = new Error('PATH_TRAVERSAL: Access outside docsRoot is not allowed');
+    error.code = 'PATH_VIOLATION';
+    throw error;
   }
 
   return resolvedPath;

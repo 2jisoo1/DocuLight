@@ -61,9 +61,13 @@ const AdminTOC = {
   show() {
     const sidebar = document.getElementById('admin-toc-sidebar');
     const overlay = document.getElementById('admin-toc-overlay');
+    const adminContent = document.getElementById('admin-content');
     if (sidebar) {
       sidebar.classList.add('visible');
       this.isVisible = true;
+    }
+    if (adminContent) {
+      adminContent.classList.add('toc-visible');
     }
     if (overlay && window.innerWidth <= 768) {
       overlay.classList.add('visible');
@@ -73,9 +77,13 @@ const AdminTOC = {
   hide() {
     const sidebar = document.getElementById('admin-toc-sidebar');
     const overlay = document.getElementById('admin-toc-overlay');
+    const adminContent = document.getElementById('admin-content');
     if (sidebar) {
       sidebar.classList.remove('visible');
       this.isVisible = false;
+    }
+    if (adminContent) {
+      adminContent.classList.remove('toc-visible');
     }
     if (overlay) {
       overlay.classList.remove('visible');
@@ -561,18 +569,21 @@ const ViewerModule = {
         return;
       }
 
-      // TOC 토글 버튼 참조
+      // TOC 토글 버튼 및 편집 버튼 참조
       const tocToggle = document.getElementById('admin-toc-toggle');
+      const editBtn = document.getElementById('admin-edit-btn');
 
       // 파일 유형별 렌더링
       if (path.endsWith('.md')) {
         // 마크다운 렌더링
         await this.renderMarkdown(viewer, result.content);
-        // TOC 토글 버튼 표시
+        // TOC 토글 버튼 및 편집 버튼 표시
         if (tocToggle) tocToggle.style.display = 'flex';
+        if (editBtn) editBtn.style.display = 'block';
       } else if (this.isImageFile(path)) {
-        // TOC 숨기기 (비마크다운 파일)
+        // TOC 및 편집 버튼 숨기기 (비마크다운 파일)
         if (tocToggle) tocToggle.style.display = 'none';
+        if (editBtn) editBtn.style.display = 'none';
         AdminTOC.hide();
         // 이미지 파일 표시
         const filename = path.split('/').pop();
@@ -585,14 +596,16 @@ const ViewerModule = {
           </div>
         `;
       } else if (this.isTextFile(path)) {
-        // TOC 숨기기 (비마크다운 파일)
+        // TOC 및 편집 버튼 숨기기 (비마크다운 파일)
         if (tocToggle) tocToggle.style.display = 'none';
+        if (editBtn) editBtn.style.display = 'none';
         AdminTOC.hide();
         // 텍스트 파일 표시
         viewer.innerHTML = `<pre class="code-block">${this.escapeHtml(result.content)}</pre>`;
       } else {
-        // TOC 숨기기 (비마크다운 파일)
+        // TOC 및 편집 버튼 숨기기 (비마크다운 파일)
         if (tocToggle) tocToggle.style.display = 'none';
+        if (editBtn) editBtn.style.display = 'none';
         AdminTOC.hide();
         // 지원하지 않는 파일
         const filename = path.split('/').pop();
@@ -673,7 +686,8 @@ const URLModule = {
     const path = window.location.pathname;
     if (path.startsWith('/admin')) {
       const filePath = path.substring('/admin'.length) || '/';
-      return filePath === '' ? '/' : filePath;
+      // URL 디코딩하여 한글 등 인코딩된 문자 처리
+      return filePath === '' ? '/' : decodeURIComponent(filePath);
     }
     return '/';
   },
@@ -1292,12 +1306,17 @@ const EditorModule = {
     const pathEl = document.querySelector('.editor-path');
     const fileViewer = document.getElementById('file-viewer');
     const placeholder = document.getElementById('content-placeholder');
+    const editBtn = document.getElementById('admin-edit-btn');
+    const tocToggle = document.getElementById('admin-toc-toggle');
 
     if (!container || !textarea) return;
 
-    // Hide other content areas
+    // Hide other content areas and buttons
     if (fileViewer) fileViewer.style.display = 'none';
     if (placeholder) placeholder.style.display = 'none';
+    if (editBtn) editBtn.style.display = 'none';
+    if (tocToggle) tocToggle.style.display = 'none';
+    AdminTOC.hide();
 
     // Show editor
     container.style.display = 'flex';
@@ -1582,27 +1601,33 @@ const DragDropModule = {
 
     this.dragSource = path;
 
-    // 드래그 이미지 생성
+    // 드래그 이미지 생성 (동기적으로 처리해야 함)
     const dragImage = this.createDragImage(this.dragPaths);
     document.body.appendChild(dragImage);
     event.dataTransfer.setDragImage(dragImage, 10, 10);
     setTimeout(() => dragImage.remove(), 0);
 
-    // 데이터 설정
+    // 데이터 설정 (동기적으로 처리해야 함)
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', JSON.stringify(this.dragPaths));
 
-    // 드래그 중 스타일
-    this.dragPaths.forEach(p => {
-      const el = document.querySelector(`[data-path="${CSS.escape(p)}"]`);
-      if (el) el.classList.add('dragging');
-    });
+    // 시각적 업데이트는 다음 프레임에서 처리 (브라우저 렌더링 타이밍 이슈 해결)
+    const dragPaths = [...this.dragPaths];
+    requestAnimationFrame(() => {
+      // 드래그 중 스타일
+      dragPaths.forEach(p => {
+        const el = document.querySelector(`[data-path="${CSS.escape(p)}"]`);
+        if (el) {
+          el.classList.add('dragging');
+        }
+      });
 
-    // 부모 이동 드롭존 표시
-    const parentDropZone = document.querySelector('.parent-drop-zone');
-    if (parentDropZone) {
-      parentDropZone.style.display = 'block';
-    }
+      // 부모 이동 드롭존 표시
+      const parentDropZone = document.querySelector('.parent-drop-zone');
+      if (parentDropZone) {
+        parentDropZone.style.display = 'block';
+      }
+    });
   },
 
   // TASK-702: handleDragOver
@@ -2419,6 +2444,16 @@ async function init() {
 
   // TOC 모듈 초기화
   AdminTOC.init();
+
+  // Edit 버튼 이벤트 바인딩
+  const editBtn = document.getElementById('admin-edit-btn');
+  if (editBtn) {
+    editBtn.addEventListener('click', () => {
+      if (AdminState.currentViewPath && AdminState.currentViewPath.endsWith('.md')) {
+        EditorModule.openEditor(AdminState.currentViewPath);
+      }
+    });
+  }
 
   // Mermaid 초기화
   if (typeof mermaid !== 'undefined') {

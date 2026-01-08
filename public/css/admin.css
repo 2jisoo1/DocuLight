@@ -15,6 +15,7 @@
   --sidebar-width: 280px;
   --toolbar-height: 48px;
   --primary-color: #0066cc;
+  --toolbar-bg: #1a1a1a;
   --primary-hover: #0052a3;
   --bg-color: #f5f5f5;
   --sidebar-bg: #fff;
@@ -177,7 +178,7 @@ body {
   justify-content: space-between;
   align-items: center;
   padding: 0 16px;
-  background: var(--primary-color);
+  background: var(--toolbar-bg);
   color: white;
   z-index: 100;
 }
@@ -633,6 +634,7 @@ body {
 /* 드래그 중인 항목 */
 .tree-item.dragging {
   opacity: 0.5;
+  background: rgba(0, 102, 204, 0.1) !important;
 }
 
 /* 유효한 드롭 대상 */
@@ -852,7 +854,7 @@ body {
   border-radius: 4px;
   padding: 6px;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background 0.2s, right 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -861,6 +863,36 @@ body {
 
 #admin-toc-toggle:hover {
   background: var(--hover-bg);
+}
+
+/* Edit Button */
+#admin-edit-btn {
+  position: absolute;
+  top: 12px;
+  right: 52px;
+  z-index: 10;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, right 0.2s;
+}
+
+#admin-edit-btn:hover {
+  background: var(--primary-hover);
+}
+
+/* TOC가 열렸을 때 버튼들 위치 조정 */
+#admin-content.toc-visible #admin-toc-toggle {
+  right: 292px; /* 12px + 280px (TOC width) */
+}
+
+#admin-content.toc-visible #admin-edit-btn {
+  right: 332px; /* 52px + 280px (TOC width) */
 }
 
 #admin-content {
