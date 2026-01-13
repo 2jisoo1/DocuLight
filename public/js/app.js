@@ -1668,6 +1668,13 @@ async function init() {
     const sidebarTitle = document.querySelector('.sidebar-title');
     if (sidebarTitle) {
       sidebarTitle.addEventListener('click', async () => {
+        // Chatbot mode: stay on chatbot (no navigation)
+        if (window.CHATBOT_MODE) {
+          console.log('[app.js] Chatbot mode: sidebar title click - staying on chatbot');
+          window.history.pushState({ chatbot: true }, '', '/');
+          return;
+        }
+
         // Check if index file is configured
         const indexFile = await checkIndexFile();
         if (indexFile) {
@@ -1748,6 +1755,9 @@ async function init() {
           ErrorHandler.showError('Not found', `Path "${pathname}" does not exist`);
         }
       }
+    } else if (window.CHATBOT_MODE) {
+      // Chatbot mode: skip index file loading, chatbot.js handles UI
+      console.log('[app.js] Chatbot mode enabled, skipping markdown initialization');
     } else {
       // Check for configured index file (second priority)
       const indexFile = await checkIndexFile();

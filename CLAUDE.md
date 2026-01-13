@@ -274,6 +274,8 @@ pm2 startup
 
 **Git Workflow**: NEVER commit or push changes without explicit user instruction. Always wait for user to say "커밋" or "commit" before creating commits. Always wait for user to say "푸시" or "push" before pushing to remote.
 
+**Process Management**: NEVER use `taskkill /F /IM node.exe` to kill Node.js processes. This command kills ALL Node.js processes including Claude Code itself, which will terminate the current session. Instead, use `start.bat` and `stop.bat` scripts in the project root for server management, or use PM2 commands (`pm2 stop doclight`, `pm2 restart doclight`).
+
 ### Step 8 Features (Already Implemented)
 - Config hot-reload with file watcher (optional `chokidar`)
 - Backup and rollback functionality

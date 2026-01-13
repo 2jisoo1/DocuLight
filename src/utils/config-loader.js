@@ -199,13 +199,19 @@ function loadConfig() {
 
   // Resolve and validate index file paths
   if (config.ui.indexFile) {
-    const indexPath = resolveIndexPath(config.ui.indexFile, config.docsRoot);
-    if (indexPath && fs.existsSync(indexPath) && indexPath.endsWith('.md')) {
-      config.ui.resolvedIndexFile = indexPath;
-      console.log(`Index file configured: ${config.ui.indexFile}`);
+    // Special value "CHATBOT" enables chatbot mode (FR-CB-015)
+    if (config.ui.indexFile === 'CHATBOT') {
+      config.ui.resolvedIndexFile = 'CHATBOT';
+      console.log(`Index file configured: CHATBOT (chatbot mode enabled)`);
     } else {
-      console.warn(`Index file not found or invalid: ${config.ui.indexFile}, using default welcome screen`);
-      config.ui.resolvedIndexFile = null;
+      const indexPath = resolveIndexPath(config.ui.indexFile, config.docsRoot);
+      if (indexPath && fs.existsSync(indexPath) && indexPath.endsWith('.md')) {
+        config.ui.resolvedIndexFile = indexPath;
+        console.log(`Index file configured: ${config.ui.indexFile}`);
+      } else {
+        console.warn(`Index file not found or invalid: ${config.ui.indexFile}, using default welcome screen`);
+        config.ui.resolvedIndexFile = null;
+      }
     }
   } else {
     config.ui.resolvedIndexFile = null;
@@ -315,6 +321,66 @@ function loadConfig() {
     console.log('✅ SSL certificates validated successfully');
   }
 
+  // Chatbot 설정 검증 (Step 15: RAG Chatbot)
+  if (config.chatbot) {
+    validateChatbotConfig(config.chatbot);
+
+    // RAG 설정 기본값
+    config.chatbot.rag = {
+      chunkSize: 1000,
+      chunkOverlap: 200,
+      retrievalCount: 20,
+      ...config.chatbot.rag
+    };
+
+    // Persistence 설정 기본값 및 경로 처리
+    config.chatbot.rag.persistence = {
+      dataDir: './data/vector',
+      autoCompact: true,
+      compactThreshold: 0.3,
+      syncOnStartup: true,
+      batchSize: 50,
+      ...config.chatbot.rag.persistence
+    };
+
+    // dataDir 절대 경로 변환
+    const persistenceDataDir = config.chatbot.rag.persistence.dataDir;
+    config.chatbot.rag.persistence.dataDir = path.isAbsolute(persistenceDataDir)
+      ? persistenceDataDir
+      : path.resolve(process.cwd(), persistenceDataDir);
+
+    // persistence 설정 검증
+    validatePersistenceConfig(config.chatbot.rag.persistence);
+
+    // Context 설정 기본값
+    config.chatbot.context = {
+      compressionThreshold: 0.7,
+      compressionTarget: 0.1,
+      ...config.chatbot.context
+    };
+
+    // 시스템 프롬프트 기본값
+    config.chatbot.systemPrompt = config.chatbot.systemPrompt || '';
+
+    // Client 설정 기본값 (브라우저로 전달)
+    config.chatbot.client = {
+      timeout: 300000,        // 5분 기본값
+      keepAliveInterval: 30000,  // 30초 기본값
+      ...config.chatbot.client
+    };
+
+    // Client 설정 검증
+    validateClientConfig(config.chatbot.client);
+
+    // Note: ChatbotService is only initialized when ui.indexFile === "CHATBOT"
+    const isChatbotMode = config.ui?.indexFile === 'CHATBOT';
+    if (isChatbotMode) {
+      console.log(`✅ Chatbot enabled: LLM=${config.chatbot.llm.type}, Embedding=${config.chatbot.embedding.type}`);
+    } else {
+      console.log(`ℹ️ Chatbot configured but not enabled (set ui.indexFile="CHATBOT" to enable)`);
+    }
+  }
+
   return config;
 }
 
@@ -357,6 +423,223 @@ function resolveDocPath(docPath) {
 
   // Resolve relative to project root
   return path.join(process.cwd(), cleanPath);
+}
+
+/**
+ * Validate chatbot configuration (Step 15: RAG Chatbot)
+ * @param {Object} chatbotConfig - chatbot configuration object
+ * @throws {Error} If chatbot configuration is invalid
+ */
+function validateChatbotConfig(chatbotConfig) {
+  if (!chatbotConfig) return;
+
+  const validLLMTypes = ['openai', 'azure-openai', 'ollama'];
+  const errors = [];
+
+  // LLM 설정 검증
+  if (!chatbotConfig.llm) {
+    errors.push('chatbot.llm is required');
+  } else {
+    const llm = chatbotConfig.llm;
+
+    if (!llm.type) {
+      errors.push('chatbot.llm.type is required');
+    } else if (!validLLMTypes.includes(llm.type)) {
+      errors.push(`chatbot.llm.type must be one of: ${validLLMTypes.join(', ')}`);
+    }
+
+    if (!llm.endpoint) {
+      errors.push('chatbot.llm.endpoint is required');
+    }
+
+    if (!llm.model) {
+      errors.push('chatbot.llm.model is required');
+    }
+
+    // OpenAI, Azure는 apiKey 필수
+    if (llm.type !== 'ollama' && !llm.apiKey) {
+      errors.push('chatbot.llm.apiKey is required for openai/azure-openai');
+    }
+
+    // Azure 전용 필드
+    if (llm.type === 'azure-openai' && !llm.deploymentName) {
+      errors.push('chatbot.llm.deploymentName is required for azure-openai');
+    }
+
+    // contextLength 검증 (선택적)
+    if (llm.contextLength !== undefined) {
+      if (typeof llm.contextLength !== 'number' || llm.contextLength < 1000) {
+        errors.push('chatbot.llm.contextLength must be a number >= 1000');
+      }
+    }
+
+    // temperature 검증
+    if (llm.temperature !== undefined) {
+      if (typeof llm.temperature !== 'number' || llm.temperature < 0 || llm.temperature > 2) {
+        errors.push('chatbot.llm.temperature must be a number between 0 and 2');
+      }
+    }
+  }
+
+  // Embedding 설정 검증
+  if (!chatbotConfig.embedding) {
+    errors.push('chatbot.embedding is required');
+  } else {
+    const embedding = chatbotConfig.embedding;
+
+    if (!embedding.type) {
+      errors.push('chatbot.embedding.type is required');
+    } else if (!validLLMTypes.includes(embedding.type)) {
+      errors.push(`chatbot.embedding.type must be one of: ${validLLMTypes.join(', ')}`);
+    }
+
+    if (!embedding.endpoint) {
+      errors.push('chatbot.embedding.endpoint is required');
+    }
+
+    // OpenAI, Azure는 apiKey 필수
+    if (embedding.type !== 'ollama' && !embedding.apiKey) {
+      errors.push('chatbot.embedding.apiKey is required for openai/azure-openai');
+    }
+
+    // Azure 전용 필드
+    if (embedding.type === 'azure-openai' && !embedding.deploymentName) {
+      errors.push('chatbot.embedding.deploymentName is required for azure-openai');
+    }
+  }
+
+  // RAG 설정 검증 (선택적)
+  if (chatbotConfig.rag) {
+    const rag = chatbotConfig.rag;
+
+    if (rag.chunkSize !== undefined) {
+      if (typeof rag.chunkSize !== 'number' || rag.chunkSize < 100) {
+        errors.push('chatbot.rag.chunkSize must be a number >= 100');
+      }
+    }
+
+    if (rag.chunkOverlap !== undefined) {
+      if (typeof rag.chunkOverlap !== 'number' || rag.chunkOverlap < 0) {
+        errors.push('chatbot.rag.chunkOverlap must be a non-negative number');
+      }
+    }
+
+    if (rag.retrievalCount !== undefined) {
+      if (typeof rag.retrievalCount !== 'number' || rag.retrievalCount < 1) {
+        errors.push('chatbot.rag.retrievalCount must be a number >= 1');
+      }
+    }
+  }
+
+  // Context 설정 검증 (선택적)
+  if (chatbotConfig.context) {
+    const context = chatbotConfig.context;
+
+    if (context.compressionThreshold !== undefined) {
+      if (typeof context.compressionThreshold !== 'number' ||
+          context.compressionThreshold < 0 || context.compressionThreshold > 1) {
+        errors.push('chatbot.context.compressionThreshold must be a number between 0 and 1');
+      }
+    }
+
+    if (context.compressionTarget !== undefined) {
+      if (typeof context.compressionTarget !== 'number' ||
+          context.compressionTarget < 0 || context.compressionTarget > 1) {
+        errors.push('chatbot.context.compressionTarget must be a number between 0 and 1');
+      }
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error('Chatbot configuration error:\n  • ' + errors.join('\n  • '));
+  }
+}
+
+/**
+ * Validate persistence configuration for vector store
+ * @param {Object} persistenceConfig - persistence configuration object
+ * @throws {Error} If persistence configuration is invalid
+ */
+function validatePersistenceConfig(persistenceConfig) {
+  if (!persistenceConfig) return;
+
+  const errors = [];
+
+  // dataDir 검증
+  if (!persistenceConfig.dataDir || typeof persistenceConfig.dataDir !== 'string') {
+    errors.push('chatbot.rag.persistence.dataDir must be a non-empty string');
+  }
+
+  // autoCompact 검증
+  if (persistenceConfig.autoCompact !== undefined &&
+      typeof persistenceConfig.autoCompact !== 'boolean') {
+    errors.push('chatbot.rag.persistence.autoCompact must be a boolean');
+  }
+
+  // compactThreshold 검증
+  if (persistenceConfig.compactThreshold !== undefined) {
+    if (typeof persistenceConfig.compactThreshold !== 'number' ||
+        persistenceConfig.compactThreshold < 0 ||
+        persistenceConfig.compactThreshold > 1) {
+      errors.push('chatbot.rag.persistence.compactThreshold must be a number between 0 and 1');
+    }
+  }
+
+  // syncOnStartup 검증
+  if (persistenceConfig.syncOnStartup !== undefined &&
+      typeof persistenceConfig.syncOnStartup !== 'boolean') {
+    errors.push('chatbot.rag.persistence.syncOnStartup must be a boolean');
+  }
+
+  // batchSize 검증
+  if (persistenceConfig.batchSize !== undefined) {
+    if (typeof persistenceConfig.batchSize !== 'number' ||
+        persistenceConfig.batchSize < 1 ||
+        persistenceConfig.batchSize > 1000) {
+      errors.push('chatbot.rag.persistence.batchSize must be a number between 1 and 1000');
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error('Persistence configuration error:\n  • ' + errors.join('\n  • '));
+  }
+
+  console.log(`✅ Vector store persistence: ${persistenceConfig.dataDir}`);
+}
+
+/**
+ * Validate client configuration for chatbot
+ * @param {Object} clientConfig - client configuration object
+ * @throws {Error} If client configuration is invalid
+ */
+function validateClientConfig(clientConfig) {
+  if (!clientConfig) return;
+
+  const errors = [];
+
+  // timeout 검증 (0 = 무제한, 최소 10초)
+  if (clientConfig.timeout !== undefined) {
+    if (typeof clientConfig.timeout !== 'number') {
+      errors.push('chatbot.client.timeout must be a number');
+    } else if (clientConfig.timeout !== 0 && clientConfig.timeout < 10000) {
+      errors.push('chatbot.client.timeout must be 0 (no timeout) or >= 10000ms (10 seconds)');
+    } else if (clientConfig.timeout > 3600000) {
+      console.warn('Warning: chatbot.client.timeout is very high (> 1 hour). This may cause issues.');
+    }
+  }
+
+  // keepAliveInterval 검증 (0 = 비활성화, 최소 5초)
+  if (clientConfig.keepAliveInterval !== undefined) {
+    if (typeof clientConfig.keepAliveInterval !== 'number') {
+      errors.push('chatbot.client.keepAliveInterval must be a number');
+    } else if (clientConfig.keepAliveInterval !== 0 && clientConfig.keepAliveInterval < 5000) {
+      errors.push('chatbot.client.keepAliveInterval must be 0 (disabled) or >= 5000ms (5 seconds)');
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error('Client configuration error:\n  • ' + errors.join('\n  • '));
+  }
 }
 
 module.exports = { loadConfig };

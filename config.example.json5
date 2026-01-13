@@ -52,6 +52,9 @@
 
     // Index file to auto-load on startup (optional)
     // Use relative path from docsRoot (e.g., "README.md", "guide/index.md")
+    // Special value "CHATBOT": enables chatbot mode as the main page
+    //   - ChatbotService will be initialized
+    //   - / route redirects to /chatbot
     // If not specified or file doesn't exist, shows welcome screen
     indexFile: "README.md",
 
@@ -195,5 +198,185 @@
     // Files not accessed for this many days will be deleted
     // Set to 0 to disable cleanup
     cleanupAfterDays: 30
-  }
+  },
+
+  // RAG Chatbot Configuration (Step 15)
+  // Enable AI-powered document Q&A chatbot
+  // chatbot: {
+  //   // LLM Configuration
+  //   llm: {
+  //     // Provider type: "openai" | "azure-openai" | "ollama"
+  //     type: "azure-openai",
+  //
+  //     // API endpoint
+  //     // - OpenAI: "https://api.openai.com/v1"
+  //     // - Azure: "https://<resource>.openai.azure.com"
+  //     // - Ollama: "http://localhost:11434"
+  //     endpoint: "https://your-resource.openai.azure.com",
+  //
+  //     // API key (leave empty for Ollama)
+  //     apiKey: "your-api-key-here",
+  //
+  //     // Model name
+  //     model: "gpt-4o",
+  //
+  //     // Azure OpenAI specific: deployment name (required for azure-openai)
+  //     deploymentName: "gpt-4o",
+  //
+  //     // Context window size in tokens
+  //     contextLength: 128000,
+  //
+  //     // Generation temperature (0-2, default: 0.7)
+  //     temperature: 0.7,
+  //
+  //     // Maximum output tokens (default: 4096)
+  //     maxTokens: 4096
+  //   },
+  //
+  //   // Embedding Configuration
+  //   embedding: {
+  //     // Provider type: "openai" | "azure-openai" | "ollama"
+  //     type: "azure-openai",
+  //
+  //     // API endpoint
+  //     endpoint: "https://your-resource.openai.azure.com",
+  //
+  //     // API key (leave empty for Ollama)
+  //     apiKey: "your-api-key-here",
+  //
+  //     // Model name
+  //     model: "text-embedding-3-small",
+  //
+  //     // Azure OpenAI specific: deployment name (required for azure-openai)
+  //     deploymentName: "text-embedding-3-small"
+  //   },
+  //
+  //   // RAG Settings (optional)
+  //   rag: {
+  //     // Document chunk size in characters (default: 1000)
+  //     chunkSize: 1000,
+  //
+  //     // Overlap between chunks (default: 200)
+  //     chunkOverlap: 200,
+  //
+  //     // Number of documents to retrieve (default: 20)
+  //     retrievalCount: 20,
+  //
+  //     // Minimum similarity score for retrieved documents (default: 0.3)
+  //     // Documents with similarity below this threshold are excluded from RAG
+  //     // Range: 0.0 - 1.0 (higher = more strict filtering)
+  //     // Recommended: 0.3 for general use, 0.5 for stricter relevance
+  //     minSimilarityScore: 0.3,
+  //
+  //     // Vector Store Persistence Settings (HNSWLib)
+  //     // Enables persistent storage of document embeddings
+  //     persistence: {
+  //       // Directory for vector store data (relative or absolute path)
+  //       // Default: "./data/vector"
+  //       dataDir: "./data/vector",
+  //
+  //       // Enable automatic compaction when deleted document ratio exceeds threshold
+  //       // Default: true
+  //       autoCompact: true,
+  //
+  //       // Compaction threshold (0.0 - 1.0)
+  //       // Triggers full rebuild when deleted ratio >= this value
+  //       // Default: 0.3 (30%)
+  //       compactThreshold: 0.3,
+  //
+  //       // Sync documents with file system on server startup
+  //       // Default: true
+  //       syncOnStartup: true,
+  //
+  //       // Batch size for document processing during sync
+  //       // Higher values use more memory but sync faster
+  //       // Default: 50
+  //       batchSize: 50
+  //     }
+  //   },
+  //
+  //   // Context Management (optional)
+  //   context: {
+  //     // Trigger compression when context exceeds this ratio (default: 0.7)
+  //     compressionThreshold: 0.7,
+  //
+  //     // Target compression ratio (default: 0.1)
+  //     compressionTarget: 0.1
+  //   },
+  //
+  //   // Self-Correcting RAG Settings (Step 16)
+  //   // Improves answer quality by evaluating and re-trying with RAG when needed
+  //   selfCorrection: {
+  //     // Enable Self-Correcting RAG workflow (default: true)
+  //     // When enabled, answers are first generated without RAG (fast path),
+  //     // then evaluated. If answer quality is insufficient, RAG is used.
+  //     enabled: true,
+  //
+  //     // Maximum retry count for self-correction (default: 2)
+  //     // Prevents infinite loops in the workflow
+  //     maxRetries: 2,
+  //
+  //     // Conversation history limit for context (default: 10)
+  //     // Number of previous messages to include in the workflow
+  //     historyLimit: 10,
+  //
+  //     // Evaluation confidence threshold (default: 0.7)
+  //     // Below this threshold, answer may be re-evaluated
+  //     evaluationThreshold: 0.7
+  //   },
+  //
+  //   // Multi-Document Summarization Settings (Step 17)
+  //   // Enables user requirement parsing and map-reduce summarization
+  //   summarization: {
+  //     // Enable enhanced summarization (default: true)
+  //     // When enabled, user requirements like "1500자 이상" are parsed
+  //     // and applied to summary generation
+  //     enabled: true,
+  //
+  //     // Document count threshold for map-reduce (default: 5)
+  //     // If retrieved documents exceed this, use map-reduce pattern
+  //     // Below this threshold, documents are summarized directly
+  //     mapReduceThreshold: 5,
+  //
+  //     // Maximum tokens per document group (default: 4000)
+  //     // Documents are grouped by token budget for partial summarization
+  //     maxTokensPerGroup: 4000,
+  //
+  //     // Maximum parallel map operations (default: 3)
+  //     // Higher values = faster processing but more API calls
+  //     maxParallelMaps: 3,
+  //
+  //     // Default format when not specified (default: "bullet_points")
+  //     // Options: "bullet_points", "numbered_list", "table", "prose", "brief"
+  //     defaultFormat: "bullet_points",
+  //
+  //     // Validate output length against requirements (default: true)
+  //     // If output doesn't meet length constraint, retry with adjusted prompt
+  //     validateLength: true,
+  //
+  //     // Maximum retries for length validation (default: 2)
+  //     lengthValidationRetries: 2
+  //   },
+  //
+  //   // Client-side settings (passed to browser)
+  //   client: {
+  //     // Request timeout in milliseconds (default: 300000 = 5 minutes)
+  //     // Increase this value for slow LLM backends (e.g., local vLLM)
+  //     // Recommended values:
+  //     //   - 60000 (1 min): Fast cloud APIs (OpenAI, Azure)
+  //     //   - 300000 (5 min): Default, balanced
+  //     //   - 600000 (10 min): Slow local LLMs
+  //     //   - 0: No timeout (not recommended)
+  //     timeout: 300000,
+  //
+  //     // Keep-alive interval in milliseconds (default: 30000 = 30 seconds)
+  //     // Server sends periodic heartbeat to prevent connection timeout
+  //     // Set to 0 to disable keep-alive
+  //     keepAliveInterval: 30000
+  //   },
+  //
+  //   // Custom system prompt (optional)
+  //   // Leave empty to use default RAG prompt
+  //   systemPrompt: ""
+  // }
 }

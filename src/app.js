@@ -14,12 +14,14 @@ const createApiRouter = require('./routes/api');
 const createMcpRouter = require('./routes/mcp');
 const createContextMcpRouter = require('./routes/context-mcp');
 const adminApiRouter = require('./routes/admin-api');
+const chatbotRoutes = require('./routes/chatbot');
 const sessionService = require('./services/session-service');
 const { getDocumentation } = require('./controllers/doc-controller');
 const { getIndexConfig } = require('./controllers/config-controller');
 const backupUtils = require('./utils/backup-utils');
 const { createConfigWatcher } = require('./utils/config-watcher');
 const CacheManager = require('./services/cache-manager');
+const { ChatbotService } = require('./services/chatbot');
 
 // Runtime state
 let config;
@@ -87,6 +89,9 @@ app.get('/api/config/index', getIndexConfig);
 // Admin API routes (Phase 2: Admin Mode)
 app.use('/api/admin', adminApiRouter);
 
+// Chatbot API routes (Step 15: RAG Chatbot)
+app.use('/api/chatbot', chatbotRoutes);
+
 // Convert file path to web path (e.g., ./public/images/icon.png → /images/icon.png)
 function resolveIconPath(configIconPath) {
   if (!configIconPath) {
@@ -116,12 +121,37 @@ function resolveIconPath(configIconPath) {
 app.get('/', (req, res) => {
   const cfg = req.app.locals.config || {};
   const iconPath = (cfg.ui && cfg.ui.icon) || './public/images/icon.png';
-  res.render('index', {
-    title: 'DocuLight - Markdown Viewer',
-    uiTitle: (cfg.ui && cfg.ui.title) || 'DocuLight',
-    uiIcon: resolveIconPath(iconPath),
-    uiMaxWidth: (cfg.ui && cfg.ui.maxWidth) || '1024px'
-  });
+  const isChatbotMode = cfg.ui?.indexFile === 'CHATBOT';
+
+  // Chatbot mode: show chatbot UI in main content area (FR-CB-015)
+  if (isChatbotMode) {
+    // Client config for chatbot (timeout settings)
+    const clientConfig = cfg.chatbot && cfg.chatbot.client ? {
+      timeout: cfg.chatbot.client.timeout,
+      keepAliveInterval: cfg.chatbot.client.keepAliveInterval
+    } : {
+      timeout: 300000,        // 5분 기본값
+      keepAliveInterval: 30000  // 30초 기본값
+    };
+
+    res.render('index', {
+      title: 'DocuLight - Chatbot',
+      uiTitle: (cfg.ui && cfg.ui.title) || 'DocuLight',
+      uiIcon: resolveIconPath(iconPath),
+      uiMaxWidth: (cfg.ui && cfg.ui.maxWidth) || '1024px',
+      chatbotMode: true,
+      clientConfig: JSON.stringify(clientConfig)
+    });
+  } else {
+    res.render('index', {
+      title: 'DocuLight - Markdown Viewer',
+      uiTitle: (cfg.ui && cfg.ui.title) || 'DocuLight',
+      uiIcon: resolveIconPath(iconPath),
+      uiMaxWidth: (cfg.ui && cfg.ui.maxWidth) || '1024px',
+      chatbotMode: false,
+      clientConfig: null
+    });
+  }
 });
 
 // Raw file download route (must be before /doc/*)
@@ -210,6 +240,27 @@ app.get('/admin/*', (req, res) => {
   res.render('admin', { config: cfg });
 });
 
+// Chatbot page route (Step 15: RAG Chatbot)
+app.get('/chatbot', (req, res) => {
+  const cfg = req.app.locals.config || {};
+  const iconPath = (cfg.ui && cfg.ui.icon) || './public/images/icon.png';
+
+  // Client config for chatbot (timeout settings)
+  const clientConfig = cfg.chatbot && cfg.chatbot.client ? {
+    timeout: cfg.chatbot.client.timeout,
+    keepAliveInterval: cfg.chatbot.client.keepAliveInterval
+  } : {
+    timeout: 300000,        // 5분 기본값
+    keepAliveInterval: 30000  // 30초 기본값
+  };
+
+  res.render('chatbot', {
+    title: (cfg.ui && cfg.ui.title) || 'DocuLight',
+    icon: resolveIconPath(iconPath),
+    clientConfig: JSON.stringify(clientConfig)
+  });
+});
+
 // Health check endpoint
 app.get('/healthz', (req, res) => {
   res.status(200).json({ status: 'OK', timestamp: new Date().toISOString(), uptime: process.uptime() });
@@ -249,6 +300,26 @@ async function start(options = {}) {
       }
     } else {
       logger.info('Cache manager disabled (cache.enabled = false)');
+    }
+
+    // Initialize ChatbotService (Step 15: RAG Chatbot)
+    // Only initialize when ui.indexFile === "CHATBOT" (FR-CB-015)
+    const isChatbotMode = cfg.ui?.indexFile === 'CHATBOT';
+    if (isChatbotMode && cfg.chatbot) {
+      try {
+        const chatbotService = new ChatbotService(cfg, logger);
+        await chatbotService.initialize();
+        app.locals.chatbotService = chatbotService;
+        logger.info('ChatbotService initialized', {
+          llm: cfg.chatbot.llm?.type,
+          embedding: cfg.chatbot.embedding?.type
+        });
+      } catch (error) {
+        logger.error('Failed to initialize ChatbotService', { error: error.message });
+        // Continue without chatbot - API will return 503
+      }
+    } else {
+      logger.info('ChatbotService disabled (ui.indexFile !== "CHATBOT")');
     }
 
     // Mount API routers once using the loaded config

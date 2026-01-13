@@ -11,6 +11,9 @@
     }
   </style>
   <link rel="stylesheet" href="/css/style.css">
+  <% if (typeof chatbotMode !== 'undefined' && chatbotMode) { %>
+  <link rel="stylesheet" href="/css/chatbot.css">
+  <% } %>
   <%- include('partials/head-libs') %>
 </head>
 <body>
@@ -99,12 +102,80 @@
         </button>
       </div>
       <div class="markdown-content" id="markdown-content">
+        <% if (typeof chatbotMode !== 'undefined' && chatbotMode) { %>
+        <!-- Chatbot UI (FR-CB-015: indexFile="CHATBOT" mode) -->
+        <div class="chatbot-embedded" id="chatbot-embedded">
+          <!-- Messages Area with wrapper for rightmost scrollbar -->
+          <div class="chatbot-messages-wrapper">
+            <div class="chatbot-messages" id="messagesContainer">
+              <!-- Centered Welcome Message -->
+              <div class="chatbot-welcome-center" id="chatbotWelcome">
+                <h2>Ask anything about your documents</h2>
+                <p>Type a question below to get started</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Workflow Indicator -->
+          <div class="workflow-indicator" id="workflowIndicator" style="display: none;">
+            <div class="workflow-step">
+              <span class="step-icon">
+                <svg class="spinner" width="16" height="16" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="60" stroke-dashoffset="45"/>
+                </svg>
+              </span>
+              <span class="step-text" id="workflowStep">Processing...</span>
+            </div>
+            <div class="retrieval-info" id="retrievalInfo" style="display: none;">
+              <span class="retrieval-icon">&#128196;</span>
+              <span id="retrievalText">Found documents</span>
+            </div>
+          </div>
+
+          <!-- Input Area -->
+          <div class="chatbot-input">
+            <form id="chatForm" class="input-form">
+              <div class="chatbot-controls">
+                <label class="thinking-toggle" title="Enable Thinking Mode for complex questions">
+                  <input type="checkbox" id="thinkingMode" checked>
+                  <span class="toggle-label">Thinking</span>
+                  <span class="toggle-switch"></span>
+                </label>
+                <button type="button" id="newSessionBtn" class="btn-new-session" title="Start new conversation">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 5v14M5 12h14"/>
+                  </svg>
+                  New
+                </button>
+              </div>
+              <div class="input-wrapper">
+                <textarea
+                  id="messageInput"
+                  placeholder="Type your message..."
+                  rows="1"
+                  maxlength="4000"
+                  autofocus
+                ></textarea>
+                <button type="submit" id="sendBtn" class="btn-send" title="Send message">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+                  </svg>
+                </button>
+              </div>
+              <div class="input-hint">
+                <span>Press <kbd>Enter</kbd> to send, <kbd>Shift+Enter</kbd> for new line</span>
+              </div>
+            </form>
+          </div>
+        </div>
+        <% } else { %>
         <div class="welcome">
           <div class="welcome-header">
             <h1>Welcome to DocuLight</h1>
             <p class="welcome-subtitle">A lightweight Markdown documentation viewer and management system</p>
           </div>
         </div>
+        <% } %>
       </div>
     </main>
 
@@ -129,5 +200,13 @@
   </div>
 
   <script src="/js/app.js"></script>
+  <% if (typeof chatbotMode !== 'undefined' && chatbotMode) { %>
+  <script>
+    // Chatbot mode configuration (FR-CB-015)
+    window.CHATBOT_MODE = true;
+    window.CHATBOT_CONFIG = <%- clientConfig || '{"timeout":300000,"keepAliveInterval":30000}' %>;
+  </script>
+  <script src="/js/chatbot.js"></script>
+  <% } %>
 </body>
 </html>
