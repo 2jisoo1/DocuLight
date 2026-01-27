@@ -419,6 +419,7 @@ async function start(options = {}) {
     logger.info('Error handler mounted');
 
     const PORT = cfg.port || 3000;
+    const HOST = process.env.HOST || cfg.host || '0.0.0.0';
 
     if (cfg.ssl && cfg.ssl.enabled) {
       const sslOptions = loadSSLOptions(cfg.ssl);
@@ -429,10 +430,10 @@ async function start(options = {}) {
 
     await new Promise((resolve, reject) => {
       server.once('error', (err) => reject(err));
-      server.listen(PORT, () => resolve());
+      server.listen(PORT, HOST, () => resolve());
     });
 
-    logger.info('DocuLight server started', { port: PORT, docsRoot: cfg.docsRoot, ssl: !!(cfg.ssl && cfg.ssl.enabled) });
+    logger.info('DocuLight server started', { host: HOST, port: PORT, docsRoot: cfg.docsRoot, ssl: !!(cfg.ssl && cfg.ssl.enabled) });
 
     // Start session cleanup timer (Phase 2: Admin Mode)
     sessionService.startCleanupTimer();

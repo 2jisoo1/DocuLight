@@ -96,10 +96,12 @@
         <div class="breadcrumb" id="breadcrumb">
           <span>Select a document</span>
         </div>
+        <% if (typeof chatbotMode === 'undefined' || !chatbotMode) { %>
         <!-- TOC Toggle Button (Step 12: Phase 1) -->
         <button id="toc-toggle-btn" class="toc-toggle-btn" title="Table of Contents" aria-label="Toggle table of contents">
           <img src="/images/toc-icon.svg" alt="TOC" width="16" height="16">
         </button>
+        <% } %>
       </div>
       <div class="markdown-content" id="markdown-content">
         <% if (typeof chatbotMode !== 'undefined' && chatbotMode) { %>

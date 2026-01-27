@@ -5,7 +5,7 @@
   "main": "src/app.js",
   "scripts": {
     "start": "node src/app.js",
-    "dev": "nodemon src/app.js",
+    "dev": "cross-env HOST=0.0.0.0 nodemon src/app.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "test:startstop": "node test/test-start-stop.js",
     "test:watcher": "node test/test-watcher-restart.js"
@@ -20,7 +20,6 @@
   "license": "ISC",
   "dependencies": {
     "@langchain/community": "^0.3.26",
-    "hnswlib-node": "^3.0.0",
     "@langchain/core": "^1.1.11",
     "@langchain/langgraph": "^1.0.7",
     "@langchain/ollama": "^1.1.0",
@@ -34,6 +33,7 @@
     "ejs": "^3.1.9",
     "express": "^4.18.2",
     "highlight.js": "^11.11.1",
+    "hnswlib-node": "^3.0.0",
     "ignore": "^5.3.0",
     "jsdom": "^27.3.0",
     "json5": "^2.2.3",
@@ -50,6 +50,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",
+    "cross-env": "^7.0.3",
     "nodemon": "^3.0.2",
     "playwright": "^1.56.1"
   },

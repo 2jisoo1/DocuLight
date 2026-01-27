@@ -7,6 +7,7 @@
  */
 
 const crypto = require("crypto");
+const AsyncLock = require("async-lock");
 const { HumanMessage, AIMessage } = require("@langchain/core/messages");
 const { createLLM } = require("./llm-factory");
 const { createEmbeddings } = require("./embedding-factory");
@@ -44,6 +45,9 @@ class ChatbotService {
     // 세션 관리
     this.sessions = new Map();
     this.conversationManager = null;
+
+    // 동시성 제어를 위한 락 (60초 타임아웃)
+    this.sessionLock = new AsyncLock({ timeout: 60000 });
 
     // 상태
     this.isInitialized = false;
@@ -311,137 +315,145 @@ class ChatbotService {
       onToken
     } = options;
 
-    // 세션 확인 또는 생성
+    // 세션 확인 또는 생성 (락 외부에서 수행)
     if (!this.sessions.has(sessionId)) {
       sessionId = this.createSession();
     }
 
-    const session = this.sessions.get(sessionId);
+    // 동일 세션에 대한 요청은 순차 처리 (동시성 제어)
+    return this.sessionLock.acquire(sessionId, async () => {
+      const session = this.sessions.get(sessionId);
 
-    // Step 16: 대화 히스토리를 LangChain 메시지로 변환
-    const selfCorrectionConfig = this.config.chatbot?.selfCorrection || {};
-    const historyLimit = selfCorrectionConfig.historyLimit || 10;
-    const previousMessages = session.messages
-      .slice(-historyLimit)
-      .map(msg =>
-        msg.role === 'user'
-          ? new HumanMessage(msg.content)
-          : new AIMessage(msg.content)
-      );
-
-    // 입력 상태 구성 (이전 메시지 포함)
-    const input = {
-      messages: [...previousMessages, new HumanMessage(message)],
-      thinkingMode
-    };
-
-    // 그래프 선택 (Self-Correcting > Thinking > 기본)
-    const selfCorrectionEnabled = selfCorrectionConfig.enabled !== false;
-    let graph;
-    if (selfCorrectionEnabled && this.selfCorrectingGraph && !thinkingMode) {
-      graph = this.selfCorrectingGraph;
-      this.logger?.debug("Using Self-Correcting RAG graph");
-    } else if (thinkingMode) {
-      graph = this.thinkingGraph;
-      this.logger?.debug("Using Thinking Mode graph");
-    } else {
-      graph = this.graph;
-      this.logger?.debug("Using standard graph");
-    }
-
-    try {
-      onStep?.("classifyQuery", "Analyzing your question...");
-
-      // 그래프 스트리밍 실행
-      const streamConfig = {
-        streamMode: "values",
-        configurable: { thread_id: sessionId }
-      };
-
-      let finalState = null;
-      let lastStep = "";
-      let iterationCount = 0;
-
-      this.logger?.info(`Starting graph.stream with input: ${JSON.stringify({ messages: input.messages.length, thinkingMode: input.thinkingMode })}`);
-
-      const stream = await graph.stream(input, streamConfig);
-      this.logger?.info(`Stream created, starting iteration...`);
-
-      for await (const state of stream) {
-        iterationCount++;
-        this.logger?.info(`Stream iteration ${iterationCount}: currentStep=${state.currentStep}, queryType=${state.queryType}, messages=${state.messages?.length || 0}`);
-
-        finalState = state;
-
-        // 단계 진행 알림
-        if (state.currentStep && state.currentStep !== lastStep) {
-          lastStep = state.currentStep;
-          const stepMessage = this.getStepMessage(state.currentStep);
-          this.logger?.info(`Step changed: ${state.currentStep} -> ${stepMessage}`);
-          onStep?.(state.currentStep, stepMessage);
-        }
-
-        // 검색 결과 알림
-        if (state.retrievedDocs && state.currentStep === "retrieveDocs") {
-          this.logger?.info(`Retrieved ${state.retrievedDocs.length} documents`);
-          onRetrieval?.(state.retrievedDocs);
-        }
-
-        // Thinking 모드 알림
-        if (thinkingMode) {
-          if (state.thinkingAnalysis && state.currentStep === "analyzeQuestion") {
-            onThinking?.("analyze", `Question type: ${state.thinkingAnalysis.questionType}`);
-          }
-          if (state.thinkingPlan && state.currentStep === "planStrategy") {
-            onThinking?.("plan", `Strategy: ${state.thinkingPlan.strategy}`);
-          }
-        }
-
-        // 참고: 중간 답변 전송 제거 (Self-Correcting RAG에서 잘못된 첫 답변 방지)
-        // 최종 응답은 스트림 완료 후 finalState에서 전송
+      // 세션이 삭제된 경우 (다른 요청에서 삭제됨)
+      if (!session) {
+        throw new Error(`Session ${sessionId} not found`);
       }
 
-      // 스트림 완료 후 최종 응답만 전송 (중간 답변 제외)
-      if (finalState && finalState.messages && finalState.messages.length > 0) {
-        const lastMessage = finalState.messages[finalState.messages.length - 1];
-        if (lastMessage instanceof AIMessage) {
-          this.logger?.info(`Sending final AI response: ${lastMessage.content?.substring(0, 50)}...`);
-          onToken?.(lastMessage.content);
-        }
-      }
-
-      this.logger?.info(`Stream completed after ${iterationCount} iterations`);
-
-      // 세션 업데이트
-      if (finalState && finalState.messages) {
-        session.messages.push(
-          { role: "user", content: message, timestamp: new Date() },
-          {
-            role: "assistant",
-            content: finalState.messages[finalState.messages.length - 1]?.content || "",
-            timestamp: new Date()
-          }
+      // Step 16: 대화 히스토리를 LangChain 메시지로 변환
+      const selfCorrectionConfig = this.config.chatbot?.selfCorrection || {};
+      const historyLimit = selfCorrectionConfig.historyLimit || 10;
+      const previousMessages = session.messages
+        .slice(-historyLimit)
+        .map(msg =>
+          msg.role === 'user'
+            ? new HumanMessage(msg.content)
+            : new AIMessage(msg.content)
         );
-        session.lastUpdatedAt = new Date();
-        if (finalState.summary) {
-          session.summary = finalState.summary;
-        }
-      }
 
-      return {
-        sessionId,
-        response: finalState?.messages?.[finalState.messages.length - 1]?.content || "",
-        thinkingResults: thinkingMode ? {
-          analysis: finalState?.thinkingAnalysis,
-          plan: finalState?.thinkingPlan,
-          execution: finalState?.thinkingResults
-        } : null
+      // 입력 상태 구성 (이전 메시지 포함)
+      const input = {
+        messages: [...previousMessages, new HumanMessage(message)],
+        thinkingMode
       };
 
-    } catch (error) {
-      this.logger?.error(`Chat error for session ${sessionId}:`, error);
-      throw error;
-    }
+      // 그래프 선택 (Self-Correcting > Thinking > 기본)
+      const selfCorrectionEnabled = selfCorrectionConfig.enabled !== false;
+      let graph;
+      if (selfCorrectionEnabled && this.selfCorrectingGraph && !thinkingMode) {
+        graph = this.selfCorrectingGraph;
+        this.logger?.debug("Using Self-Correcting RAG graph");
+      } else if (thinkingMode) {
+        graph = this.thinkingGraph;
+        this.logger?.debug("Using Thinking Mode graph");
+      } else {
+        graph = this.graph;
+        this.logger?.debug("Using standard graph");
+      }
+
+      try {
+        onStep?.("classifyQuery", "Analyzing your question...");
+
+        // 그래프 스트리밍 실행
+        const streamConfig = {
+          streamMode: "values",
+          configurable: { thread_id: sessionId }
+        };
+
+        let finalState = null;
+        let lastStep = "";
+        let iterationCount = 0;
+
+        this.logger?.info(`Starting graph.stream with input: ${JSON.stringify({ messages: input.messages.length, thinkingMode: input.thinkingMode })}`);
+
+        const stream = await graph.stream(input, streamConfig);
+        this.logger?.info(`Stream created, starting iteration...`);
+
+        for await (const state of stream) {
+          iterationCount++;
+          this.logger?.info(`Stream iteration ${iterationCount}: currentStep=${state.currentStep}, queryType=${state.queryType}, messages=${state.messages?.length || 0}`);
+
+          finalState = state;
+
+          // 단계 진행 알림
+          if (state.currentStep && state.currentStep !== lastStep) {
+            lastStep = state.currentStep;
+            const stepMessage = this.getStepMessage(state.currentStep);
+            this.logger?.info(`Step changed: ${state.currentStep} -> ${stepMessage}`);
+            onStep?.(state.currentStep, stepMessage);
+          }
+
+          // 검색 결과 알림
+          if (state.retrievedDocs && state.currentStep === "retrieveDocs") {
+            this.logger?.info(`Retrieved ${state.retrievedDocs.length} documents`);
+            onRetrieval?.(state.retrievedDocs);
+          }
+
+          // Thinking 모드 알림
+          if (thinkingMode) {
+            if (state.thinkingAnalysis && state.currentStep === "analyzeQuestion") {
+              onThinking?.("analyze", `Question type: ${state.thinkingAnalysis.questionType}`);
+            }
+            if (state.thinkingPlan && state.currentStep === "planStrategy") {
+              onThinking?.("plan", `Strategy: ${state.thinkingPlan.strategy}`);
+            }
+          }
+
+          // 참고: 중간 답변 전송 제거 (Self-Correcting RAG에서 잘못된 첫 답변 방지)
+          // 최종 응답은 스트림 완료 후 finalState에서 전송
+        }
+
+        // 스트림 완료 후 최종 응답만 전송 (중간 답변 제외)
+        if (finalState && finalState.messages && finalState.messages.length > 0) {
+          const lastMessage = finalState.messages[finalState.messages.length - 1];
+          if (lastMessage instanceof AIMessage) {
+            this.logger?.info(`Sending final AI response: ${lastMessage.content?.substring(0, 50)}...`);
+            onToken?.(lastMessage.content);
+          }
+        }
+
+        this.logger?.info(`Stream completed after ${iterationCount} iterations`);
+
+        // 세션 업데이트 (락 내부에서 안전하게 수행)
+        if (finalState && finalState.messages) {
+          session.messages.push(
+            { role: "user", content: message, timestamp: new Date() },
+            {
+              role: "assistant",
+              content: finalState.messages[finalState.messages.length - 1]?.content || "",
+              timestamp: new Date()
+            }
+          );
+          session.lastUpdatedAt = new Date();
+          if (finalState.summary) {
+            session.summary = finalState.summary;
+          }
+        }
+
+        return {
+          sessionId,
+          response: finalState?.messages?.[finalState.messages.length - 1]?.content || "",
+          thinkingResults: thinkingMode ? {
+            analysis: finalState?.thinkingAnalysis,
+            plan: finalState?.thinkingPlan,
+            execution: finalState?.thinkingResults
+          } : null
+        };
+
+      } catch (error) {
+        this.logger?.error(`Chat error for session ${sessionId}:`, error);
+        throw error;
+      }
+    });
   }
 
   /**
@@ -497,10 +509,13 @@ class ChatbotService {
   /**
    * 세션 삭제
    * @param {string} sessionId - 세션 ID
-   * @returns {boolean} 삭제 성공 여부
+   * @returns {Promise<boolean>} 삭제 성공 여부
    */
   async deleteSession(sessionId) {
-    return this.sessions.delete(sessionId);
+    // 해당 세션에 대한 진행 중인 요청이 완료될 때까지 대기
+    return this.sessionLock.acquire(sessionId, async () => {
+      return this.sessions.delete(sessionId);
+    });
   }
 
   /**

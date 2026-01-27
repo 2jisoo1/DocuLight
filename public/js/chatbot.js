@@ -684,10 +684,19 @@
       elements.sendBtn.disabled = isProcessing;
       elements.messageInput.disabled = isProcessing;
 
+      // Store original icon HTML for restoration
+      if (!state.originalSendIcon) {
+        state.originalSendIcon = elements.sendBtn.innerHTML;
+      }
+
       if (isProcessing) {
         elements.sendBtn.classList.add('loading');
+        // Change to stop icon (black square)
+        elements.sendBtn.innerHTML = '<span class="stop-icon"></span>';
       } else {
         elements.sendBtn.classList.remove('loading');
+        // Restore original send icon
+        elements.sendBtn.innerHTML = state.originalSendIcon;
         elements.messageInput.focus();
       }
     },

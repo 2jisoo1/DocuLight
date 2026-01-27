@@ -206,6 +206,73 @@ const ChatbotAnnotation = Annotation.Root({
     reducer: (_, action) => action,
     default: () => 0,
   }),
+
+  // === Step 15.1: sLLM Thinking Mode ===
+
+  // sLLM 개념 추출 결과
+  // Schema: { coreConcepts: string[], keywords: string[] }
+  sllmExtractedConcepts: Annotation({
+    reducer: (_, action) => action,
+    default: () => null,
+  }),
+
+  // sLLM 하위 질문 목록 (복잡한 질문 분해 결과)
+  // Schema: Array<{ order: number, question: string }>
+  sllmSubQuestions: Annotation({
+    reducer: (_, action) => action,
+    default: () => [],
+  }),
+
+  // sLLM 하위 질문별 답변
+  // Schema: Array<{ order: number, question: string, answer: string }>
+  sllmSubAnswers: Annotation({
+    reducer: (_, action) => action,
+    default: () => [],
+  }),
+
+  // sLLM 합성된 답변 (복잡한 질문용)
+  sllmSynthesizedAnswer: Annotation({
+    reducer: (_, action) => action,
+    default: () => "",
+  }),
+
+  // sLLM 단순 질문 답변
+  sllmSimpleAnswer: Annotation({
+    reducer: (_, action) => action,
+    default: () => "",
+  }),
+
+  // sLLM 검증 점수 (앙상블 검증 결과)
+  // Schema: { accuracy: number, completeness: number, average: number }
+  sllmVerifyScore: Annotation({
+    reducer: (_, action) => action,
+    default: () => null,
+  }),
+
+  // sLLM 사실 검증 결과
+  // Schema: { facts: Array<{id, text, status, evidence, source}>, summary: {...}, overallScore: number }
+  sllmFactCheckResult: Annotation({
+    reducer: (_, action) => action,
+    default: () => null,
+  }),
+
+  // sLLM 개선된 답변 (검증 후 수정)
+  sllmRefinedAnswer: Annotation({
+    reducer: (_, action) => action,
+    default: () => "",
+  }),
+
+  // sLLM 최종 답변 (Thinking Mode 출력)
+  sllmFinalAnswer: Annotation({
+    reducer: (_, action) => action,
+    default: () => "",
+  }),
+
+  // sLLM Thinking Mode 활성화 여부
+  sllmThinkingEnabled: Annotation({
+    reducer: (_, action) => action,
+    default: () => false,
+  }),
 });
 
 module.exports = { ChatbotAnnotation };
