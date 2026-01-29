@@ -3,6 +3,9 @@ const { getTreeData, getFullTreeData } = require('../services/tree-service');
 const { getRawContent, uploadFileData, deleteEntryData } = require('../services/file-service');
 const { getConfig } = require('../services/config-service');
 const { searchDocuments } = require('../services/search-service');
+const { QueryDocumentService } = require('../services/mcp/query-document-service');
+const { SummarizeDocumentService } = require('../services/mcp/summarize-document-service');
+const { SmartSearchService } = require('../services/mcp/smart-search-service');
 
 /**
  * MCP over HTTP (JSON-RPC 2.0)
@@ -46,7 +49,7 @@ function createJsonRpcError(id, code, message, data = null) {
 const TOOLS = [
   {
     name: 'list_documents',
-    description: 'List all documents in a directory',
+    description: 'List files and folders in a specific directory (non-recursive). Returns names only, not content. Use this when you need to see what is in a single directory. For recursive listing, use list_full_tree instead.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -60,7 +63,7 @@ const TOOLS = [
   },
   {
     name: 'list_full_tree',
-    description: 'Recursively list all documents and directories starting from a path',
+    description: 'Recursively list all files and directories as a tree structure. Returns paths only, not content. Use maxDepth to limit recursion depth. Warning: Can be large for big document collections. Consider using list_documents for single directory, or DocuLight_search to find specific files.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -78,7 +81,7 @@ const TOOLS = [
   },
   {
     name: 'read_document',
-    description: 'Read a markdown document',
+    description: 'Read the COMPLETE content of a markdown document. Returns the full file content which may use many tokens. For better efficiency: Use query_document if you need specific information from the document; Use summarize_document if you need to understand document structure first; Use DocuLight_smart_search if you are not sure which document contains the information. Only use read_document when you specifically need the entire file content.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -92,7 +95,7 @@ const TOOLS = [
   },
   {
     name: 'create_document',
-    description: 'Create or update a markdown document',
+    description: 'Create a new markdown document or overwrite an existing one. Requires X-API-Key authentication. The content parameter should be valid markdown. Parent directories are created automatically if they do not exist.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -110,7 +113,7 @@ const TOOLS = [
   },
   {
     name: 'delete_document',
-    description: 'Delete a document or directory',
+    description: 'Permanently delete a file or directory (including all contents). Requires X-API-Key authentication. This action cannot be undone. For directories, all nested files and folders will be deleted.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -124,7 +127,7 @@ const TOOLS = [
   },
   {
     name: 'DocuLight_get_config',
-    description: 'Get current runtime configuration with sensitive values masked',
+    description: 'Get current DocLight server configuration. Sensitive values (API keys, etc.) are masked. Use section parameter to get specific config: "ui" for UI settings, "security" for security settings, "ssl" for SSL config, or "all" for everything. Useful for debugging or understanding server setup.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -139,7 +142,7 @@ const TOOLS = [
   },
   {
     name: 'DocuLight_search',
-    description: 'Search for documents containing specific text',
+    description: 'Search for documents by keyword matching. Searches file names, titles, and content. Use mode parameter to control output detail: "titles_only" for minimal output (fastest, least tokens), "snippets" (default) for matched lines with surrounding context, "full_context" for complete sections containing matches. For semantic/meaning-based search, use DocuLight_smart_search instead. For searching within a known document, use query_document.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -156,6 +159,84 @@ const TOOLS = [
           type: 'string',
           description: 'Search within directory (default: /)',
           default: '/'
+        },
+        mode: {
+          type: 'string',
+          enum: ['titles_only', 'snippets', 'full_context'],
+          description: 'Result detail level: titles_only (minimal), snippets (default), full_context (detailed)',
+          default: 'snippets'
+        }
+      },
+      required: ['query']
+    }
+  },
+  {
+    name: 'query_document',
+    description: 'Search within a SPECIFIC document and return only sections relevant to your query. Use this when: you know which document to look in, you need specific information (not the whole document), you want to minimize token usage. Returns sections ranked by relevance within your token budget. For searching across multiple documents, use DocuLight_smart_search instead.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Document path (e.g., guide/setup.md)'
+        },
+        query: {
+          type: 'string',
+          description: 'What information you need from this document'
+        },
+        maxTokens: {
+          type: 'integer',
+          description: 'Maximum tokens to return (default: 2000)',
+          default: 2000
+        }
+      },
+      required: ['path', 'query']
+    }
+  },
+  {
+    name: 'summarize_document',
+    description: 'Get a structured summary of a document without reading the full content. Returns: table of contents (all headings), key points extracted from each section, statistics (word count, section count, code blocks, etc.). Use this to understand document structure before deciding whether to read the full document (read_document) or which sections to query (query_document). Much more efficient than reading the entire document.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Document path (e.g., guide/setup.md)'
+        }
+      },
+      required: ['path']
+    }
+  },
+  {
+    name: 'DocuLight_smart_search',
+    description: 'The most intelligent search option for finding information across multiple documents. Automatically uses vector search when available (understands meaning, not just keywords) and falls back to keyword search if embedding not configured. Returns only relevant sections, not full documents. Use mode="auto" (default) to let the system choose, "semantic" to force vector search, "keyword" for exact text matching. Set maxTokens to control output size. For searching within a specific document, use query_document instead.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Search query (natural language for semantic, keywords for fallback)'
+        },
+        path: {
+          type: 'string',
+          description: 'Directory to search within (default: /)',
+          default: '/'
+        },
+        mode: {
+          type: 'string',
+          enum: ['auto', 'semantic', 'keyword'],
+          description: 'Search mode: auto (use semantic if available), semantic (force), keyword (force)',
+          default: 'auto'
+        },
+        maxTokens: {
+          type: 'integer',
+          description: 'Maximum tokens to return (default: 2000)',
+          default: 2000
+        },
+        limit: {
+          type: 'integer',
+          description: 'Maximum number of documents (default: 5)',
+          default: 5
         }
       },
       required: ['query']
@@ -331,23 +412,54 @@ async function executeTool(config, logger, name, args, req) {
     }
 
     case 'DocuLight_search': {
+      const searchMode = args.mode || 'snippets';
       const searchResult = await searchDocuments(
         config,
         logger,
         args.query,
         {
           limit: args.limit || 10,
-          path: args.path || '/'
+          path: args.path || '/',
+          mode: searchMode
         }
       );
 
-      // 결과 포맷팅
+      // 결과 포맷팅 (모드별)
       let output = `# Search Results for "${searchResult.query}"\n\n`;
+      output += `**Mode**: ${searchResult.mode}\n`;
       output += `**Statistics**: ${searchResult.total} matches in ${searchResult.filesScanned} files scanned (${searchResult.duration})\n\n`;
 
       if (searchResult.results.length === 0) {
         output += '(No matches found)';
+      } else if (searchResult.mode === 'titles_only') {
+        // Minimal format: file list with titles
+        for (let i = 0; i < searchResult.results.length; i++) {
+          const fileResult = searchResult.results[i];
+          output += `${i + 1}. ${fileResult.path} - "${fileResult.title}"\n`;
+        }
+      } else if (searchResult.mode === 'full_context') {
+        // Detailed format: full sections
+        for (let i = 0; i < searchResult.results.length; i++) {
+          const fileResult = searchResult.results[i];
+          output += `## ${i + 1}. ${fileResult.path}\n\n`;
+          output += `**Title**: ${fileResult.title}\n\n`;
+
+          if (fileResult.sections && fileResult.sections.length > 0) {
+            for (const section of fileResult.sections) {
+              if (section.heading) {
+                output += `${section.heading}\n\n`;
+              }
+              // Remove heading from content if present
+              const content = section.heading
+                ? section.content.replace(section.heading, '').trim()
+                : section.content;
+              output += `${content}\n\n`;
+            }
+          }
+          output += '---\n\n';
+        }
       } else {
+        // snippets (default): existing format
         for (let i = 0; i < searchResult.results.length; i++) {
           const fileResult = searchResult.results[i];
           output += `## ${i + 1}. ${fileResult.path}\n\n`;
@@ -358,6 +470,65 @@ async function executeTool(config, logger, name, args, req) {
           }
         }
       }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: output
+          }
+        ]
+      };
+    }
+
+    case 'query_document': {
+      const queryService = new QueryDocumentService(config, logger);
+      const result = await queryService.queryDocument(
+        args.path,
+        args.query,
+        { maxTokens: args.maxTokens || 2000 }
+      );
+
+      const output = queryService.formatAsMarkdown(result);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: output
+          }
+        ]
+      };
+    }
+
+    case 'summarize_document': {
+      const summarizeService = new SummarizeDocumentService(config, logger);
+      const summary = await summarizeService.summarizeDocument(args.path);
+      const output = summarizeService.formatAsMarkdown(summary);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: output
+          }
+        ]
+      };
+    }
+
+    case 'DocuLight_smart_search': {
+      const smartSearchService = new SmartSearchService(config, logger);
+      // app.locals에서 vectorStoreManager 참조
+      smartSearchService.initialize(req.app.locals);
+
+      const result = await smartSearchService.smartSearch(args.query, {
+        path: args.path || '/',
+        mode: args.mode || 'auto',
+        maxTokens: args.maxTokens || 2000,
+        limit: args.limit || 5
+      });
+
+      const output = smartSearchService.formatAsMarkdown(result);
 
       return {
         content: [

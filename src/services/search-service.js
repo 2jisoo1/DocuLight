@@ -2,6 +2,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const ignore = require('ignore');
 const { validatePath } = require('../utils/path-validator');
+const { SectionExtractor } = require('./mcp/section-extractor');
 
 /**
  * Search Service - Document search operations (unified for REST and MCP)
@@ -137,7 +138,8 @@ async function searchDocuments(config, logger, query, options = {}) {
       path: searchPath = '/',
       highlight = true,
       includeContext = true,
-      maxMatchesPerFile = 3
+      maxMatchesPerFile = 3,
+      mode = 'snippets'  // 'titles_only' | 'snippets' | 'full_context'
     } = options;
 
     // Input validation
@@ -187,6 +189,7 @@ async function searchDocuments(config, logger, query, options = {}) {
 
     // Search results storage
     const results = [];
+    const fileContents = new Map();  // Store file contents for mode formatting
     let filesScanned = 0;
     const maxFileSize = 1024 * 1024; // 1MB
 
@@ -230,6 +233,7 @@ async function searchDocuments(config, logger, query, options = {}) {
             // Read file
             try {
               const content = await fs.readFile(entryPath, 'utf-8');
+              const normalizedPath = relativePath.replace(/\\/g, '/');
               const matches = findMatches(content, lowerQuery, entry.name, {
                 highlight,
                 maxMatchesPerFile,
@@ -239,10 +243,12 @@ async function searchDocuments(config, logger, query, options = {}) {
               // Add to results if matches found
               if (matches.length > 0) {
                 results.push({
-                  path: relativePath.replace(/\\/g, '/'),
+                  path: normalizedPath,
                   name: entry.name,
                   matches: matches
                 });
+                // Store content for mode-specific formatting
+                fileContents.set(normalizedPath, content);
               }
 
               // Stop if total results reached limit
@@ -293,18 +299,31 @@ async function searchDocuments(config, logger, query, options = {}) {
     logger.info('Document search completed', {
       query,
       path: searchPath,
+      mode,
       results: limitedResults.length,
       filesScanned,
       duration: `${duration}ms`
     });
 
+    // Format results based on mode
+    let formattedResults;
+    if (mode === 'titles_only') {
+      formattedResults = formatTitlesOnly(limitedResults, fileContents);
+    } else if (mode === 'full_context') {
+      formattedResults = formatFullContext(limitedResults, fileContents, query);
+    } else {
+      // snippets (default) - keep existing format
+      formattedResults = limitedResults;
+    }
+
     return {
       query,
       path: searchPath,
-      total: limitedResults.length,
+      mode,
+      total: formattedResults.length,
       filesScanned,
       duration: `${duration}ms`,
-      results: limitedResults,
+      results: formattedResults,
       limited: results.length > finalLimit
     };
   } catch (error) {
@@ -315,6 +334,64 @@ async function searchDocuments(config, logger, query, options = {}) {
     });
     throw error;
   }
+}
+
+/**
+ * Format results for titles_only mode
+ * Returns only file paths and document titles (minimal tokens)
+ */
+function formatTitlesOnly(results, fileContents) {
+  return results.map(r => {
+    const content = fileContents.get(r.path);
+    const title = content ? extractTitle(content) : null;
+    return {
+      path: r.path,
+      name: r.name,
+      title: title || r.name.replace('.md', '')
+    };
+  });
+}
+
+/**
+ * Format results for full_context mode
+ * Returns complete sections containing matches (detailed analysis)
+ */
+function formatFullContext(results, fileContents, query) {
+  const extractor = new SectionExtractor();
+
+  return results.map(r => {
+    const content = fileContents.get(r.path);
+    if (!content) {
+      return {
+        path: r.path,
+        name: r.name,
+        title: r.name.replace('.md', ''),
+        sections: []
+      };
+    }
+
+    const title = extractTitle(content) || r.name.replace('.md', '');
+
+    // Extract sections containing matches
+    const allSections = extractor.splitByHeadings(content);
+    const queryLower = query.toLowerCase();
+
+    // Filter sections that contain the query
+    const matchingSections = allSections.filter(section =>
+      section.content.toLowerCase().includes(queryLower)
+    );
+
+    return {
+      path: r.path,
+      name: r.name,
+      title,
+      sections: matchingSections.map(s => ({
+        heading: s.heading,
+        content: s.content,
+        level: s.level
+      }))
+    };
+  });
 }
 
 module.exports = {
