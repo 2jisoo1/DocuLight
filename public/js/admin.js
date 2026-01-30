@@ -127,9 +127,12 @@ const AdminTOC = {
 // ============================================================
 // API Module
 // ============================================================
+// Helper to prefix API paths with basePath
+const _bp = () => (typeof DocLightUtils !== 'undefined') ? DocLightUtils.prefixPath : (p => p);
+
 const AdminAPI = {
   async auth(apiKey) {
-    const response = await fetch('/api/admin/auth', {
+    const response = await fetch(_bp()('/api/admin/auth'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ apiKey }),
@@ -139,7 +142,7 @@ const AdminAPI = {
   },
 
   async logout() {
-    const response = await fetch('/api/admin/logout', {
+    const response = await fetch(_bp()('/api/admin/logout'), {
       method: 'POST',
       credentials: 'include'
     });
@@ -147,7 +150,7 @@ const AdminAPI = {
   },
 
   async getSession() {
-    const response = await fetch('/api/admin/session', {
+    const response = await fetch(_bp()('/api/admin/session'), {
       credentials: 'include'
     });
     if (!response.ok) return null;
@@ -155,14 +158,14 @@ const AdminAPI = {
   },
 
   async getTree(path = '/') {
-    const response = await fetch(`/api/admin/tree?path=${encodeURIComponent(path)}`, {
+    const response = await fetch(_bp()(`/api/admin/tree?path=${encodeURIComponent(path)}`), {
       credentials: 'include'
     });
     return response.json();
   },
 
   async getContent(path) {
-    const response = await fetch(`/api/admin/content?path=${encodeURIComponent(path)}`, {
+    const response = await fetch(_bp()(`/api/admin/content?path=${encodeURIComponent(path)}`), {
       credentials: 'include'
     });
     return response.json();
@@ -170,7 +173,7 @@ const AdminAPI = {
 
   // Phase 5: File management APIs
   async rename(oldPath, newName) {
-    const response = await fetch('/api/admin/rename', {
+    const response = await fetch(_bp()('/api/admin/rename'), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -180,7 +183,7 @@ const AdminAPI = {
   },
 
   async deleteEntries(paths) {
-    const response = await fetch('/api/admin/entry', {
+    const response = await fetch(_bp()('/api/admin/entry'), {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -192,7 +195,7 @@ const AdminAPI = {
   async create(parentPath, name, type) {
     // Construct full path by combining parent path and name
     const fullPath = parentPath === '/' ? '/' + name : parentPath + '/' + name;
-    const response = await fetch('/api/admin/create', {
+    const response = await fetch(_bp()('/api/admin/create'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -202,7 +205,7 @@ const AdminAPI = {
   },
 
   async move(sourcePaths, targetDirectory) {
-    const response = await fetch('/api/admin/move', {
+    const response = await fetch(_bp()('/api/admin/move'), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -212,7 +215,7 @@ const AdminAPI = {
   },
 
   async copy(sourcePaths, targetDirectory) {
-    const response = await fetch('/api/admin/copy', {
+    const response = await fetch(_bp()('/api/admin/copy'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -227,7 +230,7 @@ const AdminAPI = {
     if (originalModifiedAt) {
       body.originalModifiedAt = originalModifiedAt;
     }
-    const response = await fetch('/api/admin/content', {
+    const response = await fetch(_bp()('/api/admin/content'), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -589,7 +592,7 @@ const ViewerModule = {
         const filename = path.split('/').pop();
         viewer.innerHTML = `
           <div class="image-viewer">
-            <img src="/api/admin/file?path=${encodeURIComponent(path)}"
+            <img src="${_bp()(`/api/admin/file?path=${encodeURIComponent(path)}`)}"
                  alt="${filename}"
                  onerror="this.parentElement.innerHTML='<div class=\\'error\\'>Failed to load image</div>'">
             <div class="image-filename">${filename}</div>
@@ -684,8 +687,10 @@ const ViewerModule = {
 const URLModule = {
   parseCurrentPath() {
     const path = window.location.pathname;
-    if (path.startsWith('/admin')) {
-      const filePath = path.substring('/admin'.length) || '/';
+    const bp = (typeof DocLightUtils !== 'undefined') ? DocLightUtils.getBasePath() : '';
+    const adminPrefix = bp + '/admin';
+    if (path.startsWith(adminPrefix)) {
+      const filePath = path.substring(adminPrefix.length) || '/';
       // URL 디코딩하여 한글 등 인코딩된 문자 처리
       return filePath === '' ? '/' : decodeURIComponent(filePath);
     }
@@ -693,7 +698,8 @@ const URLModule = {
   },
 
   navigateTo(path) {
-    const url = '/admin' + path;
+    const bp = (typeof DocLightUtils !== 'undefined') ? DocLightUtils.getBasePath() : '';
+    const url = bp + '/admin' + path;
     if (window.location.pathname !== url) {
       history.pushState({ path }, '', url);
     }
@@ -1822,7 +1828,7 @@ function bindEvents() {
   const cancelBtn = document.getElementById('auth-cancel');
   if (cancelBtn) {
     cancelBtn.addEventListener('click', () => {
-      window.location.href = '/';
+      window.location.href = _bp()('/');
     });
   }
 
@@ -2373,7 +2379,7 @@ const UploadModule = {
         resolve({ success: false, filename: file.name, error: 'Network error' });
       };
 
-      xhr.open('POST', `/api/admin/upload?path=${encodeURIComponent(targetPath)}`);
+      xhr.open('POST', _bp()(`/api/admin/upload?path=${encodeURIComponent(targetPath)}`));
       xhr.withCredentials = true;
       xhr.send(formData);
     });

@@ -233,7 +233,7 @@ async function fetchWithRetry(url, options = {}, retries = ErrorHandler.maxRetri
 
 async function fetchTree(path = '/') {
   try {
-    const response = await fetchWithRetry(`/api/tree?path=${encodeURIComponent(path)}`);
+    const response = await fetchWithRetry(DocLightUtils.prefixPath(`/api/tree?path=${encodeURIComponent(path)}`));
     return await response.json();
   } catch (error) {
     console.error('Failed to fetch tree:', error);
@@ -243,7 +243,7 @@ async function fetchTree(path = '/') {
 
 async function fetchRaw(path) {
   try {
-    const response = await fetchWithRetry(`/api/raw?path=${encodeURIComponent(path)}`);
+    const response = await fetchWithRetry(DocLightUtils.prefixPath(`/api/raw?path=${encodeURIComponent(path)}`));
     return await response.text();
   } catch (error) {
     console.error('Failed to fetch file:', error);
@@ -258,7 +258,7 @@ async function fetchRaw(path) {
 async function fetchSearch(query, limit = 50) {
   try {
     const response = await fetchWithRetry(
-      `/api/search?query=${encodeURIComponent(query)}&limit=${limit}`
+      DocLightUtils.prefixPath(`/api/search?query=${encodeURIComponent(query)}&limit=${limit}`)
     );
     return await response.json();
   } catch (error) {
@@ -503,7 +503,7 @@ function addDocumentNavigation(contentDiv) {
     const cleanPath = nav.prev.path.replace(/\.md$/, '');
     const displayName = nav.prev.displayName || nav.prev.name.replace(/\.md$/, '');
     const prevLink = document.createElement('a');
-    prevLink.href = `/doc/${cleanPath}`;
+    prevLink.href = DocLightUtils.prefixPath(`/doc/${cleanPath}`);
     prevLink.innerHTML = `
       <span class="nav-label">← Previous</span>
       <span class="nav-title">${displayName}</span>
@@ -523,7 +523,7 @@ function addDocumentNavigation(contentDiv) {
     const cleanPath = nav.next.path.replace(/\.md$/, '');
     const displayName = nav.next.displayName || nav.next.name.replace(/\.md$/, '');
     const nextLink = document.createElement('a');
-    nextLink.href = `/doc/${cleanPath}`;
+    nextLink.href = DocLightUtils.prefixPath(`/doc/${cleanPath}`);
     nextLink.innerHTML = `
       <span class="nav-label">Next →</span>
       <span class="nav-title">${displayName}</span>
@@ -546,21 +546,29 @@ function addDocumentNavigation(contentDiv) {
  * Prevents page reload and uses loadFile/loadFolder instead
  */
 function addInternalLinkHandlers(contentDiv) {
-  const links = contentDiv.querySelectorAll('a[href^="/doc/"]');
+  const bp = DocLightUtils.getBasePath();
+  const docPrefix = bp + '/doc/';
+  const selector = bp ? `a[href^="${docPrefix}"], a[href^="/doc/"]` : 'a[href^="/doc/"]';
+  const links = contentDiv.querySelectorAll(selector);
 
   links.forEach(link => {
     link.addEventListener('click', async (e) => {
       e.preventDefault();
       const href = link.getAttribute('href');
 
-      if (!href || !href.startsWith('/doc/')) return;
-
-      // Extract path from /doc/... URL
-      const rawPath = href.substring(5); // Remove '/doc/'
+      // Strip basePath prefix if present, then /doc/
+      let rawPath;
+      if (bp && href.startsWith(docPrefix)) {
+        rawPath = href.substring(docPrefix.length);
+      } else if (href.startsWith('/doc/')) {
+        rawPath = href.substring(5);
+      } else {
+        return;
+      }
       const decodedPath = rawPath.split('/').map(seg => decodeURIComponent(seg)).join('/');
 
       // Check if it's a file or folder by trying to fetch as file first
-      const fileResponse = await fetch(`/api/raw?path=${encodeURIComponent(decodedPath + '.md')}`);
+      const fileResponse = await fetch(DocLightUtils.prefixPath(`/api/raw?path=${encodeURIComponent(decodedPath + '.md')}`));
 
       if (fileResponse.ok) {
         // It's a file
@@ -709,7 +717,7 @@ function updateURLHash(headingId) {
     path: currentPath,
     cleanPath: cleanPath,
     hash: headingId
-  }, '', `/doc/${encodedPath}#${encodedHash}`);
+  }, '', DocLightUtils.prefixPath(`/doc/${encodedPath}#${encodedHash}`));
 }
 
 /**
@@ -820,7 +828,7 @@ async function copyHeadingLink(heading, anchorLink) {
     const cleanPath = currentPath.replace(/\.md$/, '');
     const encodedPath = cleanPath.split('/').map(seg => encodeURIComponent(seg)).join('/');
     const encodedHash = encodeURIComponent(heading.id); // UTF-8 encode for Korean characters
-    const fullUrl = `${window.location.origin}/doc/${encodedPath}#${encodedHash}`;
+    const fullUrl = `${window.location.origin}${DocLightUtils.prefixPath(`/doc/${encodedPath}#${encodedHash}`)}`;
 
     console.log('Copying URL:', fullUrl);
 
@@ -828,7 +836,7 @@ async function copyHeadingLink(heading, anchorLink) {
     await navigator.clipboard.writeText(fullUrl);
 
     // Update URL
-    const newUrl = `/doc/${encodedPath}#${encodedHash}`;
+    const newUrl = DocLightUtils.prefixPath(`/doc/${encodedPath}#${encodedHash}`);
     window.history.pushState({
       path: currentPath,
       cleanPath: cleanPath,
@@ -1021,7 +1029,7 @@ async function showFolderList(folderPath) {
     document.getElementById('breadcrumb').textContent = folderPath + '/';
 
     // Fetch folder contents
-    const response = await fetch(`/api/tree?path=${encodeURIComponent(folderPath)}`);
+    const response = await fetch(DocLightUtils.prefixPath(`/api/tree?path=${encodeURIComponent(folderPath)}`));
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -1051,7 +1059,7 @@ async function showFolderList(folderPath) {
     window.history.pushState({
       path: folderPath,
       type: 'folder'
-    }, '', cleanPath ? `/doc/${encodedPath}` : '/');
+    }, '', cleanPath ? DocLightUtils.prefixPath(`/doc/${encodedPath}`) : DocLightUtils.prefixPath('/'));
 
     // Update active state in tree
     document.querySelectorAll('.tree-item').forEach(item => {
@@ -1163,7 +1171,7 @@ function generateFolderListMarkdown(folderPath, treeData) {
       // Encode path for URL, but display decoded name
       const encodedPath = cleanDirPath.split('/').map(seg => encodeURIComponent(seg)).join('/');
       const displayDirName = decodeURIComponent(dir.name);
-      markdown += `- **[${displayDirName}](/doc/${encodedPath})**\n`;
+      markdown += `- **[${displayDirName}](${DocLightUtils.prefixPath(`/doc/${encodedPath}`)})**\n`;
     }
 
     markdown += '\n';
@@ -1189,7 +1197,7 @@ function generateFolderListMarkdown(folderPath, treeData) {
       // File size (human readable)
       const sizeKB = (file.size / 1024).toFixed(1);
 
-      markdown += `- [📄 ${displayName}](/doc/${encodedPath}) _${sizeKB} KB_\n`;
+      markdown += `- [📄 ${displayName}](${DocLightUtils.prefixPath(`/doc/${encodedPath}`)}) _${sizeKB} KB_\n`;
     }
 
     markdown += '\n';
@@ -1363,7 +1371,7 @@ async function loadFile(path, hash = '', updateUrl = true, skipScroll = false) {
     let fromCache = false;
 
     try {
-      const response = await fetch(`/api/html?path=${encodeURIComponent(path)}`);
+      const response = await fetch(DocLightUtils.prefixPath(`/api/html?path=${encodeURIComponent(path)}`));
 
       if (response.ok) {
         const data = await response.json();
@@ -1443,7 +1451,7 @@ async function loadFile(path, hash = '', updateUrl = true, skipScroll = false) {
 
       // Encode each path segment, but keep / separator
       const encodedPath = cleanPath.split('/').map(seg => encodeURIComponent(seg)).join('/');
-      const newUrl = `/doc/${encodedPath}${hash ? '#' + hash : ''}`;
+      const newUrl = DocLightUtils.prefixPath(`/doc/${encodedPath}${hash ? '#' + hash : ''}`);
 
       // Save both paths in history state
       window.history.pushState({
@@ -1496,7 +1504,7 @@ async function loadFile(path, hash = '', updateUrl = true, skipScroll = false) {
 // Check if index file is configured
 async function checkIndexFile() {
   try {
-    const response = await fetch('/api/config/index');
+    const response = await fetch(DocLightUtils.prefixPath('/api/config/index'));
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -1549,7 +1557,7 @@ async function showWelcomeScreen() {
   }
 
   // Clear URL
-  window.history.pushState({}, '', '/');
+  window.history.pushState({}, '', DocLightUtils.prefixPath('/'));
 }
 
 // Initialize application
@@ -1671,7 +1679,7 @@ async function init() {
         // Chatbot mode: stay on chatbot (no navigation)
         if (window.CHATBOT_MODE) {
           console.log('[app.js] Chatbot mode: sidebar title click - staying on chatbot');
-          window.history.pushState({ chatbot: true }, '', '/');
+          window.history.pushState({ chatbot: true }, '', DocLightUtils.prefixPath('/'));
           return;
         }
 
@@ -1708,13 +1716,16 @@ async function init() {
 
     // Check URL for document path
     const pathname = window.location.pathname;
+    const bp = DocLightUtils.getBasePath();
+    // Strip basePath prefix from pathname for route matching
+    const strippedPath = bp && pathname.startsWith(bp) ? pathname.substring(bp.length) : pathname;
     const hashRaw = window.location.hash.substring(1); // Remove '#'
     const hash = hashRaw ? decodeURIComponent(hashRaw) : ''; // Decode hash
     let pathFromUrl = null;
 
-    if (pathname.startsWith('/doc/')) {
+    if (strippedPath.startsWith('/doc/')) {
       // Extract path from /doc/... URL and decode each segment
-      const rawPath = pathname.substring(5); // Remove '/doc/'
+      const rawPath = strippedPath.substring(5); // Remove '/doc/'
       pathFromUrl = rawPath.split('/').map(seg => decodeURIComponent(seg)).join('/');
 
       // Clean URL handling: add .md extension if not present
@@ -1731,7 +1742,7 @@ async function init() {
       let isFile = false;
       try {
         // Check if it's a file by trying to fetch it
-        const testResponse = await fetch(`/api/raw?path=${encodeURIComponent(pathFromUrl)}`);
+        const testResponse = await fetch(DocLightUtils.prefixPath(`/api/raw?path=${encodeURIComponent(pathFromUrl)}`));
         isFile = testResponse.ok;
       } catch (e) {
         isFile = false;

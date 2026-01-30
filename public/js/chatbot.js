@@ -12,7 +12,7 @@
   // Merge server config with defaults
   const serverConfig = window.CHATBOT_CONFIG || {};
   const CONFIG = {
-    API_BASE: '/api/chatbot',
+    API_BASE: (window.BASE_PATH || '') + '/api/chatbot',
     MAX_MESSAGE_LENGTH: 4000,
     SCROLL_THRESHOLD: 100,
     RETRY_DELAY: 1000,
@@ -142,14 +142,14 @@
           let docPath = source.replace(/\\/g, '/');
           // Remove .md extension for clean URL
           docPath = docPath.replace(/\.md$/i, '');
-          // Ensure starts with /doc/
-          return '/doc/' + docPath;
+          // Ensure starts with /doc/ (with basePath)
+          return (window.BASE_PATH || '') + '/doc/' + docPath;
         }
       }
 
       // Fallback: use extracted relative path
       let docPath = relativePath.replace(/\.md$/i, '');
-      return '/doc/' + docPath;
+      return (window.BASE_PATH || '') + '/doc/' + docPath;
     },
 
     // Apply syntax highlighting to code blocks after DOM insertion

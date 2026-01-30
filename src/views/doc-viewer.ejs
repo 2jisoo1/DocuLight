@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><%= title %></title>
-  <link rel="icon" type="image/png" href="/images/icon.svg">
+  <link rel="icon" type="image/png" href="<%= basePath %>/images/icon.svg">
 
   <!-- Highlight.js for syntax highlighting -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
@@ -274,6 +274,7 @@
 
   <script>
     const DOC_TYPE = '<%= docType %>';
+    const BASE_PATH = '<%= basePath %>';
 
     // Initialize Mermaid
     mermaid.initialize({
@@ -306,7 +307,7 @@
       const metaEl = document.getElementById('doc-meta');
 
       try {
-        const response = await fetch(`/api/documentation/${DOC_TYPE}`);
+        const response = await fetch(`${BASE_PATH}/api/documentation/${DOC_TYPE}`);
 
         if (!response.ok) {
           throw new Error(`Failed to load documentation: ${response.status}`);

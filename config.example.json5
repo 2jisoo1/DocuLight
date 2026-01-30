@@ -36,6 +36,13 @@
   // Port number for the server
   port: 3000,
 
+  // Base path for reverse proxy sub-path deployment (optional)
+  // When deploying behind nginx with sub-path proxy (e.g., /develop/ → localhost:3000/),
+  // set this to the sub-path prefix so static resources and URLs work correctly.
+  // Must start with "/" and NOT end with "/" (e.g., "/develop", "/docs/v2")
+  // Default: "" (no sub-path, direct access)
+  // basePath: "/develop",
+
   // UI customization
   ui: {
     // Sidebar title (default: "DocuLight")

@@ -10,9 +10,9 @@
       --max-width: <%= uiMaxWidth %>;
     }
   </style>
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="<%= basePath %>/css/style.css">
   <% if (typeof chatbotMode !== 'undefined' && chatbotMode) { %>
-  <link rel="stylesheet" href="/css/chatbot.css">
+  <link rel="stylesheet" href="<%= basePath %>/css/chatbot.css">
   <% } %>
   <%- include('partials/head-libs') %>
 </head>
@@ -38,10 +38,10 @@
         <!-- Tree Controls: Expand All / Collapse All / Search -->
         <div class="tree-controls" id="tree-controls">
           <button id="expand-all-btn" class="tree-control-btn" title="Expand all folders" aria-label="Expand all folders">
-            <img src="/images/expand.svg" alt="Expand all folders">
+            <img src="<%= basePath %>/images/expand.svg" alt="Expand all folders">
           </button>
           <button id="collapse-all-btn" class="tree-control-btn" title="Collapse all folders" aria-label="Collapse all folders">
-            <img src="/images/collapse.svg" alt="Collapse all folders">
+            <img src="<%= basePath %>/images/collapse.svg" alt="Collapse all folders">
           </button>
           <button id="search-toggle-btn" class="tree-control-btn" title="Search documents" aria-label="Search documents">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -99,7 +99,7 @@
         <% if (typeof chatbotMode === 'undefined' || !chatbotMode) { %>
         <!-- TOC Toggle Button (Step 12: Phase 1) -->
         <button id="toc-toggle-btn" class="toc-toggle-btn" title="Table of Contents" aria-label="Toggle table of contents">
-          <img src="/images/toc-icon.svg" alt="TOC" width="16" height="16">
+          <img src="<%= basePath %>/images/toc-icon.svg" alt="TOC" width="16" height="16">
         </button>
         <% } %>
       </div>
@@ -201,14 +201,15 @@
     <div class="toc-overlay" id="toc-overlay"></div>
   </div>
 
-  <script src="/js/app.js"></script>
+  <script>window.BASE_PATH = '<%= basePath %>';</script>
+  <script src="<%= basePath %>/js/app.js"></script>
   <% if (typeof chatbotMode !== 'undefined' && chatbotMode) { %>
   <script>
     // Chatbot mode configuration (FR-CB-015)
     window.CHATBOT_MODE = true;
     window.CHATBOT_CONFIG = <%- clientConfig || '{"timeout":300000,"keepAliveInterval":30000}' %>;
   </script>
-  <script src="/js/chatbot.js"></script>
+  <script src="<%= basePath %>/js/chatbot.js"></script>
   <% } %>
 </body>
 </html>

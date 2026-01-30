@@ -45,6 +45,14 @@ app.set('views', path.join(__dirname, 'views'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// Inject basePath into res.locals for EJS templates
+app.use((req, res, next) => {
+  const cfg = req.app.locals.config || {};
+  res.locals.basePath = cfg.basePath || '';
+  next();
+});
+
 app.use(express.static(path.join(__dirname, '../public')));
 
 // Dynamic wrappers for middleware that depend on config/logger so they reflect runtime updates
@@ -73,11 +81,11 @@ app.use((req, res, next) => {
 
 // Documentation portal routes (must be before /api router)
 app.get('/api/doc', (req, res) => {
-  res.render('doc-viewer', { title: 'API Documentation - DocuLight', docType: 'api' });
+  res.render('doc-viewer', { title: 'API Documentation - DocuLight', docType: 'api', basePath: res.locals.basePath });
 });
 
 app.get('/mcp/doc', (req, res) => {
-  res.render('doc-viewer', { title: 'MCP Server Documentation - DocuLight', docType: 'mcp' });
+  res.render('doc-viewer', { title: 'MCP Server Documentation - DocuLight', docType: 'mcp', basePath: res.locals.basePath });
 });
 
 // Documentation API endpoints (return JSON)
@@ -93,14 +101,17 @@ app.use('/api/admin', adminApiRouter);
 app.use('/api/chatbot', chatbotRoutes);
 
 // Convert file path to web path (e.g., ./public/images/icon.png → /images/icon.png)
-function resolveIconPath(configIconPath) {
+// When basePath is provided, prepend it to the web path.
+function resolveIconPath(configIconPath, basePath) {
+  const prefix = basePath || '';
+
   if (!configIconPath) {
-    return '/images/icon.png';
+    return prefix + '/images/icon.png';
   }
 
-  // If it's already a web path (starts with /), return as-is
+  // If it's already a web path (starts with /), prepend basePath
   if (configIconPath.startsWith('/')) {
-    return configIconPath;
+    return prefix + configIconPath;
   }
 
   // Convert file path to web path
@@ -114,13 +125,14 @@ function resolveIconPath(configIconPath) {
     webPath = '/' + webPath;
   }
 
-  return webPath;
+  return prefix + webPath;
 }
 
 // Main page (use runtime config)
 app.get('/', (req, res) => {
   const cfg = req.app.locals.config || {};
   const iconPath = (cfg.ui && cfg.ui.icon) || './public/images/icon.png';
+  const basePath = cfg.basePath || '';
   const isChatbotMode = cfg.ui?.indexFile === 'CHATBOT';
 
   // Chatbot mode: show chatbot UI in main content area (FR-CB-015)
@@ -137,7 +149,7 @@ app.get('/', (req, res) => {
     res.render('index', {
       title: 'DocuLight - Chatbot',
       uiTitle: (cfg.ui && cfg.ui.title) || 'DocuLight',
-      uiIcon: resolveIconPath(iconPath),
+      uiIcon: resolveIconPath(iconPath, basePath),
       uiMaxWidth: (cfg.ui && cfg.ui.maxWidth) || '1024px',
       chatbotMode: true,
       clientConfig: JSON.stringify(clientConfig)
@@ -146,7 +158,7 @@ app.get('/', (req, res) => {
     res.render('index', {
       title: 'DocuLight - Markdown Viewer',
       uiTitle: (cfg.ui && cfg.ui.title) || 'DocuLight',
-      uiIcon: resolveIconPath(iconPath),
+      uiIcon: resolveIconPath(iconPath, basePath),
       uiMaxWidth: (cfg.ui && cfg.ui.maxWidth) || '1024px',
       chatbotMode: false,
       clientConfig: null
@@ -220,10 +232,11 @@ app.get('/doc/*.md', async (req, res, next) => {
 app.get('/doc/*', (req, res) => {
   const cfg = req.app.locals.config || {};
   const iconPath = (cfg.ui && cfg.ui.icon) || './public/images/icon.png';
+  const basePath = cfg.basePath || '';
   res.render('index', {
     title: 'DocuLight - Markdown Viewer',
     uiTitle: (cfg.ui && cfg.ui.title) || 'DocuLight',
-    uiIcon: resolveIconPath(iconPath),
+    uiIcon: resolveIconPath(iconPath, basePath),
     uiMaxWidth: (cfg.ui && cfg.ui.maxWidth) || '1024px'
   });
 });
@@ -231,19 +244,24 @@ app.get('/doc/*', (req, res) => {
 // Admin page route (Phase 4: Admin Mode)
 app.get('/admin', (req, res) => {
   const cfg = req.app.locals.config || {};
-  res.render('admin', { config: cfg });
+  const basePath = cfg.basePath || '';
+  const iconPath = (cfg.ui && cfg.ui.icon) || './public/images/icon.png';
+  res.render('admin', { config: cfg, uiIcon: resolveIconPath(iconPath, basePath) });
 });
 
 // Admin SPA routes (client-side routing support)
 app.get('/admin/*', (req, res) => {
   const cfg = req.app.locals.config || {};
-  res.render('admin', { config: cfg });
+  const basePath = cfg.basePath || '';
+  const iconPath = (cfg.ui && cfg.ui.icon) || './public/images/icon.png';
+  res.render('admin', { config: cfg, uiIcon: resolveIconPath(iconPath, basePath) });
 });
 
 // Chatbot page route (Step 15: RAG Chatbot)
 app.get('/chatbot', (req, res) => {
   const cfg = req.app.locals.config || {};
   const iconPath = (cfg.ui && cfg.ui.icon) || './public/images/icon.png';
+  const basePath = cfg.basePath || '';
 
   // Client config for chatbot (timeout settings)
   const clientConfig = cfg.chatbot && cfg.chatbot.client ? {
@@ -256,7 +274,7 @@ app.get('/chatbot', (req, res) => {
 
   res.render('chatbot', {
     title: (cfg.ui && cfg.ui.title) || 'DocuLight',
-    icon: resolveIconPath(iconPath),
+    icon: resolveIconPath(iconPath, basePath),
     clientConfig: JSON.stringify(clientConfig)
   });
 });

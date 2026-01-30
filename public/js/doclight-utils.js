@@ -8,6 +8,30 @@ const DocLightUtils = (() => {
   'use strict';
 
   // ============================================================
+  // 0. basePath 유틸리티
+  // ============================================================
+  /**
+   * 서버에서 주입된 basePath를 반환
+   * @returns {string} basePath (예: "/develop") 또는 ""
+   */
+  function getBasePath() {
+    return (typeof window !== 'undefined' && window.BASE_PATH) || '';
+  }
+
+  /**
+   * 경로에 basePath 접두사 추가
+   * @param {string} path - 원본 경로 (예: "/api/tree")
+   * @returns {string} basePath가 적용된 경로 (예: "/develop/api/tree")
+   */
+  function prefixPath(path) {
+    const bp = getBasePath();
+    if (!bp) return path;
+    // Avoid double prefix
+    if (path.startsWith(bp + '/') || path === bp) return path;
+    return bp + path;
+  }
+
+  // ============================================================
   // 1. Wiki 링크 전처리
   // ============================================================
   /**
@@ -21,7 +45,7 @@ const DocLightUtils = (() => {
       let cleanPath = fullPath.trim().replace(/\.md$/, '');
       const parts = cleanPath.split('/').filter(p => p);
       const displayName = parts[parts.length - 1] || cleanPath;
-      const url = `/doc${cleanPath.startsWith('/') ? cleanPath : '/' + cleanPath}`;
+      const url = prefixPath(`/doc${cleanPath.startsWith('/') ? cleanPath : '/' + cleanPath}`);
       return `[${displayName}](${url})`;
     });
   }
@@ -352,6 +376,10 @@ const DocLightUtils = (() => {
   // Public API
   // ============================================================
   return {
+    // basePath 유틸리티
+    getBasePath,
+    prefixPath,
+
     // 개별 함수 (세밀한 제어 필요 시)
     preprocessWikiLinks,
     createMarkedRenderer,

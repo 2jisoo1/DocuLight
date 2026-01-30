@@ -11,11 +11,11 @@
     }
   </style>
   <!-- Include normal viewer styles for markdown-content rendering -->
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="<%= basePath %>/css/style.css">
   <!-- Admin-specific styles (override as needed) -->
-  <link rel="stylesheet" href="/css/admin.css">
+  <link rel="stylesheet" href="<%= basePath %>/css/admin.css">
   <%- include('partials/head-libs') %>
-  <link rel="icon" href="<%= config.ui?.icon || '/images/icon.png' %>">
+  <link rel="icon" href="<%= uiIcon %>">
 </head>
 <body>
   <!-- 인증 모달 -->
@@ -63,7 +63,7 @@
     <div id="admin-content">
       <!-- TOC Toggle Button (outside file-viewer to preserve during content updates) -->
       <button id="admin-toc-toggle" class="toc-toggle-btn" title="Table of Contents" aria-label="Toggle table of contents" style="display: none;">
-        <img src="/images/toc-icon.svg" alt="TOC" width="16" height="16">
+        <img src="<%= basePath %>/images/toc-icon.svg" alt="TOC" width="16" height="16">
       </button>
       <!-- Edit Button (outside file-viewer to preserve during content updates) -->
       <button id="admin-edit-btn" class="edit-btn" title="Edit this file" aria-label="Edit this file" style="display: none;">
@@ -187,6 +187,7 @@
   <div class="toc-overlay" id="admin-toc-overlay"></div>
 
   <!-- Admin Script -->
-  <script src="/js/admin.js"></script>
+  <script>window.BASE_PATH = '<%= basePath %>';</script>
+  <script src="<%= basePath %>/js/admin.js"></script>
 </body>
 </html>

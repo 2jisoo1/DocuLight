@@ -157,6 +157,19 @@ function loadConfig() {
   config.logDir = config.logDir || './logs';
   config.logLevel = config.logLevel || 'info';
 
+  // Normalize basePath: default "", must start with "/", no trailing "/"
+  if (config.basePath && typeof config.basePath === 'string') {
+    let bp = config.basePath.trim();
+    if (bp && !bp.startsWith('/')) {
+      bp = '/' + bp;
+    }
+    // Remove trailing slash(es)
+    bp = bp.replace(/\/+$/, '');
+    config.basePath = bp;
+  } else {
+    config.basePath = '';
+  }
+
   // Set defaults for log settings
   config.log = config.log || {};
   config.log.dir = config.log.dir || config.logDir || './logs';

@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><%= title || 'DocLight' %> - Chatbot</title>
   <link rel="icon" href="<%= icon || '/images/icon.png' %>">
-  <link rel="stylesheet" href="/css/style.css">
-  <link rel="stylesheet" href="/css/chatbot.css">
+  <link rel="stylesheet" href="<%= basePath %>/css/style.css">
+  <link rel="stylesheet" href="<%= basePath %>/css/chatbot.css">
   <!-- Marked.js for Markdown rendering -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <!-- DOMPurify for XSS protection -->
@@ -20,7 +20,7 @@
     <!-- Header -->
     <header class="chatbot-header">
       <div class="header-left">
-        <a href="/" class="back-link" title="Back to Documents">
+        <a href="<%= basePath %>/" class="back-link" title="Back to Documents">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M19 12H5M12 19l-7-7 7-7"/>
           </svg>
@@ -114,8 +114,9 @@
 
   <!-- Client configuration from server -->
   <script>
+    window.BASE_PATH = '<%= basePath %>';
     window.CHATBOT_CONFIG = <%- clientConfig || '{"timeout":300000,"keepAliveInterval":30000}' %>;
   </script>
-  <script src="/js/chatbot.js"></script>
+  <script src="<%= basePath %>/js/chatbot.js"></script>
 </body>
 </html>
