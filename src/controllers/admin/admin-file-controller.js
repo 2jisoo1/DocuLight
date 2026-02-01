@@ -8,6 +8,7 @@ const fileService = require('../../services/file-service');
 const path = require('path');
 const fs = require('fs').promises;
 const { validatePath } = require('../../utils/path-validator');
+const { notifyAdd, notifyBatchRemove, collectMdFiles } = require('../../utils/embedding-notifier');
 
 /**
  * Get file content with metadata
@@ -116,6 +117,10 @@ async function saveContent(req, res, next) {
 
     const result = await fileService.saveContent(config, logger, filePath, content, originalModifiedAt);
 
+    // Embedding notification (fire-and-forget)
+    const absPath = validatePath(config.docsRoot, filePath);
+    notifyAdd(req.app.locals.chatbotService, logger, absPath);
+
     res.json({
       success: true,
       ...result
@@ -197,6 +202,9 @@ async function createEntry(req, res, next) {
     let result;
     if (type === 'file') {
       result = await fileService.createFile(config, logger, entryPath, content || '');
+      // Embedding notification (fire-and-forget)
+      const absPath = validatePath(config.docsRoot, entryPath);
+      notifyAdd(req.app.locals.chatbotService, logger, absPath);
     } else {
       result = await fileService.createDirectory(config, logger, entryPath);
     }
@@ -255,6 +263,7 @@ async function deleteEntry(req, res, next) {
     const { paths } = req.body;
     const config = req.app.locals.config;
     const logger = req.app.locals.logger;
+    const { chatbotService } = req.app.locals;
 
     if (!paths || !Array.isArray(paths) || paths.length === 0) {
       return res.status(400).json({
@@ -264,6 +273,18 @@ async function deleteEntry(req, res, next) {
           message: 'Paths array is required and must not be empty'
         }
       });
+    }
+
+    // Collect .md paths before deletion for embedding notification
+    const allMdFiles = [];
+    if (chatbotService) {
+      for (const p of paths) {
+        try {
+          const absPath = validatePath(config.docsRoot, p);
+          const mdFiles = await collectMdFiles(absPath);
+          allMdFiles.push(...mdFiles);
+        } catch { /* invalid path, skip */ }
+      }
     }
 
     const deleted = [];
@@ -286,6 +307,9 @@ async function deleteEntry(req, res, next) {
         }
       }
     }
+
+    // Embedding notification (fire-and-forget)
+    notifyBatchRemove(chatbotService, logger, allMdFiles);
 
     res.json({
       success: errors.length === 0,

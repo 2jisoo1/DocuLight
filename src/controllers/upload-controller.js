@@ -1,5 +1,8 @@
 const multer = require('multer');
+const path = require('path');
 const { uploadFileData } = require('../services/file-service');
+const { validatePath } = require('../utils/path-validator');
+const { notifyAdd } = require('../utils/embedding-notifier');
 
 /**
  * Configure multer for file uploads
@@ -43,6 +46,19 @@ async function uploadFile(req, res, next) {
     }
 
     const result = await uploadFileData(config, logger, userPath, file.buffer, file.originalname);
+
+    // Embedding notification (fire-and-forget)
+    const { chatbotService } = req.app.locals;
+    if (result.type === 'file') {
+      const targetDir = validatePath(config.docsRoot, userPath || '/');
+      notifyAdd(chatbotService, logger, path.join(targetDir, file.originalname));
+    } else if (result.type === 'zip' && result.extraction?.details?.extracted) {
+      const targetDir = validatePath(config.docsRoot, userPath || '/');
+      for (const entry of result.extraction.details.extracted) {
+        notifyAdd(chatbotService, logger, path.join(targetDir, entry.name));
+      }
+    }
+
     res.json(result);
   } catch (error) {
     next(error);

@@ -1670,6 +1670,12 @@ const DragDropModule = {
 
   // TASK-704: handleDrop
   async handleDrop(event, targetPath, targetType) {
+    // External file drop (from OS) — no internal drag was initiated.
+    // Let the event bubble up to UploadModule's handler on #file-tree.
+    if (!this.dragSource) {
+      return;
+    }
+
     event.preventDefault();
     event.stopPropagation();
 

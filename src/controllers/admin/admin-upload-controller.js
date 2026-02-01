@@ -3,7 +3,10 @@
  * Handles file uploads via drag-and-drop in Admin mode
  */
 const multer = require('multer');
+const path = require('path');
 const { uploadFileData } = require('../../services/file-service');
+const { validatePath } = require('../../utils/path-validator');
+const { notifyAdd } = require('../../utils/embedding-notifier');
 
 /**
  * Configure multer for multiple file uploads
@@ -45,7 +48,7 @@ function configureMultiUpload() {
  */
 async function uploadFiles(req, res, next) {
   try {
-    const { config, logger } = req.app.locals;
+    const { config, logger, chatbotService } = req.app.locals;
     const targetPath = req.query.path || '/';
     const files = req.files;
 
@@ -72,6 +75,18 @@ async function uploadFiles(req, res, next) {
           file.buffer,
           file.originalname
         );
+
+        // Embedding notification (fire-and-forget)
+        if (result.type === 'file') {
+          const targetDir = validatePath(config.docsRoot, targetPath);
+          notifyAdd(chatbotService, logger, path.join(targetDir, file.originalname));
+        } else if (result.type === 'zip' && result.extraction?.details?.extracted) {
+          const targetDir = validatePath(config.docsRoot, targetPath);
+          for (const entry of result.extraction.details.extracted) {
+            notifyAdd(chatbotService, logger, path.join(targetDir, entry.name));
+          }
+        }
+
         results.push({
           success: true,
           filename: file.originalname,

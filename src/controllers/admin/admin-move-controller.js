@@ -5,6 +5,8 @@
  * Handles rename and move operations
  */
 const fileService = require('../../services/file-service');
+const { validatePath } = require('../../utils/path-validator');
+const { notifyAdd, notifyMove, collectMdFiles } = require('../../utils/embedding-notifier');
 
 /**
  * Rename file or directory
@@ -22,6 +24,7 @@ async function renameEntry(req, res, next) {
     const { oldPath, newName } = req.body;
     const config = req.app.locals.config;
     const logger = req.app.locals.logger;
+    const { chatbotService } = req.app.locals;
 
     if (!oldPath) {
       return res.status(400).json({
@@ -43,7 +46,26 @@ async function renameEntry(req, res, next) {
       });
     }
 
+    // Collect .md paths before rename for directory rename notification
+    let oldMdFiles = [];
+    let absOldBase = null;
+    if (chatbotService) {
+      try {
+        absOldBase = validatePath(config.docsRoot, oldPath);
+        oldMdFiles = await collectMdFiles(absOldBase);
+      } catch { /* invalid path, skip */ }
+    }
+
     const result = await fileService.renameEntry(config, logger, oldPath, newName);
+
+    // Embedding notification (fire-and-forget)
+    if (chatbotService && oldMdFiles.length > 0) {
+      const absNewBase = validatePath(config.docsRoot, result.newPath);
+      for (const oldFile of oldMdFiles) {
+        const relative = oldFile.substring(absOldBase.length);
+        notifyMove(chatbotService, logger, oldFile, absNewBase + relative);
+      }
+    }
 
     res.json({
       success: true,
@@ -110,6 +132,7 @@ async function moveEntries(req, res, next) {
     const { sourcePaths, targetDirectory } = req.body;
     const config = req.app.locals.config;
     const logger = req.app.locals.logger;
+    const { chatbotService } = req.app.locals;
 
     if (!sourcePaths || !Array.isArray(sourcePaths) || sourcePaths.length === 0) {
       return res.status(400).json({
@@ -132,6 +155,20 @@ async function moveEntries(req, res, next) {
     }
 
     const result = await fileService.moveEntries(config, logger, sourcePaths, targetDirectory);
+
+    // Embedding notification (fire-and-forget)
+    // collectMdFiles handles both files and directories
+    if (chatbotService && result.moved) {
+      for (const item of result.moved) {
+        const absOld = validatePath(config.docsRoot, item.from);
+        const absNew = validatePath(config.docsRoot, item.to);
+        const newMdFiles = await collectMdFiles(absNew);
+        for (const newFile of newMdFiles) {
+          const relative = newFile.substring(absNew.length);
+          notifyMove(chatbotService, logger, absOld + relative, newFile);
+        }
+      }
+    }
 
     res.json({
       success: result.errors.length === 0,
@@ -188,6 +225,7 @@ async function copyEntries(req, res, next) {
     const { sourcePaths, targetDirectory } = req.body;
     const config = req.app.locals.config;
     const logger = req.app.locals.logger;
+    const { chatbotService } = req.app.locals;
 
     if (!sourcePaths || !Array.isArray(sourcePaths) || sourcePaths.length === 0) {
       return res.status(400).json({
@@ -210,6 +248,18 @@ async function copyEntries(req, res, next) {
     }
 
     const result = await fileService.copyEntries(config, logger, sourcePaths, targetDirectory);
+
+    // Embedding notification (fire-and-forget)
+    // collectMdFiles handles both files and directories
+    if (chatbotService && result.copied) {
+      for (const item of result.copied) {
+        const absNew = validatePath(config.docsRoot, item.to);
+        const newMdFiles = await collectMdFiles(absNew);
+        for (const f of newMdFiles) {
+          notifyAdd(chatbotService, logger, f);
+        }
+      }
+    }
 
     res.json({
       success: result.errors.length === 0,

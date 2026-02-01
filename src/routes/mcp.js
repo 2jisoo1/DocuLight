@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const { getTreeData, getFullTreeData } = require('../services/tree-service');
 const { getRawContent, uploadFileData, deleteEntryData } = require('../services/file-service');
 const { getConfig } = require('../services/config-service');
@@ -6,6 +7,8 @@ const { searchDocuments } = require('../services/search-service');
 const { QueryDocumentService } = require('../services/mcp/query-document-service');
 const { SummarizeDocumentService } = require('../services/mcp/summarize-document-service');
 const { SmartSearchService } = require('../services/mcp/smart-search-service');
+const { validatePath } = require('../utils/path-validator');
+const { notifyAdd, notifyBatchRemove, collectMdFiles } = require('../utils/embedding-notifier');
 
 /**
  * MCP over HTTP (JSON-RPC 2.0)
@@ -373,6 +376,11 @@ async function executeTool(config, logger, name, args, req) {
       const buffer = Buffer.from(args.content, 'utf-8');
       await uploadFileData(config, logger, dirPath, buffer, filename);
 
+      // Embedding notification (fire-and-forget)
+      const { chatbotService } = req.app.locals;
+      const targetDir = validatePath(config.docsRoot, dirPath || '/');
+      notifyAdd(chatbotService, logger, path.join(targetDir, filename));
+
       return {
         content: [
           {
@@ -384,7 +392,16 @@ async function executeTool(config, logger, name, args, req) {
     }
 
     case 'delete_document': {
+      // Collect .md paths before deletion for embedding notification
+      const { chatbotService: delChatbot } = req.app.locals;
+      const delAbsPath = validatePath(config.docsRoot, args.path);
+      const mdFiles = delChatbot ? await collectMdFiles(delAbsPath) : [];
+
       await deleteEntryData(config, logger, args.path);
+
+      // Embedding notification (fire-and-forget)
+      notifyBatchRemove(delChatbot, logger, mdFiles);
+
       return {
         content: [
           {
