@@ -8,11 +8,18 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
-APP_NAME="doclight"
+NAME_FILE=".pm2-app-name"
+if [ -f "$NAME_FILE" ]; then
+    APP_NAME="$(cat "$NAME_FILE")"
+else
+    RAND="$(cat /dev/urandom | tr -dc 'a-z0-9' | head -c 8)"
+    APP_NAME="doculight-${RAND}"
+    echo "$APP_NAME" > "$NAME_FILE"
+fi
 ENTRY_POINT="src/app.js"
 
 echo "========================================"
-echo "  DocLight Server Start"
+echo "  DocuLight Server Start ($APP_NAME)"
 echo "========================================"
 
 # Check if node is installed

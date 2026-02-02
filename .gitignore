@@ -48,3 +48,6 @@ nul
 .github/
 
 tmpclaude-*-cwd
+
+# PM2 instance name (generated per deployment)
+.pm2-app-name

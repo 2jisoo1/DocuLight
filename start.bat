@@ -5,11 +5,20 @@ setlocal enabledelayedexpansion
 :: DocLight Start Script
 :: Usage: start.bat
 
-set APP_NAME=doclight
 set ENTRY_POINT=src/app.js
+set NAME_FILE=.pm2-app-name
+
+:: Load or generate unique PM2 app name
+if exist "%NAME_FILE%" (
+    set /p APP_NAME=<"%NAME_FILE%"
+) else (
+    for /f %%A in ('powershell -NoProfile -Command "-join((48..57+97..122)|Get-Random -Count 8|%%{[char]$_})"') do set RAND=%%A
+    set APP_NAME=doculight-!RAND!
+    echo !APP_NAME!> "%NAME_FILE%"
+)
 
 echo ========================================
-echo   DocLight Server Start
+echo   DocuLight Server Start (!APP_NAME!)
 echo ========================================
 
 :: Change to script directory

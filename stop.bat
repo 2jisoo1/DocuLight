@@ -5,10 +5,18 @@ setlocal
 :: DocLight Stop Script
 :: Usage: stop.bat
 
-set APP_NAME=doclight
+set NAME_FILE=.pm2-app-name
+
+:: Load PM2 app name
+if exist "%NAME_FILE%" (
+    set /p APP_NAME=<"%NAME_FILE%"
+) else (
+    echo [ERROR] No instance name found. Was start.bat ever run?
+    exit /b 1
+)
 
 echo ========================================
-echo   DocLight Server Stop
+echo   DocuLight Server Stop (!APP_NAME!)
 echo ========================================
 
 :: Change to script directory

@@ -6,10 +6,16 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
-APP_NAME="doclight"
+NAME_FILE=".pm2-app-name"
+if [ -f "$NAME_FILE" ]; then
+    APP_NAME="$(cat "$NAME_FILE")"
+else
+    echo "[ERROR] No instance name found. Was start.sh ever run?"
+    exit 1
+fi
 
 echo "========================================"
-echo "  DocLight Server Stop"
+echo "  DocuLight Server Stop ($APP_NAME)"
 echo "========================================"
 
 # Determine pm2 command (global or npx)
