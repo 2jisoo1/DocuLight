@@ -1676,10 +1676,15 @@ async function init() {
     const sidebarTitle = document.querySelector('.sidebar-title');
     if (sidebarTitle) {
       sidebarTitle.addEventListener('click', async () => {
-        // Chatbot mode: stay on chatbot (no navigation)
+        const homePath = DocLightUtils.prefixPath('/');
+        // If not on home page, do a full navigation to home
+        if (window.location.pathname !== homePath) {
+          window.location.href = homePath;
+          return;
+        }
+
+        // Already on home - chatbot mode: do nothing
         if (window.CHATBOT_MODE) {
-          console.log('[app.js] Chatbot mode: sidebar title click - staying on chatbot');
-          window.history.pushState({ chatbot: true }, '', DocLightUtils.prefixPath('/'));
           return;
         }
 

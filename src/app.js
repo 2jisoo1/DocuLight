@@ -246,7 +246,7 @@ app.get('/admin', (req, res) => {
   const cfg = req.app.locals.config || {};
   const basePath = cfg.basePath || '';
   const iconPath = (cfg.ui && cfg.ui.icon) || './public/images/icon.png';
-  res.render('admin', { config: cfg, uiIcon: resolveIconPath(iconPath, basePath) });
+  res.render('admin', { config: cfg, uiIcon: resolveIconPath(iconPath, basePath), uiTitle: (cfg.ui && cfg.ui.title) || 'DocuLight' });
 });
 
 // Admin SPA routes (client-side routing support)
@@ -254,7 +254,7 @@ app.get('/admin/*', (req, res) => {
   const cfg = req.app.locals.config || {};
   const basePath = cfg.basePath || '';
   const iconPath = (cfg.ui && cfg.ui.icon) || './public/images/icon.png';
-  res.render('admin', { config: cfg, uiIcon: resolveIconPath(iconPath, basePath) });
+  res.render('admin', { config: cfg, uiIcon: resolveIconPath(iconPath, basePath), uiTitle: (cfg.ui && cfg.ui.title) || 'DocuLight' });
 });
 
 // Chatbot page route (Step 15: RAG Chatbot)

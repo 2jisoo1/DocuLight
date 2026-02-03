@@ -1860,6 +1860,16 @@ function bindEvents() {
     refreshBtn.addEventListener('click', () => TreeModule.loadTree());
   }
 
+  // 사이드바 타이틀 클릭 → 메인 페이지 이동
+  const sidebarTitle = document.querySelector('.sidebar-title');
+  if (sidebarTitle) {
+    const homePath = (typeof DocLightUtils !== 'undefined') ? DocLightUtils.prefixPath('/') : '/';
+    sidebarTitle.addEventListener('click', () => { window.location.href = homePath; });
+    sidebarTitle.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); window.location.href = homePath; }
+    });
+  }
+
   // 브라우저 뒤로가기/앞으로가기
   window.addEventListener('popstate', (e) => URLModule.handlePopState(e));
 

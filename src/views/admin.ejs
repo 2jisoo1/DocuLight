@@ -50,7 +50,10 @@
     <!-- 사이드바 -->
     <div id="admin-sidebar">
       <div class="sidebar-header">
-        <span>Files</span>
+        <div class="sidebar-title" role="link" tabindex="0" style="cursor:pointer">
+          <img src="<%= uiIcon %>" alt="icon" class="sidebar-icon" onerror="this.style.display='none'">
+          <h1 title="<%= uiTitle %>"><%= uiTitle %></h1>
+        </div>
         <button id="refresh-tree" class="btn-icon" title="Refresh">&#x1F504;</button>
       </div>
       <div id="file-tree"></div>
