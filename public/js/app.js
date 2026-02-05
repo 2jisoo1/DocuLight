@@ -19,6 +19,15 @@ let db;
 // Global state: flattened file list for navigation (Step 9.3)
 let flatFileList = [];
 
+// Safe decodeURIComponent that returns original string on failure
+function safeDecodeURIComponent(str) {
+  try {
+    return decodeURIComponent(str);
+  } catch (e) {
+    return str;
+  }
+}
+
 // Initialize IndexedDB
 async function initDB() {
   return new Promise((resolve, reject) => {
@@ -565,7 +574,7 @@ function addInternalLinkHandlers(contentDiv) {
       } else {
         return;
       }
-      const decodedPath = rawPath.split('/').map(seg => decodeURIComponent(seg)).join('/');
+      const decodedPath = rawPath.split('/').map(seg => safeDecodeURIComponent(seg)).join('/');
 
       // Check if it's a file or folder by trying to fetch as file first
       const fileResponse = await fetch(DocLightUtils.prefixPath(`/api/raw?path=${encodeURIComponent(decodedPath + '.md')}`));
@@ -794,7 +803,7 @@ function addDocumentTitle(path, contentDiv) {
   const titleText = filename.replace(/\.md$/, ''); // Remove .md extension
 
   // Decode for display
-  const decodedTitle = decodeURIComponent(titleText);
+  const decodedTitle = safeDecodeURIComponent(titleText);
 
   // Create title element
   const titleElement = document.createElement('h1');
@@ -1153,12 +1162,12 @@ async function collapseAll() {
 function generateFolderListMarkdown(folderPath, treeData) {
   // Extract folder name for title (decode for display)
   const folderName = folderPath.split('/').filter(p => p).pop() || 'Root';
-  const decodedFolderName = decodeURIComponent(folderName);
+  const decodedFolderName = folderName;
 
   let markdown = `# 📂 ${decodedFolderName}\n\n`;
 
   // Show current path (decode for display)
-  const decodedPath = folderPath.split('/').map(seg => decodeURIComponent(seg)).join('/');
+  const decodedPath = folderPath;
   markdown += `**Path**: \`${decodedPath || '/'}\`\n\n`;
 
   // Subdirectories section
@@ -1170,7 +1179,7 @@ function generateFolderListMarkdown(folderPath, treeData) {
       const cleanDirPath = dirPath.replace(/^\//, '');
       // Encode path for URL, but display decoded name
       const encodedPath = cleanDirPath.split('/').map(seg => encodeURIComponent(seg)).join('/');
-      const displayDirName = decodeURIComponent(dir.name);
+      const displayDirName = dir.name;
       markdown += `- **[${displayDirName}](${DocLightUtils.prefixPath(`/doc/${encodedPath}`)})**\n`;
     }
 
@@ -1189,7 +1198,7 @@ function generateFolderListMarkdown(folderPath, treeData) {
       const cleanFilePath = filePath.replace(/^\//, '').replace(/\.md$/, '');
 
       // Display name without .md extension (decode for display)
-      const displayName = decodeURIComponent(file.name.replace(/\.md$/, ''));
+      const displayName = file.name.replace(/\.md$/, '');
 
       // Encode path for URL
       const encodedPath = cleanFilePath.split('/').map(seg => encodeURIComponent(seg)).join('/');
@@ -1725,13 +1734,13 @@ async function init() {
     // Strip basePath prefix from pathname for route matching
     const strippedPath = bp && pathname.startsWith(bp) ? pathname.substring(bp.length) : pathname;
     const hashRaw = window.location.hash.substring(1); // Remove '#'
-    const hash = hashRaw ? decodeURIComponent(hashRaw) : ''; // Decode hash
+    const hash = hashRaw ? safeDecodeURIComponent(hashRaw) : ''; // Decode hash
     let pathFromUrl = null;
 
     if (strippedPath.startsWith('/doc/')) {
       // Extract path from /doc/... URL and decode each segment
       const rawPath = strippedPath.substring(5); // Remove '/doc/'
-      pathFromUrl = rawPath.split('/').map(seg => decodeURIComponent(seg)).join('/');
+      pathFromUrl = rawPath.split('/').map(seg => safeDecodeURIComponent(seg)).join('/');
 
       // Clean URL handling: add .md extension if not present
       if (pathFromUrl && !pathFromUrl.endsWith('.md')) {

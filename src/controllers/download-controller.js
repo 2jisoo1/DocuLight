@@ -37,7 +37,8 @@ async function downloadFile(req, res, next) {
     });
 
     // Set headers
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+    const asciiFilename = filename.replace(/[^\x20-\x7E]/g, '_').replace(/["\\\n\r]/g, '_');
+    res.setHeader('Content-Disposition', `attachment; filename="${asciiFilename}"; filename*=UTF-8''${encodeURIComponent(filename)}`);
     res.setHeader('Content-Type', 'application/octet-stream');
     res.setHeader('Content-Length', stats.size);
 
@@ -89,7 +90,8 @@ async function downloadDirectory(req, res, next) {
     logger.info('Directory ZIP download started', { path: userPath });
 
     // Set headers
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(zipFilename)}"`);
+    const asciiZipFilename = zipFilename.replace(/[^\x20-\x7E]/g, '_').replace(/["\\\n\r]/g, '_');
+    res.setHeader('Content-Disposition', `attachment; filename="${asciiZipFilename}"; filename*=UTF-8''${encodeURIComponent(zipFilename)}`);
     res.setHeader('Content-Type', 'application/zip');
 
     // Create archiver

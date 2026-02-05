@@ -692,7 +692,11 @@ const URLModule = {
     if (path.startsWith(adminPrefix)) {
       const filePath = path.substring(adminPrefix.length) || '/';
       // URL 디코딩하여 한글 등 인코딩된 문자 처리
-      return filePath === '' ? '/' : decodeURIComponent(filePath);
+      try {
+        return filePath === '' ? '/' : decodeURIComponent(filePath);
+      } catch (e) {
+        return filePath === '' ? '/' : filePath;
+      }
     }
     return '/';
   },
