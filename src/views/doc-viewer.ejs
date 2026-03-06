@@ -287,7 +287,7 @@
     // Configure marked options
     marked.setOptions({
       gfm: true,
-      breaks: false,
+      breaks: true,
       highlight: function(code, lang) {
         if (lang && hljs.getLanguage(lang)) {
           try {
