@@ -4,31 +4,22 @@
   // Root directory for documents (absolute path recommended)
   docsRoot: "/data/docs",
 
-  // API authentication key for write/delete/download operations
-  // IMPORTANT: Change this to a secure random string
-  // DEPRECATED: Use apiKeys array instead for multiple users
-  apiKey: "CHANGE_THIS_TO_SECURE_KEY",
+  // Data directory for user management
+  // Stores users.json, groups.json, pending-registrations.json
+  // Default: "./data"
+  dataDir: "./data",
 
-  // Multiple API keys with permissions (recommended over single apiKey)
-  // Each key can have different permissions and names
-  // If both apiKey and apiKeys exist, apiKeys takes precedence
-  // apiKeys: [
-  //   {
-  //     key: "admin-key-here",           // Required: unique API key
-  //     name: "Admin",                    // Optional: display name (default: "API Key N")
-  //     permissions: ["read", "write", "delete"]  // Optional: permissions (default: all)
+  // Email server configuration (optional, required for signup workflow)
+  // email: {
+  //   host: "smtp.example.com",
+  //   port: 587,
+  //   secure: false,
+  //   auth: {
+  //     user: "noreply@example.com",
+  //     pass: "password"
   //   },
-  //   {
-  //     key: "editor-key-here",
-  //     name: "Editor",
-  //     permissions: ["read", "write"]   // Can read and write, but not delete
-  //   },
-  //   {
-  //     key: "reader-key-here",
-  //     name: "Reader",
-  //     permissions: ["read"]            // Read-only access
-  //   }
-  // ],
+  //   from: "DocLight <noreply@example.com>"
+  // },
 
   // Maximum upload file size in megabytes
   maxUploadMB: 1000,
@@ -87,17 +78,10 @@
     "*.log"
   ],
 
-
-  // Log directory (relative or absolute path)
-  logDir: "./logs",
-
-  // Log level: 'error' | 'warn' | 'info' | 'debug'
-  logLevel: "info",
-
-  // Log retention settings
+  // Log settings
   log: {
     dir: "./logs",           // Log directory
-    level: "info",           // Log level
+    level: "info",           // Log level: 'error' | 'warn' | 'info' | 'debug'
     maxDays: 30,             // Log retention period (days)
     history: true            // Enable log history (for future use)
   },
@@ -133,13 +117,26 @@
   //   allowPortSslAutoRestart: false
   // }
 
-  // Admin Mode settings (optional)
-  // Controls session management and admin capabilities
-  // admin: {
-  //   // Session timeout in milliseconds (default: 3600000 = 1 hour)
-  //   // Minimum: 60000 (1 minute)
+  // Authentication settings
+  // Controls user login requirements for viewing documents
+  // auth: {
+  //   // Require login to view documents (default: false)
+  //   requireReadLogin: false,
+  //
+  //   // Session timeout in milliseconds (default: 3600000 = 1 hour, min: 60000)
   //   sessionTimeout: 3600000,
   //
+  //   // Allow new user signups (default: true)
+  //   allowSignup: true,
+  //
+  //   // Restrict signups to specific email domains (empty = all domains allowed)
+  //   allowedEmailDomains: []
+  // },
+
+  // Admin Mode settings (optional)
+  // Controls file management capabilities
+  // Session timeout is managed via /admin settings page after initial setup
+  // admin: {
   //   // Allow file uploads in admin mode (default: true)
   //   allowUpload: true,
   //
@@ -158,7 +155,7 @@
   //   maxEditableSize: 1048576
   // },
 
-  // HTML Caching System (Step 13)
+  // HTML Caching System
   cache: {
     // Enable/disable caching system
     // Set to false to use client-side rendering (old behavior)
@@ -207,7 +204,7 @@
     cleanupAfterDays: 30
   },
 
-  // RAG Chatbot Configuration (Step 15)
+  // RAG Chatbot Configuration
   // Enable AI-powered document Q&A chatbot
   // chatbot: {
   //   // LLM Configuration
@@ -311,7 +308,7 @@
   //     compressionTarget: 0.1
   //   },
   //
-  //   // Self-Correcting RAG Settings (Step 16)
+  //   // Self-Correcting RAG Settings
   //   // Improves answer quality by evaluating and re-trying with RAG when needed
   //   selfCorrection: {
   //     // Enable Self-Correcting RAG workflow (default: true)
@@ -332,7 +329,7 @@
   //     evaluationThreshold: 0.7
   //   },
   //
-  //   // Multi-Document Summarization Settings (Step 17)
+  //   // Multi-Document Summarization Settings
   //   // Enables user requirement parsing and map-reduce summarization
   //   summarization: {
   //     // Enable enhanced summarization (default: true)

@@ -85,13 +85,21 @@ function requirePermission(permission) {
       });
     }
 
-    // Check if session has required permission
-    if (!req.adminSession.permissions.includes(permission)) {
+    // Map 'delete' to 'write' (Step 17: permission consolidation)
+    const effectivePermission = permission === 'delete' ? 'write' : permission;
+
+    // Check permission with hierarchy: superuser > write > read
+    const perms = req.adminSession.permissions;
+    const hasAccess = perms.includes('superuser') ||
+      perms.includes(effectivePermission) ||
+      (effectivePermission === 'read' && perms.includes('write'));
+
+    if (!hasAccess) {
       return res.status(403).json({
         success: false,
         error: {
           code: 'FORBIDDEN',
-          message: `Permission "${permission}" required`
+          message: `Permission "${effectivePermission}" required`
         }
       });
     }

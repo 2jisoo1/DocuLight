@@ -133,8 +133,17 @@ function loadConfig() {
   // Normalize apiKeys (backward compatibility with single apiKey)
   config = normalizeApiKeys(config);
 
-  // Validate apiKeys (replaces old single apiKey validation)
-  validateApiKeys(config.apiKeys);
+  // Validate apiKeys - skip if user management data exists (Step 17 migration)
+  const dataDir = config.dataDir ? path.resolve(config.dataDir) : path.resolve('./data');
+  const usersJsonPath = path.join(dataDir, 'users.json');
+  if (fs.existsSync(usersJsonPath)) {
+    if (config.apiKey || (config.apiKeys && config.apiKeys.length > 0)) {
+      console.warn('[DEPRECATED] apiKey/apiKeys는 폐기 예정입니다. 사용자 관리 시스템을 사용하세요.');
+    }
+  } else {
+    // No user data yet - validate apiKeys for backward compatibility
+    validateApiKeys(config.apiKeys);
+  }
 
   // Validate docsRoot exists and is a directory
   const docsRoot = path.resolve(config.docsRoot);
@@ -148,6 +157,24 @@ function loadConfig() {
       throw new Error(`docsRoot directory does not exist: ${docsRoot}`);
     }
     throw new Error(`Cannot access docsRoot: ${error.message}`);
+  }
+
+  // Set defaults for dataDir (Step 17: User Management)
+  config.dataDir = config.dataDir || './data';
+  config.dataDir = path.resolve(config.dataDir);
+  if (!fs.existsSync(config.dataDir)) {
+    fs.mkdirSync(config.dataDir, { recursive: true });
+    console.log(`Created data directory: ${config.dataDir}`);
+  }
+
+  // Parse email configuration (optional, null if not configured)
+  if (config.email) {
+    if (!config.email.host || !config.email.from) {
+      console.warn('Warning: email.host and email.from are required for email service. Email features disabled.');
+      config.email = null;
+    }
+  } else {
+    config.email = null;
   }
 
   // Set defaults for optional fields
@@ -182,6 +209,18 @@ function loadConfig() {
   config.ui.title = config.ui.title || 'DocLight';
   config.ui.icon = config.ui.icon || '/images/icon.png';
   config.ui.maxWidth = config.ui.maxWidth || '1024px';
+
+  // Set defaults for auth settings (user authentication)
+  config.auth = {
+    requireReadLogin: false,
+    sessionTimeout: 3600000,  // 1 hour default
+    allowSignup: true,
+    allowedEmailDomains: [],
+    ...config.auth
+  };
+  if (config.auth.sessionTimeout < 60000) {
+    config.auth.sessionTimeout = 3600000;
+  }
 
   // Set defaults for admin settings (Phase 1: Admin Mode)
   config.admin = {

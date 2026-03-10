@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= uiTitle %> - Setup</title>
+  <link rel="icon" href="<%= uiIcon %>">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+    .setup-container { background: white; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.1); padding: 40px; width: 100%; max-width: 440px; }
+    .setup-container h1 { font-size: 24px; margin-bottom: 8px; color: #333; }
+    .setup-container p { color: #666; margin-bottom: 24px; font-size: 14px; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 6px; }
+    .form-group input { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; transition: border-color 0.2s; }
+    .form-group input:focus { outline: none; border-color: #4a90d9; box-shadow: 0 0 0 3px rgba(74,144,217,0.1); }
+    .btn-primary { width: 100%; padding: 12px; background: #4a90d9; color: white; border: none; border-radius: 6px; font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    .btn-primary:hover { background: #357abd; }
+    .btn-primary:disabled { background: #aaa; cursor: not-allowed; }
+    .error-msg { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 10px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 16px; display: none; }
+    .success-msg { background: #f0fdf4; border: 1px solid #bbf7d0; color: #16a34a; padding: 10px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 16px; display: none; }
+  </style>
+</head>
+<body>
+  <div class="setup-container">
+    <h1><%= uiTitle %> Setup</h1>
+    <p>관리자(슈퍼유저) 계정을 생성합니다. 이 계정으로 사용자 관리를 수행합니다.</p>
+
+    <div id="error-msg" class="error-msg"></div>
+    <div id="success-msg" class="success-msg"></div>
+
+    <form id="setup-form">
+      <div class="form-group">
+        <label for="email">이메일</label>
+        <input type="email" id="email" name="email" required placeholder="admin@example.com" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label for="password">패스워드</label>
+        <input type="password" id="password" name="password" required placeholder="최소 8자" minlength="8" autocomplete="new-password">
+      </div>
+      <div class="form-group">
+        <label for="passwordConfirm">패스워드 확인</label>
+        <input type="password" id="passwordConfirm" name="passwordConfirm" required placeholder="패스워드 재입력" autocomplete="new-password">
+      </div>
+      <button type="submit" class="btn-primary" id="submit-btn">관리자 계정 생성</button>
+    </form>
+  </div>
+
+  <script>
+    const basePath = '<%= basePath %>';
+    document.getElementById('setup-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errorEl = document.getElementById('error-msg');
+      const successEl = document.getElementById('success-msg');
+      const btn = document.getElementById('submit-btn');
+      errorEl.style.display = 'none';
+      successEl.style.display = 'none';
+
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const passwordConfirm = document.getElementById('passwordConfirm').value;
+
+      if (password !== passwordConfirm) {
+        errorEl.textContent = '패스워드가 일치하지 않습니다.';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = '생성 중...';
+
+      try {
+        const res = await fetch(basePath + '/api/auth/setup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, passwordConfirm })
+        });
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          successEl.textContent = '관리자 계정이 생성되었습니다. 로그인 페이지로 이동합니다...';
+          successEl.style.display = 'block';
+          setTimeout(() => { window.location.href = basePath + '/login'; }, 1500);
+        } else {
+          errorEl.textContent = data.error?.message || '계정 생성에 실패했습니다.';
+          errorEl.style.display = 'block';
+          btn.disabled = false;
+          btn.textContent = '관리자 계정 생성';
+        }
+      } catch (err) {
+        errorEl.textContent = '서버 연결에 실패했습니다.';
+        errorEl.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = '관리자 계정 생성';
+      }
+    });
+  </script>
+</body>
+</html>

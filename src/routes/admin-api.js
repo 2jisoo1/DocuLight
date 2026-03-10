@@ -7,74 +7,45 @@
  */
 const express = require('express');
 const { adminAuth, requirePermission } = require('../middleware/admin-auth');
-const authController = require('../controllers/admin/admin-auth-controller');
 const treeController = require('../controllers/admin/admin-tree-controller');
 const fileController = require('../controllers/admin/admin-file-controller');
 const moveController = require('../controllers/admin/admin-move-controller');
 const uploadController = require('../controllers/admin/admin-upload-controller');
+const groupController = require('../controllers/admin/admin-group-controller');
+const userController = require('../controllers/admin/admin-user-controller');
+const authSettingsController = require('../controllers/admin/admin-auth-settings-controller');
+const registrationController = require('../controllers/admin/admin-registration-controller');
 
 const router = express.Router();
 
 // =============================================================================
-// Authentication Endpoints (Public)
+// Deprecated Authentication Endpoints (Step 17: Migration)
+// These endpoints are replaced by /api/auth/* routes
 // =============================================================================
 
-/**
- * POST /api/admin/auth
- * Login with API key and create session
- *
- * Request Body:
- *   { apiKey: string }
- *
- * Response:
- *   { success: true, session: { token, name, permissions, expiresAt } }
- *
- * Errors:
- *   400 - MISSING_KEY: API key not provided
- *   401 - INVALID_KEY: API key is invalid
- */
-router.post('/auth', authController.login);
+router.post('/auth', (req, res) => {
+  res.status(410).json({
+    error: { code: 'ENDPOINT_DEPRECATED', message: 'POST /api/auth/login 을 사용하세요' }
+  });
+});
 
-// =============================================================================
-// Session Endpoints (Authenticated)
-// =============================================================================
+router.post('/logout', (req, res) => {
+  res.status(410).json({
+    error: { code: 'ENDPOINT_DEPRECATED', message: 'POST /api/auth/logout 을 사용하세요' }
+  });
+});
 
-/**
- * POST /api/admin/logout
- * Invalidate current session
- *
- * Requires: Valid session token (Cookie or Authorization header)
- *
- * Response:
- *   { success: true }
- */
-router.post('/logout', adminAuth(), authController.logout);
+router.get('/session', (req, res) => {
+  res.status(410).json({
+    error: { code: 'ENDPOINT_DEPRECATED', message: 'GET /api/auth/session 을 사용하세요' }
+  });
+});
 
-/**
- * GET /api/admin/session
- * Get current session information
- *
- * Requires: Valid session token
- *
- * Response:
- *   { success: true, session: { name, permissions, expiresAt, createdAt } }
- *
- * Errors:
- *   401 - UNAUTHORIZED: No session token
- *   401 - SESSION_EXPIRED: Session expired or invalid
- */
-router.get('/session', adminAuth(), authController.getSession);
-
-/**
- * POST /api/admin/session/refresh
- * Refresh session expiry time
- *
- * Requires: Valid session token
- *
- * Response:
- *   { success: true, session: { name, permissions, expiresAt } }
- */
-router.post('/session/refresh', adminAuth(), authController.refreshSession);
+router.post('/session/refresh', (req, res) => {
+  res.status(410).json({
+    error: { code: 'ENDPOINT_DEPRECATED', message: 'POST /api/auth/session/refresh 를 사용하세요' }
+  });
+});
 
 // =============================================================================
 // Tree Endpoints (Authenticated, Read permission)
@@ -238,6 +209,41 @@ router.post('/upload',
  * Response:
  *   { success: true, deleted: [...] }
  */
-router.delete('/entry', adminAuth(), requirePermission('delete'), fileController.deleteEntry);
+router.delete('/entry', adminAuth(), requirePermission('write'), fileController.deleteEntry);
+
+// =============================================================================
+// Group Management Endpoints (Superuser only)
+// =============================================================================
+
+router.get('/groups', adminAuth(), requirePermission('superuser'), groupController.listGroups);
+router.post('/groups', adminAuth(), requirePermission('superuser'), groupController.createGroup);
+router.put('/groups/:id', adminAuth(), requirePermission('superuser'), groupController.updateGroup);
+router.delete('/groups/:id', adminAuth(), requirePermission('superuser'), groupController.deleteGroup);
+
+// =============================================================================
+// User Management Endpoints (Superuser only)
+// =============================================================================
+
+router.get('/users', adminAuth(), requirePermission('superuser'), userController.listUsers);
+router.post('/users', adminAuth(), requirePermission('superuser'), userController.createUser);
+router.put('/users/:id', adminAuth(), requirePermission('superuser'), userController.updateUser);
+router.delete('/users/:id', adminAuth(), requirePermission('superuser'), userController.deleteUser);
+router.post('/users/:id/reset-password', adminAuth(), requirePermission('superuser'), userController.resetPassword);
+router.post('/users/:id/unlock', adminAuth(), requirePermission('superuser'), userController.unlockUser);
+
+// =============================================================================
+// Auth Settings Endpoints (Superuser only)
+// =============================================================================
+
+router.get('/auth-settings', adminAuth(), requirePermission('superuser'), authSettingsController.getSettings);
+router.put('/auth-settings', adminAuth(), requirePermission('superuser'), authSettingsController.updateSettings);
+
+// =============================================================================
+// Registration Management Endpoints (Superuser only)
+// =============================================================================
+
+router.get('/registrations', adminAuth(), requirePermission('superuser'), registrationController.listPending);
+router.post('/registrations/:id/approve', adminAuth(), requirePermission('superuser'), registrationController.approve);
+router.post('/registrations/:id/reject', adminAuth(), requirePermission('superuser'), registrationController.reject);
 
 module.exports = router;

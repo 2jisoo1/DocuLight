@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= uiTitle %> - 가입 요청</title>
+  <link rel="icon" href="<%= uiIcon %>">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+    .signup-container { background: white; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.1); padding: 40px; width: 100%; max-width: 440px; }
+    .signup-container h1 { font-size: 24px; margin-bottom: 8px; color: #333; }
+    .signup-container .subtitle { color: #666; margin-bottom: 24px; font-size: 14px; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 6px; }
+    .form-group input, .form-group textarea { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; transition: border-color 0.2s; font-family: inherit; }
+    .form-group input:focus, .form-group textarea:focus { outline: none; border-color: #4a90d9; box-shadow: 0 0 0 3px rgba(74,144,217,0.1); }
+    .form-group textarea { min-height: 80px; resize: vertical; }
+    .btn-primary { width: 100%; padding: 12px; background: #4a90d9; color: white; border: none; border-radius: 6px; font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    .btn-primary:hover { background: #357abd; }
+    .btn-primary:disabled { background: #aaa; cursor: not-allowed; }
+    .error-msg { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 10px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 16px; display: none; }
+    .success-msg { background: #f0fdf4; border: 1px solid #bbf7d0; color: #16a34a; padding: 10px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 16px; display: none; }
+    .back-link { display: block; text-align: center; margin-top: 16px; font-size: 13px; color: #4a90d9; text-decoration: none; }
+    .back-link:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="signup-container">
+    <h1><%= uiTitle %></h1>
+    <p class="subtitle">가입 요청</p>
+
+    <div id="error-msg" class="error-msg"></div>
+    <div id="success-msg" class="success-msg"></div>
+
+    <form id="signup-form">
+      <div class="form-group">
+        <label for="email">이메일</label>
+        <input type="email" id="email" name="email" required placeholder="user@example.com" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label for="password">패스워드</label>
+        <input type="password" id="password" name="password" required placeholder="최소 8자" minlength="8" autocomplete="new-password">
+      </div>
+      <div class="form-group">
+        <label for="passwordConfirm">패스워드 확인</label>
+        <input type="password" id="passwordConfirm" name="passwordConfirm" required placeholder="패스워드 재입력" autocomplete="new-password">
+      </div>
+      <div class="form-group">
+        <label for="message">가입 요청 메시지 (선택)</label>
+        <textarea id="message" name="message" placeholder="관리자에게 전달할 메시지를 입력하세요"></textarea>
+      </div>
+      <button type="submit" class="btn-primary" id="submit-btn">가입 요청</button>
+    </form>
+
+    <a href="<%= basePath %>/login" class="back-link">로그인 페이지로 돌아가기</a>
+  </div>
+
+  <script>
+    const basePath = '<%= basePath %>';
+    const params = new URLSearchParams(window.location.search);
+
+    // Handle URL parameters from email verification redirect
+    (function handleUrlParams() {
+      const errorEl = document.getElementById('error-msg');
+      const successEl = document.getElementById('success-msg');
+
+      if (params.get('verified') === 'true') {
+        document.getElementById('signup-form').style.display = 'none';
+        successEl.textContent = '이메일 인증이 완료되었습니다. 관리자 승인을 기다려주세요.';
+        successEl.style.display = 'block';
+        return;
+      }
+
+      const errorCode = params.get('error');
+      if (errorCode) {
+        const errorMessages = {
+          'INVALID_TOKEN': '유효하지 않은 인증 링크입니다.',
+          'ALREADY_VERIFIED': '이미 처리된 요청입니다.',
+          'TOKEN_EXPIRED': '인증 링크가 만료되었습니다. 다시 가입 요청해주세요.'
+        };
+        errorEl.textContent = errorMessages[errorCode] || '인증 처리 중 오류가 발생했습니다.';
+        errorEl.style.display = 'block';
+      }
+    })();
+
+    document.getElementById('signup-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errorEl = document.getElementById('error-msg');
+      const successEl = document.getElementById('success-msg');
+      const btn = document.getElementById('submit-btn');
+      errorEl.style.display = 'none';
+      successEl.style.display = 'none';
+
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const passwordConfirm = document.getElementById('passwordConfirm').value;
+      const message = document.getElementById('message').value.trim();
+
+      if (password !== passwordConfirm) {
+        errorEl.textContent = '패스워드가 일치하지 않습니다.';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = '요청 중...';
+
+      try {
+        const res = await fetch(basePath + '/api/auth/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, passwordConfirm, message })
+        });
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          document.getElementById('signup-form').style.display = 'none';
+          if (data.emailSent) {
+            successEl.textContent = '인증 이메일이 발송되었습니다. 이메일의 링크를 클릭해주세요.';
+          } else {
+            successEl.textContent = '가입 요청이 완료되었습니다. 관리자 승인을 기다려주세요.';
+          }
+          successEl.style.display = 'block';
+        } else {
+          let msg = data.error?.message || '가입 요청에 실패했습니다.';
+          if (data.error?.code === 'SIGNUP_DISABLED') msg = '현재 가입 요청이 비활성화되어 있습니다.';
+          else if (data.error?.code === 'EMAIL_ALREADY_REGISTERED') msg = '이미 등록된 이메일입니다.';
+          else if (data.error?.code === 'EMAIL_ALREADY_PENDING') msg = '이미 가입 요청이 진행 중인 이메일입니다.';
+          else if (data.error?.code === 'EMAIL_DOMAIN_NOT_ALLOWED') msg = '허용되지 않은 이메일 도메인입니다.';
+          else if (data.error?.code === 'TOO_MANY_REQUESTS') msg = '요청이 너무 많습니다. 잠시 후 다시 시도하세요.';
+          errorEl.textContent = msg;
+          errorEl.style.display = 'block';
+          btn.disabled = false;
+          btn.textContent = '가입 요청';
+        }
+      } catch (err) {
+        errorEl.textContent = '서버 연결에 실패했습니다.';
+        errorEl.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = '가입 요청';
+      }
+    });
+  </script>
+</body>
+</html>

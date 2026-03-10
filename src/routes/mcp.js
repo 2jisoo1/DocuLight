@@ -247,16 +247,28 @@ const TOOLS = [
   }
 ];
 
+const crypto = require('crypto');
+
 /**
- * Check if tool requires authentication
+ * Check if tool requires write authentication
  */
-function requiresAuth(toolName) {
+function requiresWriteAuth(toolName) {
   const protectedTools = ['create_document', 'delete_document'];
   return protectedTools.includes(toolName);
 }
 
 /**
- * Validate API key
+ * Check if tool requires read authentication (when requireReadLogin is enabled)
+ */
+function requiresReadAuth(toolName) {
+  const readTools = ['list_documents', 'read_document', 'DocuLight_get_config',
+    'DocuLight_search', 'query_document', 'summarize_document', 'DocuLight_smart_search'];
+  return readTools.includes(toolName);
+}
+
+/**
+ * Validate API key (user-key) via SHA-256 hash lookup
+ * Falls back to legacy apiKey for backward compatibility
  */
 function validateApiKey(req, config) {
   const providedKey = req.header('X-API-Key');
@@ -265,22 +277,72 @@ function validateApiKey(req, config) {
     return { valid: false, error: 'X-API-Key header is required for this operation' };
   }
 
-  if (providedKey !== config.apiKey) {
+  // New user-key authentication (Step 17)
+  const stores = req.app.locals.stores;
+  if (stores && stores.userStore && stores.userStore.getUserCount() > 0) {
+    const hash = crypto.createHash('sha256').update(providedKey).digest('hex');
+    const user = stores.userStore.findByUserKeyHash(hash);
+
+    if (user) {
+      if (user.status === 'disabled') {
+        return { valid: false, error: 'Account is disabled' };
+      }
+      const group = stores.groupStore.findById(user.groupId);
+      return {
+        valid: true,
+        user: {
+          userId: user.id,
+          email: user.email,
+          groupId: user.groupId,
+          permissions: group ? group.permissions : ['read']
+        }
+      };
+    }
+
+    // Fallback: try legacy apiKey
+    if (config.apiKey === providedKey || config.apiKeys?.some(k => k.key === providedKey)) {
+      return { valid: true, user: null };
+    }
+
     return { valid: false, error: 'Invalid API key' };
   }
 
-  return { valid: true };
+  // Legacy apiKey authentication (no user management set up yet)
+  if (config.apiKey === providedKey || config.apiKeys?.some(k => k.key === providedKey)) {
+    return { valid: true, user: null };
+  }
+
+  return { valid: false, error: 'Invalid API key' };
 }
 
 /**
  * MCP Tool 실행
  */
 async function executeTool(config, logger, name, args, req) {
-  // Check authentication for protected tools
-  if (requiresAuth(name)) {
+  // Check authentication for read tools (when requireReadLogin is enabled)
+  const stores = req.app.locals.stores;
+  if (requiresReadAuth(name) && stores && stores.authSettingsStore) {
+    const settings = stores.authSettingsStore.get();
+    if (settings.requireReadLogin) {
+      const authResult = validateApiKey(req, config);
+      if (!authResult.valid) {
+        throw new Error(`UNAUTHORIZED: ${authResult.error}`);
+      }
+    }
+  }
+
+  // Check authentication for write tools (always required)
+  if (requiresWriteAuth(name)) {
     const authResult = validateApiKey(req, config);
     if (!authResult.valid) {
       throw new Error(`UNAUTHORIZED: ${authResult.error}`);
+    }
+    // Check write permission if user info available
+    if (authResult.user && authResult.user.permissions) {
+      const { hasPermission } = require('../middleware/auth');
+      if (!hasPermission(authResult.user.permissions, 'write')) {
+        throw new Error('UNAUTHORIZED: Write permission required');
+      }
     }
   }
 

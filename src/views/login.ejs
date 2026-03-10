@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= uiTitle %> - Login</title>
+  <link rel="icon" href="<%= uiIcon %>">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+    .login-container { background: white; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.1); padding: 40px; width: 100%; max-width: 440px; }
+    .login-container h1 { font-size: 24px; margin-bottom: 8px; color: #333; }
+    .login-container .subtitle { color: #666; margin-bottom: 24px; font-size: 14px; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 6px; }
+    .form-group input { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; transition: border-color 0.2s; }
+    .form-group input:focus { outline: none; border-color: #4a90d9; box-shadow: 0 0 0 3px rgba(74,144,217,0.1); }
+    .btn-primary { width: 100%; padding: 12px; background: #4a90d9; color: white; border: none; border-radius: 6px; font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    .btn-primary:hover { background: #357abd; }
+    .btn-primary:disabled { background: #aaa; cursor: not-allowed; }
+    .error-msg { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 10px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 16px; display: none; }
+    .forgot-link { display: block; text-align: center; margin-top: 16px; font-size: 13px; color: #888; cursor: pointer; }
+    .forgot-link:hover { color: #4a90d9; }
+    .forgot-info { display: none; text-align: center; margin-top: 12px; font-size: 13px; color: #666; background: #f8f9fa; padding: 12px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <h1><%= uiTitle %></h1>
+    <p class="subtitle">관리자 로그인</p>
+
+    <div id="error-msg" class="error-msg"></div>
+
+    <form id="login-form">
+      <div class="form-group">
+        <label for="email">이메일</label>
+        <input type="email" id="email" name="email" required placeholder="admin@example.com" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label for="password">패스워드</label>
+        <input type="password" id="password" name="password" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn-primary" id="login-btn">로그인</button>
+    </form>
+
+    <a href="<%= basePath %>/signup" style="display:block;text-align:center;margin-top:16px;font-size:13px;color:#4a90d9;text-decoration:none;">가입 요청</a>
+    <span class="forgot-link" id="forgot-link">비밀번호를 잊으셨나요?</span>
+    <div class="forgot-info" id="forgot-info">
+      시스템 관리자에게 문의하세요.<br>
+      CLI에서 <code>node scripts/reset-admin.js</code>로 리셋할 수 있습니다.
+    </div>
+  </div>
+
+  <script>
+    const basePath = '<%= basePath %>';
+
+    document.getElementById('forgot-link').addEventListener('click', () => {
+      const info = document.getElementById('forgot-info');
+      const isHidden = getComputedStyle(info).display === 'none';
+      info.style.display = isHidden ? 'block' : 'none';
+    });
+
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errorEl = document.getElementById('error-msg');
+      const btn = document.getElementById('login-btn');
+      errorEl.style.display = 'none';
+
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      btn.disabled = true;
+      btn.textContent = '로그인 중...';
+
+      try {
+        const res = await fetch(basePath + '/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          // Redirect to admin or original destination
+          const redirect = new URLSearchParams(window.location.search).get('redirect') || (basePath + '/');
+          window.location.href = redirect;
+        } else {
+          let msg = '로그인에 실패했습니다.';
+          if (data.error?.code === 'TOO_MANY_ATTEMPTS') {
+            msg = '로그인 시도가 너무 많습니다. 잠시 후 다시 시도하세요.';
+          } else if (data.error?.code === 'ACCOUNT_DISABLED') {
+            msg = '비활성화된 계정입니다. 관리자에게 문의하세요.';
+          }
+          errorEl.textContent = msg;
+          errorEl.style.display = 'block';
+          btn.disabled = false;
+          btn.textContent = '로그인';
+        }
+      } catch (err) {
+        errorEl.textContent = '서버 연결에 실패했습니다.';
+        errorEl.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = '로그인';
+      }
+    });
+  </script>
+</body>
+</html>

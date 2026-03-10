@@ -8,7 +8,8 @@
     "dev": "cross-env HOST=0.0.0.0 nodemon src/app.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "test:startstop": "node test/test-start-stop.js",
-    "test:watcher": "node test/test-watcher-restart.js"
+    "test:watcher": "node test/test-watcher-restart.js",
+    "reset-admin": "node scripts/reset-admin.js"
   },
   "keywords": [
     "markdown",
@@ -28,10 +29,12 @@
     "adm-zip": "^0.5.10",
     "archiver": "^6.0.1",
     "async-lock": "^1.4.1",
+    "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "dompurify": "^3.3.1",
     "ejs": "^3.1.9",
     "express": "^4.18.2",
+    "express-rate-limit": "^8.3.0",
     "highlight.js": "^11.11.1",
     "hnswlib-node": "^3.0.0",
     "ignore": "^5.3.0",
@@ -40,7 +43,9 @@
     "langchain": "^1.2.6",
     "marked": "^17.0.1",
     "multer": "^1.4.5-lts.1",
+    "nodemailer": "^8.0.1",
     "puppeteer": "^24.26.0",
+    "uuid": "^13.0.0",
     "winston": "^3.11.0",
     "winston-daily-rotate-file": "^4.7.1",
     "zod": "^3.25.76"

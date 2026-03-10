@@ -1,5 +1,7 @@
 const express = require('express');
 const authMiddleware = require('../middleware/auth');
+const { requireApiPermission } = require('../middleware/auth');
+const conditionalAuth = require('../middleware/conditional-auth');
 const { getTree, getFullTree } = require('../controllers/tree-controller');
 const { getRaw } = require('../controllers/raw-controller');
 const { getHtml } = require('../controllers/html-controller');
@@ -12,19 +14,18 @@ function createApiRouter(config) {
   const router = express.Router();
   const upload = configureUpload();
 
-  // Public routes (no authentication required)
-  router.get('/tree/full', getFullTree);  // Get complete recursive tree structure
-  router.get('/tree', getTree);           // Get single directory tree
-  router.get('/raw', getRaw);
-  router.get('/html', getHtml);           // Get pre-rendered HTML from cache (Step 13: Phase 6)
-  router.get('/search', searchDocuments); // Search documents by keyword
+  // Public/conditional routes (requireReadLogin controls access)
+  const condAuth = conditionalAuth();
+  router.get('/tree/full', condAuth, getFullTree);
+  router.get('/tree', condAuth, getTree);
+  router.get('/raw', condAuth, getRaw);
+  router.get('/html', condAuth, getHtml);
+  router.get('/search', condAuth, searchDocuments);
 
-  // Protected routes (authentication required)
-  // Do not capture `config` at module/router creation time; auth middleware reads runtime config from req.app.locals
+  // Protected routes (always require authentication + write permission)
   const auth = authMiddleware();
-
-  router.post('/upload', auth, upload, uploadFile);
-  router.delete('/entry', auth, deleteEntry);
+  router.post('/upload', auth, requireApiPermission('write'), upload, uploadFile);
+  router.delete('/entry', auth, requireApiPermission('write'), deleteEntry);
   router.get('/download/file', auth, downloadFile);
   router.get('/download/dir', auth, downloadDirectory);
 

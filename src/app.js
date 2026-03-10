@@ -16,6 +16,12 @@ const createContextMcpRouter = require('./routes/context-mcp');
 const adminApiRouter = require('./routes/admin-api');
 const chatbotRoutes = require('./routes/chatbot');
 const sessionService = require('./services/session-service');
+const { createSetupGuard, resetSetupFlag } = require('./middleware/setup-guard');
+const authApiRouter = require('./routes/auth-api');
+const GroupStore = require('./stores/group-store');
+const UserStore = require('./stores/user-store');
+const AuthSettingsStore = require('./stores/auth-settings-store');
+const RegistrationStore = require('./stores/registration-store');
 const { getDocumentation } = require('./controllers/doc-controller');
 const { getIndexConfig } = require('./controllers/config-controller');
 const backupUtils = require('./utils/backup-utils');
@@ -77,6 +83,81 @@ app.use((req, res, next) => {
     (req.app && req.app.locals && req.app.locals.logger || console).warn('Request logger middleware error', e && e.message);
     return next();
   }
+});
+
+// Setup Guard — redirect to /setup if no users exist (Step 17)
+app.use((req, res, next) => {
+  if (!req.app.locals.stores || !req.app.locals.stores.userStore) return next();
+  const guard = createSetupGuard(req.app.locals.stores.userStore);
+  return guard(req, res, next);
+});
+
+// Read-login guard: redirect to /login when requireReadLogin is true
+app.use((req, res, next) => {
+  const cfg = req.app.locals.config;
+  if (!cfg || !cfg.auth || !cfg.auth.requireReadLogin) return next();
+
+  // Always allow these paths
+  const p = req.path;
+  if (p === '/login' || p === '/signup' || p === '/setup' ||
+      p.startsWith('/api/auth') || p.startsWith('/api/admin') ||
+      p.startsWith('/css/') || p.startsWith('/js/') ||
+      p.startsWith('/images/') || p.startsWith('/fonts/') ||
+      p === '/healthz') {
+    return next();
+  }
+
+  // API routes are protected by X-API-Key separately
+  if (p.startsWith('/api/')) return next();
+
+  // Check session cookie
+  const token = req.cookies && req.cookies.doclight_admin_session;
+  if (token && sessionService.validateSession(token)) {
+    return next();
+  }
+
+  // Unauthenticated → redirect to login
+  const basePath = cfg.basePath || '';
+  return res.redirect(302, basePath + '/login');
+});
+
+// Auth API routes (Step 17: User Management)
+app.use('/api/auth', authApiRouter);
+
+// Setup page
+app.get('/setup', (req, res) => {
+  const cfg = req.app.locals.config || {};
+  const basePath = cfg.basePath || '';
+  const iconPath = (cfg.ui && cfg.ui.icon) || './public/images/icon.png';
+  res.render('setup', {
+    uiTitle: (cfg.ui && cfg.ui.title) || 'DocLight',
+    uiIcon: resolveIconPath(iconPath, basePath),
+    basePath
+  });
+});
+
+// Login page
+app.get('/login', (req, res) => {
+  const cfg = req.app.locals.config || {};
+  const basePath = cfg.basePath || '';
+  const iconPath = (cfg.ui && cfg.ui.icon) || './public/images/icon.png';
+  res.render('login', {
+    uiTitle: (cfg.ui && cfg.ui.title) || 'DocLight',
+    uiIcon: resolveIconPath(iconPath, basePath),
+    basePath
+  });
+});
+
+// Signup page
+app.get('/signup', (req, res) => {
+  const cfg = req.app.locals.config || {};
+  const basePath = cfg.basePath || '';
+  const iconPath = (cfg.ui && cfg.ui.icon) || './public/images/icon.png';
+  res.render('signup', {
+    uiTitle: (cfg.ui && cfg.ui.title) || 'DocLight',
+    uiIcon: resolveIconPath(iconPath, basePath),
+    basePath
+  });
 });
 
 // Documentation portal routes (must be before /api router)
@@ -301,6 +382,33 @@ async function start(options = {}) {
     logger = createLogger(cfg);
     app.locals.config = cfg;
     app.locals.logger = logger;
+
+    // Initialize data stores (Step 17: User Management)
+    resetSetupFlag(); // Reset on restart
+    const groupStore = new GroupStore(cfg.dataDir);
+    const userStore = new UserStore(cfg.dataDir);
+    const authSettingsStore = new AuthSettingsStore();
+    const registrationStore = new RegistrationStore(cfg.dataDir);
+
+    // Cross-references
+    userStore.setGroupStore(groupStore);
+    groupStore.setUserStore(userStore);
+
+    await groupStore.initialize();
+    await userStore.initialize();
+    await authSettingsStore.initialize(cfg);
+    await registrationStore.initialize();
+
+    app.locals.stores = { userStore, groupStore, authSettingsStore, registrationStore };
+
+    // Initialize email service
+    const emailService = require('./services/email-service');
+    emailService.initialize(cfg.email);
+
+    logger.info('Data stores initialized', {
+      users: userStore.getUserCount(),
+      groups: groupStore.findAll().length
+    });
 
     // Initialize cache manager (Step 13: Phase 6)
     if (cfg.cache && cfg.cache.enabled) {
