@@ -53,6 +53,7 @@ function createSession(apiKey, config) {
     permissions: keyConfig.permissions || ['read'],
     createdAt: now,
     expiresAt: now + timeout,
+    timeout: timeout,
     lastAccessedAt: now
   };
 
@@ -81,8 +82,12 @@ function validateSession(token) {
     return null;
   }
 
-  // Update last accessed time
-  session.lastAccessedAt = Date.now();
+  // Auto-extend session on each access (sliding expiration)
+  const now = Date.now();
+  session.lastAccessedAt = now;
+  if (session.timeout) {
+    session.expiresAt = now + session.timeout;
+  }
   return session;
 }
 
@@ -217,13 +222,77 @@ function _getRawSession(token) {
   return sessions.get(token) || null;
 }
 
+/**
+ * Create a new session for a user (Step 17: User Management)
+ * @param {Object} user - User object { id, email, groupId }
+ * @param {Array} permissions - User permissions array
+ * @param {Object} authSettings - Auth settings { sessionTimeout }
+ * @returns {Object} Session object
+ */
+function createSessionForUser(user, permissions, authSettings) {
+  const now = Date.now();
+  const timeout = (authSettings && authSettings.sessionTimeout) || 3600000;
+
+  const session = {
+    token: generateToken(),
+    userId: user.id,
+    email: user.email,
+    groupId: user.groupId,
+    name: user.email,
+    permissions: permissions || ['read'],
+    createdAt: now,
+    expiresAt: now + timeout,
+    timeout: timeout,
+    lastAccessedAt: now
+  };
+
+  sessions.set(session.token, session);
+  return session;
+}
+
+/**
+ * Invalidate all sessions for a specific user
+ * @param {string} userId - User ID
+ * @returns {number} Number of sessions invalidated
+ */
+function invalidateByUserId(userId) {
+  let count = 0;
+  for (const [token, session] of sessions) {
+    if (session.userId === userId) {
+      sessions.delete(token);
+      count++;
+    }
+  }
+  return count;
+}
+
+/**
+ * Refresh session expiration
+ * @param {string} token - Session token
+ * @param {Object} authSettings - Auth settings { sessionTimeout }
+ * @returns {Object|null} Updated session or null
+ */
+function refreshSession(token, authSettings) {
+  const session = validateSession(token);
+  if (!session) return null;
+
+  const timeout = (authSettings && authSettings.sessionTimeout) || 3600000;
+  session.expiresAt = Date.now() + timeout;
+  return session;
+}
+
 module.exports = {
-  // Core functions
+  // Core functions (legacy)
   createSession,
   validateSession,
   getSession,
   invalidateSession,
   hasPermission,
+
+  // Step 17: User-based session functions
+  createSessionForUser,
+  invalidateByUserId,
+  refreshSession,
 
   // Cleanup functions
   cleanup,

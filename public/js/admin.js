@@ -131,18 +131,8 @@ const AdminTOC = {
 const _bp = () => (typeof DocLightUtils !== 'undefined') ? DocLightUtils.prefixPath : (p => p);
 
 const AdminAPI = {
-  async auth(apiKey) {
-    const response = await fetch(_bp()('/api/admin/auth'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ apiKey }),
-      credentials: 'include'
-    });
-    return response.json();
-  },
-
   async logout() {
-    const response = await fetch(_bp()('/api/admin/logout'), {
+    const response = await fetch(_bp()('/api/auth/logout'), {
       method: 'POST',
       credentials: 'include'
     });
@@ -150,7 +140,7 @@ const AdminAPI = {
   },
 
   async getSession() {
-    const response = await fetch(_bp()('/api/admin/session'), {
+    const response = await fetch(_bp()('/api/auth/session'), {
       credentials: 'include'
     });
     if (!response.ok) return null;
@@ -237,6 +227,84 @@ const AdminAPI = {
       body: JSON.stringify(body)
     });
     return response.json();
+  },
+
+  // User Management
+  async getUsers() {
+    const r = await fetch(_bp()('/api/admin/users'), { credentials: 'include' });
+    return r.json();
+  },
+  async createUser(data) {
+    const r = await fetch(_bp()('/api/admin/users'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(data) });
+    return r.json();
+  },
+  async updateUser(id, data) {
+    const r = await fetch(_bp()(`/api/admin/users/${id}`), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(data) });
+    return r.json();
+  },
+  async deleteUser(id) {
+    const r = await fetch(_bp()(`/api/admin/users/${id}`), { method: 'DELETE', credentials: 'include' });
+    return r.json();
+  },
+  async resetUserPassword(id, password) {
+    const r = await fetch(_bp()(`/api/admin/users/${id}/reset-password`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ password }) });
+    return r.json();
+  },
+  async unlockUser(id) {
+    const r = await fetch(_bp()(`/api/admin/users/${id}/unlock`), { method: 'POST', credentials: 'include' });
+    return r.json();
+  },
+  // Group Management
+  async getGroups() {
+    const r = await fetch(_bp()('/api/admin/groups'), { credentials: 'include' });
+    return r.json();
+  },
+  async createGroup(data) {
+    const r = await fetch(_bp()('/api/admin/groups'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(data) });
+    return r.json();
+  },
+  async updateGroup(id, data) {
+    const r = await fetch(_bp()(`/api/admin/groups/${id}`), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(data) });
+    return r.json();
+  },
+  async deleteGroup(id) {
+    const r = await fetch(_bp()(`/api/admin/groups/${id}`), { method: 'DELETE', credentials: 'include' });
+    return r.json();
+  },
+  // Auth Settings
+  async getAuthSettings() {
+    const r = await fetch(_bp()('/api/admin/auth-settings'), { credentials: 'include' });
+    return r.json();
+  },
+  async updateAuthSettings(data) {
+    const r = await fetch(_bp()('/api/admin/auth-settings'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(data) });
+    return r.json();
+  },
+  // Registrations
+  async getRegistrations() {
+    const r = await fetch(_bp()('/api/admin/registrations'), { credentials: 'include' });
+    return r.json();
+  },
+  async approveRegistration(id, groupId) {
+    const r = await fetch(_bp()(`/api/admin/registrations/${id}/approve`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ groupId }) });
+    return r.json();
+  },
+  async rejectRegistration(id) {
+    const r = await fetch(_bp()(`/api/admin/registrations/${id}/reject`), { method: 'POST', credentials: 'include' });
+    return r.json();
+  },
+  // My Profile
+  async getMe() {
+    const r = await fetch(_bp()('/api/auth/me'), { credentials: 'include' });
+    return r.json();
+  },
+  async changePassword(currentPassword, newPassword, newPasswordConfirm) {
+    const r = await fetch(_bp()('/api/auth/me/password'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ currentPassword, newPassword, newPasswordConfirm }) });
+    return r.json();
+  },
+  async regenerateKey() {
+    const r = await fetch(_bp()('/api/auth/me/regenerate-key'), { method: 'POST', credentials: 'include' });
+    return r.json();
   }
 };
 
@@ -245,62 +313,8 @@ const AdminAPI = {
 // ============================================================
 const AuthModule = {
   showAuthModal() {
-    document.getElementById('auth-modal').style.display = 'flex';
-    document.getElementById('admin-app').style.display = 'none';
-    document.getElementById('api-key-input').value = '';
-    this.hideError();
-    setTimeout(() => {
-      document.getElementById('api-key-input').focus();
-    }, 100);
-  },
-
-  hideAuthModal() {
-    document.getElementById('auth-modal').style.display = 'none';
-    document.getElementById('admin-app').style.display = 'grid';
-  },
-
-  showError(message) {
-    const errorEl = document.getElementById('auth-error');
-    errorEl.textContent = message;
-    errorEl.style.display = 'block';
-  },
-
-  hideError() {
-    document.getElementById('auth-error').style.display = 'none';
-  },
-
-  async handleLogin() {
-    const apiKey = document.getElementById('api-key-input').value.trim();
-    if (!apiKey) {
-      this.showError('Please enter an API key');
-      return;
-    }
-
-    const loginBtn = document.getElementById('auth-login');
-    loginBtn.disabled = true;
-    loginBtn.textContent = 'Logging in...';
-
-    try {
-      const result = await AdminAPI.auth(apiKey);
-      if (result.success) {
-        AdminState.isAuthenticated = true;
-        AdminState.session = result.session;
-        this.hideAuthModal();
-        this.updateSessionUI();
-        await TreeModule.loadTree();
-        URLModule.handleInitialPath();
-        // 업로드 모듈 초기화 (인증 후)
-        UploadModule.init();
-      } else {
-        this.showError(result.error?.message || 'Invalid API key');
-      }
-    } catch (error) {
-      this.showError('Connection error. Please try again.');
-      console.error('Login error:', error);
-    } finally {
-      loginBtn.disabled = false;
-      loginBtn.textContent = 'Login';
-    }
+    // Redirect to login page instead of showing old API key modal
+    window.location.href = _bp()('/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search));
   },
 
   async handleLogout() {
@@ -314,16 +328,22 @@ const AuthModule = {
     AdminState.fileTree = null;
     AdminState.expandedPaths.clear();
     AdminState.selectedPaths = [];
-    this.showAuthModal();
+    window.location.href = _bp()('/login');
   },
 
   async checkSession() {
     try {
       const result = await AdminAPI.getSession();
       if (result?.success) {
+        // Only superusers can access admin page
+        const perms = result.session?.permissions || [];
+        if (!perms.includes('superuser') && !perms.includes('write')) {
+          window.location.href = _bp()('/');
+          return 'redirected';
+        }
         AdminState.isAuthenticated = true;
         AdminState.session = result.session;
-        this.hideAuthModal();
+        document.getElementById('admin-app').style.display = 'grid';
         this.updateSessionUI();
         return true;
       }
@@ -336,7 +356,18 @@ const AuthModule = {
   updateSessionUI() {
     const nameEl = document.getElementById('session-name');
     if (nameEl) {
-      nameEl.textContent = AdminState.session?.name || '';
+      nameEl.textContent = AdminState.session?.email || AdminState.session?.name || '';
+    }
+    // Show settings button for superusers
+    const settingsBtn = document.getElementById('settings-btn');
+    if (settingsBtn) {
+      const perms = AdminState.session?.permissions || [];
+      settingsBtn.style.display = perms.includes('superuser') ? 'inline-block' : 'none';
+    }
+    // Show my-profile button for all authenticated users
+    const profileBtn = document.getElementById('profile-btn');
+    if (profileBtn) {
+      profileBtn.style.display = AdminState.isAuthenticated ? 'inline-block' : 'none';
     }
   }
 };
@@ -1040,6 +1071,7 @@ const ModalModule = {
       }
     });
     this.currentModal = null;
+    ManagementModule.currentTab = null;
   },
 
   // Rename Modal
@@ -1593,6 +1625,395 @@ const EditorModule = {
 };
 
 // ============================================================
+// Management Module (Step 17: User/Group/Settings Management)
+// ============================================================
+const ManagementModule = {
+  currentTab: null,
+  groups: [],
+
+  show(tab) {
+    this.currentTab = tab || 'users';
+    ModalModule.showModal('mgmt-modal');
+    this.renderTabs();
+    this.loadTab(this.currentTab);
+  },
+
+  hide() {
+    ModalModule.hideModal('mgmt-modal');
+    this.currentTab = null;
+  },
+
+  renderTabs() {
+    const tabBar = document.getElementById('mgmt-tabs');
+    if (!tabBar) return;
+    const perms = AdminState.session?.permissions || [];
+    const isSuperuser = perms.includes('superuser');
+    const tabs = [
+      { id: 'profile', label: '내 정보', show: true },
+      { id: 'users', label: '사용자', show: isSuperuser },
+      { id: 'groups', label: '그룹', show: isSuperuser },
+      { id: 'registrations', label: '가입 요청', show: isSuperuser },
+      { id: 'settings', label: '인증 설정', show: isSuperuser },
+    ];
+    const visibleTabs = tabs.filter(t => t.show);
+    tabBar.innerHTML = visibleTabs.map(t =>
+      `<button class="mgmt-tab ${t.id === this.currentTab ? 'active' : ''}" data-tab="${t.id}">${t.label}</button>`
+    ).join('');
+    tabBar.querySelectorAll('.mgmt-tab').forEach(btn => {
+      btn.addEventListener('click', () => this.loadTab(btn.dataset.tab));
+    });
+    // Mobile: render select
+    const select = document.getElementById('mgmt-select');
+    if (select) {
+      select.innerHTML = visibleTabs.map(t =>
+        `<option value="${t.id}" ${t.id === this.currentTab ? 'selected' : ''}>${t.label}</option>`
+      ).join('');
+      select.onchange = () => this.loadTab(select.value);
+    }
+  },
+
+  async loadTab(tab) {
+    this.currentTab = tab;
+    this.renderTabs();
+    const content = document.getElementById('mgmt-content');
+    if (!content) return;
+    content.innerHTML = '<p style="padding:20px;color:#888;">로딩 중...</p>';
+    try {
+      switch (tab) {
+        case 'profile': await this.loadProfile(content); break;
+        case 'users': await this.loadUsers(content); break;
+        case 'groups': await this.loadGroups(content); break;
+        case 'registrations': await this.loadRegistrations(content); break;
+        case 'settings': await this.loadSettings(content); break;
+      }
+    } catch (e) {
+      content.innerHTML = `<p style="padding:20px;color:#d32f2f;">오류: ${e.message}</p>`;
+    }
+  },
+
+  async loadProfile(el) {
+    const res = await AdminAPI.getMe();
+    if (!res.success) { el.innerHTML = '<p class="mgmt-error">프로필을 불러올 수 없습니다.</p>'; return; }
+    const u = res.user;
+    el.innerHTML = `
+      <div class="mgmt-section">
+        <h3>내 정보</h3>
+        <table class="mgmt-detail-table">
+          <tr><th>이메일</th><td>${this.esc(u.email)}</td></tr>
+          <tr><th>그룹</th><td>${this.esc(u.groupName)}</td></tr>
+          <tr><th>마지막 로그인</th><td>${u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString('ko') : '-'}</td></tr>
+          <tr><th>가입일</th><td>${new Date(u.createdAt).toLocaleString('ko')}</td></tr>
+        </table>
+      </div>
+      <div class="mgmt-section">
+        <h3>패스워드 변경</h3>
+        <div class="mgmt-form" id="pw-form">
+          <div class="mgmt-form-row"><label>현재 패스워드</label><input type="password" id="pw-current" autocomplete="current-password"></div>
+          <div class="mgmt-form-row"><label>새 패스워드</label><input type="password" id="pw-new" autocomplete="new-password"></div>
+          <div class="mgmt-form-row"><label>새 패스워드 확인</label><input type="password" id="pw-confirm" autocomplete="new-password"></div>
+          <div class="mgmt-form-actions"><button class="btn btn-primary" id="pw-save">변경</button></div>
+          <div id="pw-msg" class="mgmt-msg"></div>
+        </div>
+      </div>
+      <div class="mgmt-section">
+        <h3>User Key (MCP/API 인증용)</h3>
+        <p class="mgmt-hint">이 키는 MCP 클라이언트의 X-API-Key 헤더에 사용합니다.</p>
+        <div class="mgmt-key-box">
+          <code id="user-key-display">********</code>
+          <button class="key-copy-btn" id="key-copy" title="복사" style="display:none;">&#x1F4CB;</button>
+          <button class="btn btn-small" id="key-show">표시</button>
+          <button class="btn btn-small btn-danger" id="key-regen">재발급</button>
+        </div>
+        <div id="key-msg" class="mgmt-msg"></div>
+      </div>
+    `;
+    // Password change
+    document.getElementById('pw-save').addEventListener('click', async () => {
+      const msg = document.getElementById('pw-msg');
+      const cur = document.getElementById('pw-current').value;
+      const nw = document.getElementById('pw-new').value;
+      const cf = document.getElementById('pw-confirm').value;
+      if (!cur || !nw) { msg.textContent = '모든 필드를 입력하세요.'; msg.className = 'mgmt-msg error'; return; }
+      if (nw.length < 8) { msg.textContent = '패스워드는 최소 8자입니다.'; msg.className = 'mgmt-msg error'; return; }
+      if (nw !== cf) { msg.textContent = '새 패스워드가 일치하지 않습니다.'; msg.className = 'mgmt-msg error'; return; }
+      const r = await AdminAPI.changePassword(cur, nw, cf);
+      if (r.success) { msg.textContent = '패스워드가 변경되었습니다.'; msg.className = 'mgmt-msg success'; document.getElementById('pw-current').value = ''; document.getElementById('pw-new').value = ''; document.getElementById('pw-confirm').value = ''; }
+      else { msg.textContent = r.error?.message || '변경 실패'; msg.className = 'mgmt-msg error'; }
+    });
+    // Show key (one-time from regenerate or just show asterisks)
+    let keyVisible = false;
+    document.getElementById('key-show').addEventListener('click', () => {
+      const disp = document.getElementById('user-key-display');
+      if (keyVisible) { disp.textContent = '********'; keyVisible = false; }
+      else { disp.textContent = '키를 보려면 재발급하세요.'; keyVisible = true; }
+    });
+    document.getElementById('key-regen').addEventListener('click', async () => {
+      if (!confirm('새 키를 발급하면 기존 키는 즉시 무효화됩니다. 계속하시겠습니까?')) return;
+      const r = await AdminAPI.regenerateKey();
+      const msg = document.getElementById('key-msg');
+      if (r.success) {
+        document.getElementById('user-key-display').textContent = r.userKey;
+        keyVisible = true;
+        const copyBtn = document.getElementById('key-copy');
+        if (copyBtn) copyBtn.style.display = '';
+        msg.textContent = '새 키가 발급되었습니다. 이 키를 안전하게 보관하세요.'; msg.className = 'mgmt-msg success';
+      } else { msg.textContent = r.error?.message || '재발급 실패'; msg.className = 'mgmt-msg error'; }
+    });
+    document.getElementById('key-copy').addEventListener('click', async () => {
+      const key = document.getElementById('user-key-display').textContent;
+      if (!key || key === '********') return;
+      try {
+        await navigator.clipboard.writeText(key);
+        const btn = document.getElementById('key-copy');
+        btn.classList.add('copied');
+        btn.innerHTML = '&#x2714;';
+        setTimeout(() => { btn.classList.remove('copied'); btn.innerHTML = '&#x1F4CB;'; }, 1500);
+      } catch (e) { /* clipboard not available */ }
+    });
+  },
+
+  async loadUsers(el) {
+    const [usersRes, groupsRes] = await Promise.all([AdminAPI.getUsers(), AdminAPI.getGroups()]);
+    if (!usersRes.success) { el.innerHTML = '<p class="mgmt-error">사용자 목록을 불러올 수 없습니다.</p>'; return; }
+    this.groups = groupsRes.groups || [];
+    const users = usersRes.users || [];
+    el.innerHTML = `
+      <div class="mgmt-section">
+        <div class="mgmt-header"><h3>사용자 목록 (${users.length})</h3><button class="btn btn-primary btn-small" id="add-user-btn">+ 사용자 추가</button></div>
+        <table class="mgmt-table" id="users-table">
+          <thead><tr><th>이메일</th><th>그룹</th><th>상태</th><th>마지막 로그인</th><th>작업</th></tr></thead>
+          <tbody>
+            ${users.map(u => {
+              const g = this.groups.find(g => g.id === u.groupId);
+              return `<tr data-id="${u.id}">
+                <td>${this.esc(u.email)}</td>
+                <td>${g ? this.esc(g.name) : '-'}</td>
+                <td><span class="status-badge ${u.status}">${u.status === 'active' ? '활성' : '비활성'}</span></td>
+                <td>${u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString('ko') : '-'}</td>
+                <td class="actions">
+                  <button class="btn btn-small edit-user" data-id="${u.id}">편집</button>
+                  <button class="btn btn-small btn-danger delete-user" data-id="${u.id}">삭제</button>
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+    document.getElementById('add-user-btn').addEventListener('click', () => this.showUserForm());
+    el.querySelectorAll('.edit-user').forEach(btn => btn.addEventListener('click', () => this.showUserForm(users.find(u => u.id === btn.dataset.id))));
+    el.querySelectorAll('.delete-user').forEach(btn => btn.addEventListener('click', async () => {
+      if (!confirm('이 사용자를 삭제하시겠습니까?')) return;
+      const r = await AdminAPI.deleteUser(btn.dataset.id);
+      if (r.success) this.loadTab('users');
+      else alert(r.error?.message || '삭제 실패');
+    }));
+  },
+
+  showUserForm(user) {
+    const content = document.getElementById('mgmt-content');
+    const isEdit = !!user;
+    const groupOptions = this.groups.map(g => `<option value="${g.id}" ${user && user.groupId === g.id ? 'selected' : ''}>${this.esc(g.name)}</option>`).join('');
+    content.innerHTML = `
+      <div class="mgmt-section">
+        <h3>${isEdit ? '사용자 편집' : '사용자 추가'}</h3>
+        <div class="mgmt-form">
+          <div class="mgmt-form-row"><label>이메일</label><input type="email" id="user-email" value="${isEdit ? this.esc(user.email) : ''}" ${isEdit ? 'readonly' : ''} autocomplete="off"></div>
+          ${!isEdit ? '<div class="mgmt-form-row"><label>패스워드</label><input type="password" id="user-password" autocomplete="new-password"></div>' : ''}
+          <div class="mgmt-form-row"><label>그룹</label><select id="user-group">${groupOptions}</select></div>
+          ${isEdit ? `<div class="mgmt-form-row"><label>상태</label><select id="user-status"><option value="active" ${user.status === 'active' ? 'selected' : ''}>활성</option><option value="disabled" ${user.status === 'disabled' ? 'selected' : ''}>비활성</option></select></div>` : ''}
+          <div class="mgmt-form-actions">
+            <button class="btn btn-secondary" id="user-cancel">취소</button>
+            <button class="btn btn-primary" id="user-save">저장</button>
+          </div>
+          ${isEdit ? `<div style="margin-top:16px;"><button class="btn btn-small" id="reset-pw-btn">패스워드 리셋</button> <button class="btn btn-small" id="unlock-btn">잠금 해제</button></div>` : ''}
+          <div id="user-msg" class="mgmt-msg"></div>
+        </div>
+      </div>
+    `;
+    document.getElementById('user-cancel').addEventListener('click', () => this.loadTab('users'));
+    document.getElementById('user-save').addEventListener('click', async () => {
+      const msg = document.getElementById('user-msg');
+      if (isEdit) {
+        const r = await AdminAPI.updateUser(user.id, { groupId: document.getElementById('user-group').value, status: document.getElementById('user-status').value });
+        if (r.success) { msg.textContent = '저장되었습니다.'; msg.className = 'mgmt-msg success'; setTimeout(() => this.loadTab('users'), 700); }
+        else { msg.textContent = r.error?.message || '저장 실패'; msg.className = 'mgmt-msg error'; }
+      } else {
+        const email = document.getElementById('user-email').value.trim();
+        const password = document.getElementById('user-password').value;
+        const groupId = document.getElementById('user-group').value;
+        if (!email || !password) { msg.textContent = '이메일과 패스워드를 입력하세요.'; msg.className = 'mgmt-msg error'; return; }
+        const r = await AdminAPI.createUser({ email, password, groupId });
+        if (r.success) { msg.textContent = '사용자가 생성되었습니다.'; msg.className = 'mgmt-msg success'; setTimeout(() => this.loadTab('users'), 700); }
+        else { msg.textContent = r.error?.message || '생성 실패'; msg.className = 'mgmt-msg error'; }
+      }
+    });
+    if (isEdit) {
+      document.getElementById('reset-pw-btn')?.addEventListener('click', async () => {
+        const pw = prompt('새 패스워드를 입력하세요 (최소 8자):');
+        if (!pw || pw.length < 8) { alert('패스워드는 최소 8자입니다.'); return; }
+        const r = await AdminAPI.resetUserPassword(user.id, pw);
+        const msg = document.getElementById('user-msg');
+        if (r.success) { msg.textContent = '패스워드가 리셋되었습니다.'; msg.className = 'mgmt-msg success'; }
+        else { msg.textContent = r.error?.message || '리셋 실패'; msg.className = 'mgmt-msg error'; }
+      });
+      document.getElementById('unlock-btn')?.addEventListener('click', async () => {
+        const r = await AdminAPI.unlockUser(user.id);
+        const msg = document.getElementById('user-msg');
+        if (r.success) { msg.textContent = '잠금이 해제되었습니다.'; msg.className = 'mgmt-msg success'; }
+        else { msg.textContent = r.error?.message || '해제 실패'; msg.className = 'mgmt-msg error'; }
+      });
+    }
+  },
+
+  async loadGroups(el) {
+    const res = await AdminAPI.getGroups();
+    if (!res.success) { el.innerHTML = '<p class="mgmt-error">그룹 목록을 불러올 수 없습니다.</p>'; return; }
+    this.groups = res.groups || [];
+    el.innerHTML = `
+      <div class="mgmt-section">
+        <div class="mgmt-header"><h3>그룹 목록 (${this.groups.length})</h3><button class="btn btn-primary btn-small" id="add-group-btn">+ 그룹 추가</button></div>
+        <table class="mgmt-table">
+          <thead><tr><th>이름</th><th>권한</th><th>시스템</th><th>작업</th></tr></thead>
+          <tbody>
+            ${this.groups.map(g => `<tr>
+              <td>${this.esc(g.name)}</td>
+              <td>${g.permissions.join(', ')}</td>
+              <td>${g.isSystem ? '예' : ''}</td>
+              <td class="actions">
+                ${!g.isSystem ? `<button class="btn btn-small edit-group" data-id="${g.id}">편집</button><button class="btn btn-small btn-danger delete-group" data-id="${g.id}">삭제</button>` : '<span style="color:#999">수정 불가</span>'}
+              </td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+    document.getElementById('add-group-btn').addEventListener('click', () => this.showGroupForm());
+    el.querySelectorAll('.edit-group').forEach(btn => btn.addEventListener('click', () => this.showGroupForm(this.groups.find(g => g.id === btn.dataset.id))));
+    el.querySelectorAll('.delete-group').forEach(btn => btn.addEventListener('click', async () => {
+      if (!confirm('이 그룹을 삭제하시겠습니까?')) return;
+      const r = await AdminAPI.deleteGroup(btn.dataset.id);
+      if (r.success) this.loadTab('groups');
+      else alert(r.error?.message || '삭제 실패');
+    }));
+  },
+
+  showGroupForm(group) {
+    const content = document.getElementById('mgmt-content');
+    const isEdit = !!group;
+    const allPerms = ['superuser', 'write', 'read'];
+    const checkedPerms = group ? group.permissions : ['read'];
+    content.innerHTML = `
+      <div class="mgmt-section">
+        <h3>${isEdit ? '그룹 편집' : '그룹 추가'}</h3>
+        <div class="mgmt-form">
+          <div class="mgmt-form-row"><label>그룹 이름</label><input type="text" id="group-name" value="${isEdit ? this.esc(group.name) : ''}"></div>
+          <div class="mgmt-form-row"><label>권한</label><div id="group-perms">${allPerms.map(p => `<label class="mgmt-checkbox"><input type="checkbox" value="${p}" ${checkedPerms.includes(p) ? 'checked' : ''}> ${p}</label>`).join('')}</div></div>
+          <div class="mgmt-form-actions">
+            <button class="btn btn-secondary" id="group-cancel">취소</button>
+            <button class="btn btn-primary" id="group-save">저장</button>
+          </div>
+          <div id="group-msg" class="mgmt-msg"></div>
+        </div>
+      </div>
+    `;
+    document.getElementById('group-cancel').addEventListener('click', () => this.loadTab('groups'));
+    document.getElementById('group-save').addEventListener('click', async () => {
+      const name = document.getElementById('group-name').value.trim();
+      const permissions = [...document.querySelectorAll('#group-perms input:checked')].map(c => c.value);
+      const msg = document.getElementById('group-msg');
+      if (!name) { msg.textContent = '그룹 이름을 입력하세요.'; msg.className = 'mgmt-msg error'; return; }
+      if (permissions.length === 0) { msg.textContent = '최소 하나의 권한을 선택하세요.'; msg.className = 'mgmt-msg error'; return; }
+      const r = isEdit ? await AdminAPI.updateGroup(group.id, { name, permissions }) : await AdminAPI.createGroup({ name, permissions });
+      if (r.success) { msg.textContent = '저장되었습니다.'; msg.className = 'mgmt-msg success'; setTimeout(() => this.loadTab('groups'), 700); }
+      else { msg.textContent = r.error?.message || '저장 실패'; msg.className = 'mgmt-msg error'; }
+    });
+  },
+
+  async loadRegistrations(el) {
+    const [regRes, groupsRes] = await Promise.all([AdminAPI.getRegistrations(), AdminAPI.getGroups()]);
+    if (!regRes.success) { el.innerHTML = '<p class="mgmt-error">가입 요청을 불러올 수 없습니다.</p>'; return; }
+    this.groups = groupsRes.groups || [];
+    const regs = regRes.registrations || [];
+    if (regs.length === 0) {
+      el.innerHTML = '<div class="mgmt-section"><h3>가입 요청</h3><p style="color:#888;padding:20px;">대기 중인 가입 요청이 없습니다.</p></div>';
+      return;
+    }
+    el.innerHTML = `
+      <div class="mgmt-section">
+        <h3>가입 요청 (${regs.length}건 대기)</h3>
+        <div class="mgmt-reg-list">
+          ${regs.map(r => `
+            <div class="mgmt-reg-card" data-id="${r.id}">
+              <div class="reg-info">
+                <strong>${this.esc(r.email)}</strong>
+                <span class="reg-date">${new Date(r.createdAt).toLocaleString('ko')}</span>
+                ${r.message ? `<p class="reg-message">${this.esc(r.message)}</p>` : ''}
+              </div>
+              <div class="reg-actions">
+                <select class="reg-group">${this.groups.filter(g => !g.permissions.includes('superuser')).map(g => `<option value="${g.id}">${this.esc(g.name)}</option>`).join('')}</select>
+                <button class="btn btn-primary btn-small approve-reg" data-id="${r.id}">승인</button>
+                <button class="btn btn-danger btn-small reject-reg" data-id="${r.id}">거절</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+    el.querySelectorAll('.approve-reg').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const card = btn.closest('.mgmt-reg-card');
+        const groupId = card.querySelector('.reg-group').value;
+        const r = await AdminAPI.approveRegistration(btn.dataset.id, groupId);
+        if (r.success) this.loadTab('registrations');
+        else alert(r.error?.message || '승인 실패');
+      });
+    });
+    el.querySelectorAll('.reject-reg').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('이 가입 요청을 거절하시겠습니까?')) return;
+        const r = await AdminAPI.rejectRegistration(btn.dataset.id);
+        if (r.success) this.loadTab('registrations');
+        else alert(r.error?.message || '거절 실패');
+      });
+    });
+  },
+
+  async loadSettings(el) {
+    const res = await AdminAPI.getAuthSettings();
+    if (!res.success) { el.innerHTML = '<p class="mgmt-error">인증 설정을 불러올 수 없습니다.</p>'; return; }
+    const s = res.settings;
+    el.innerHTML = `
+      <div class="mgmt-section">
+        <h3>인증 설정</h3>
+        <div class="mgmt-form">
+          <div class="mgmt-form-row"><label><input type="checkbox" id="set-requireReadLogin" ${s.requireReadLogin ? 'checked' : ''}> 읽기 로그인 필요 (접근 자체를 차단)</label></div>
+          <div class="mgmt-form-row"><label><input type="checkbox" id="set-allowSignup" ${s.allowSignup ? 'checked' : ''}> 가입 요청 허용</label></div>
+          <div class="mgmt-form-row"><label>세션 타임아웃 (분)</label><input type="number" id="set-timeout" value="${Math.round((s.sessionTimeout || 3600000) / 60000)}" min="1"></div>
+          <div class="mgmt-form-row"><label>가입 허용 이메일 도메인 (쉼표 구분)</label><input type="text" id="set-domains" value="${(s.allowedEmailDomains || []).join(', ')}" placeholder="example.com, company.co.kr"></div>
+          <div class="mgmt-form-actions"><button class="btn btn-primary" id="settings-save">저장</button></div>
+          <div id="settings-msg" class="mgmt-msg"></div>
+        </div>
+      </div>
+    `;
+    document.getElementById('settings-save').addEventListener('click', async () => {
+      const msg = document.getElementById('settings-msg');
+      const data = {
+        requireReadLogin: document.getElementById('set-requireReadLogin').checked,
+        allowSignup: document.getElementById('set-allowSignup').checked,
+        sessionTimeout: parseInt(document.getElementById('set-timeout').value) * 60000,
+        allowedEmailDomains: document.getElementById('set-domains').value.split(',').map(d => d.trim()).filter(Boolean)
+      };
+      const r = await AdminAPI.updateAuthSettings(data);
+      if (r.success) { msg.textContent = '설정이 저장되었습니다.'; msg.className = 'mgmt-msg success'; }
+      else { msg.textContent = r.error?.message || '저장 실패'; msg.className = 'mgmt-msg error'; }
+    });
+  },
+
+  esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+};
+
+// ============================================================
 // Phase 7: Drag and Drop Module
 // ============================================================
 const DragDropModule = {
@@ -1828,36 +2249,23 @@ const DragDropModule = {
 // Event Bindings
 // ============================================================
 function bindEvents() {
-  // 인증 - 로그인 버튼
-  const loginBtn = document.getElementById('auth-login');
-  if (loginBtn) {
-    loginBtn.addEventListener('click', () => AuthModule.handleLogin());
-  }
-
-  // 인증 - 취소 버튼
-  const cancelBtn = document.getElementById('auth-cancel');
-  if (cancelBtn) {
-    cancelBtn.addEventListener('click', () => {
-      window.location.href = _bp()('/');
-    });
-  }
-
-  // 인증 - Enter 키
-  const apiKeyInput = document.getElementById('api-key-input');
-  if (apiKeyInput) {
-    apiKeyInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        AuthModule.handleLogin();
-      }
-    });
-  }
-
   // 로그아웃
   const logoutBtn = document.getElementById('logout-btn');
   if (logoutBtn) {
     logoutBtn.addEventListener('click', () => AuthModule.handleLogout());
   }
 
+  // 설정 (superuser)
+  const settingsBtn = document.getElementById('settings-btn');
+  if (settingsBtn) settingsBtn.addEventListener('click', () => ManagementModule.show('users'));
+
+  // 내 정보
+  const profileBtn = document.getElementById('profile-btn');
+  if (profileBtn) profileBtn.addEventListener('click', () => ManagementModule.show('profile'));
+
+  // 관리 모달 닫기
+  const mgmtClose = document.getElementById('mgmt-close');
+  if (mgmtClose) mgmtClose.addEventListener('click', () => ManagementModule.hide());
   // 트리 새로고침
   const refreshBtn = document.getElementById('refresh-tree');
   if (refreshBtn) {
@@ -2491,11 +2899,14 @@ async function init() {
 
   // 세션 확인
   const hasSession = await AuthModule.checkSession();
-  if (hasSession) {
+  if (hasSession === true) {
     await TreeModule.loadTree();
     URLModule.handleInitialPath();
     // 업로드 모듈 초기화 (인증 후)
     UploadModule.init();
+  } else if (hasSession === 'redirected') {
+    // Non-superuser redirected to viewer — do nothing
+    return;
   } else {
     AuthModule.showAuthModal();
   }

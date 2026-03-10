@@ -2983,6 +2983,164 @@ const LocalPreview = {
   }
 };
 
+// ============================================================
+// Step 17: Viewer Profile Module
+// ============================================================
+const ViewerProfile = {
+  _overlay: null,
+
+  async init() {
+    const btn = document.getElementById('viewer-profile-btn');
+    const closeBtn = document.getElementById('viewer-profile-close');
+    if (!btn) return;
+
+    // Check if user has a session
+    try {
+      const bp = window.BASE_PATH || '';
+      const res = await fetch(bp + '/api/auth/session', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          btn.style.display = 'flex';
+          btn.addEventListener('click', () => this.open());
+          if (closeBtn) closeBtn.addEventListener('click', () => this.close());
+          // Show editor button for superuser/write permission users
+          const editorBtn = document.getElementById('viewer-editor-btn');
+          if (editorBtn && data.session.permissions) {
+            const perms = data.session.permissions;
+            if (perms.includes('superuser') || perms.includes('write')) {
+              editorBtn.href = (window.BASE_PATH || '') + '/admin';
+              editorBtn.style.display = 'flex';
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // Not logged in, keep button hidden
+    }
+  },
+
+  async open() {
+    const panel = document.getElementById('viewer-profile-panel');
+    const content = document.getElementById('viewer-profile-content');
+    if (!panel || !content) return;
+
+    content.innerHTML = '<p style="color:var(--text-secondary)">로딩 중...</p>';
+
+    // Show overlay
+    this._overlay = document.createElement('div');
+    this._overlay.className = 'viewer-profile-overlay';
+    this._overlay.addEventListener('click', () => this.close());
+    document.body.appendChild(this._overlay);
+
+    panel.style.display = 'block';
+
+    try {
+      const bp = window.BASE_PATH || '';
+      const res = await fetch(bp + '/api/auth/me', { credentials: 'include' });
+      const data = await res.json();
+      if (data.success && data.user) {
+        this.render(data.user);
+      } else {
+        content.innerHTML = '<p style="color:#dc2626">프로필을 불러올 수 없습니다.</p>';
+      }
+    } catch (e) {
+      content.innerHTML = '<p style="color:#dc2626">서버 연결에 실패했습니다.</p>';
+    }
+  },
+
+  close() {
+    const panel = document.getElementById('viewer-profile-panel');
+    if (panel) panel.style.display = 'none';
+    if (this._overlay) {
+      this._overlay.remove();
+      this._overlay = null;
+    }
+  },
+
+  render(user) {
+    const content = document.getElementById('viewer-profile-content');
+    if (!content) return;
+
+    const keyDisplay = user.userKey ? this.esc(user.userKey) : '(키 없음)';
+
+    content.innerHTML = `
+      <div class="profile-field">
+        <label>이메일</label>
+        <div class="profile-value">${this.esc(user.email)}</div>
+      </div>
+      <div class="profile-field">
+        <label>그룹</label>
+        <div class="profile-value">${this.esc(user.groupName || '-')}</div>
+      </div>
+      <div class="profile-field">
+        <label>User Key (MCP 인증용)</label>
+        <div class="profile-key">
+          <code id="viewer-user-key">${keyDisplay}</code>
+          ${user.userKey ? '<button class="btn-small" onclick="ViewerProfile.copyKey()">복사</button>' : ''}
+          <button class="btn-small" onclick="ViewerProfile.regenerateKey()">재발급</button>
+        </div>
+        <div id="viewer-key-msg" style="font-size:12px;margin-top:6px;"></div>
+      </div>
+      <div style="margin-top:20px;display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn-danger-sm" onclick="ViewerProfile.logout()">로그아웃</button>
+      </div>
+    `;
+  },
+
+  copyKey() {
+    const keyEl = document.getElementById('viewer-user-key');
+    if (keyEl && keyEl.textContent !== '(키 없음)') {
+      navigator.clipboard.writeText(keyEl.textContent).then(() => {
+        const msg = document.getElementById('viewer-key-msg');
+        if (msg) { msg.textContent = '복사되었습니다.'; msg.style.color = '#16a34a'; setTimeout(() => { msg.textContent = ''; }, 1500); }
+      });
+    }
+  },
+
+  async regenerateKey() {
+    if (!confirm('새 키를 발급하면 기존 키는 즉시 무효화됩니다. 계속하시겠습니까?')) return;
+    const msg = document.getElementById('viewer-key-msg');
+    try {
+      const bp = window.BASE_PATH || '';
+      const res = await fetch(bp + '/api/auth/me/regenerate-key', { method: 'POST', credentials: 'include' });
+      const data = await res.json();
+      if (data.success && data.userKey) {
+        const keyEl = document.getElementById('viewer-user-key');
+        if (keyEl) keyEl.textContent = data.userKey;
+        // Ensure copy button exists
+        const keyBox = keyEl?.parentElement;
+        if (keyBox && !keyBox.querySelector('[onclick*="copyKey"]')) {
+          const copyBtn = document.createElement('button');
+          copyBtn.className = 'btn-small';
+          copyBtn.setAttribute('onclick', 'ViewerProfile.copyKey()');
+          copyBtn.textContent = '복사';
+          keyBox.insertBefore(copyBtn, keyBox.querySelector('[onclick*="regenerateKey"]'));
+        }
+        if (msg) { msg.textContent = '새 키가 발급되었습니다.'; msg.style.color = '#16a34a'; }
+      } else {
+        if (msg) { msg.textContent = data.error?.message || '재발급 실패'; msg.style.color = '#dc2626'; }
+      }
+    } catch (e) {
+      if (msg) { msg.textContent = '서버 연결 실패'; msg.style.color = '#dc2626'; }
+    }
+  },
+
+  async logout() {
+    try {
+      const bp = window.BASE_PATH || '';
+      await fetch(bp + '/api/auth/logout', { method: 'POST', credentials: 'include' });
+    } catch (e) {}
+    window.location.reload();
+  },
+
+  esc(str) {
+    const d = document.createElement('div');
+    d.textContent = str || '';
+    return d.innerHTML;
+  }
+};
+
 // Start application when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   init();
@@ -3037,4 +3195,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Phase 7: Initialize Local Preview (drag-and-drop)
   LocalPreview.init();
+
+  // Step 17: Viewer Profile - check session and show profile button if logged in
+  ViewerProfile.init();
 });

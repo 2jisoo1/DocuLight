@@ -1073,4 +1073,223 @@ body {
     width: 280px;
     max-width: 80%;
   }
+
+  /* Mobile: modal wider, tabs→select */
+  .mgmt-modal-content {
+    width: 95% !important;
+    max-width: 95% !important;
+  }
+  .mgmt-tabs { display: none !important; }
+  .mgmt-select { display: block !important; }
 }
+
+@media (min-width: 769px) {
+  .mgmt-select { display: none !important; }
+}
+
+/* ============================================================
+   Step 17: Management Panel Styles
+   ============================================================ */
+.mgmt-modal-content {
+  width: 80% !important;
+  max-width: 80% !important;
+  min-height: 70vh;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.mgmt-panel-header {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border-color);
+  padding: 0 16px;
+  gap: 8px;
+  background: #fafafa;
+}
+
+.mgmt-tabs {
+  display: flex;
+  gap: 0;
+  flex: 1;
+  overflow-x: auto;
+}
+
+.mgmt-select {
+  display: none;
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 13px;
+  background: #fff;
+}
+
+.mgmt-tab {
+  padding: 10px 18px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 13px;
+  color: #666;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+.mgmt-tab:hover { color: #333; }
+.mgmt-tab.active { color: var(--primary-color); border-bottom-color: var(--primary-color); font-weight: 600; }
+
+.mgmt-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.mgmt-modal-content .mgmt-panel-header {
+  padding: 0 16px;
+  background: #fafafa;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.mgmt-section {
+  padding: 20px 24px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.mgmt-section h3 {
+  font-size: 16px;
+  margin-bottom: 16px;
+  color: #333;
+}
+
+.mgmt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.mgmt-header h3 { margin-bottom: 0; }
+
+.mgmt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.mgmt-table th {
+  text-align: left;
+  padding: 8px 12px;
+  background: #f8f8f8;
+  border-bottom: 1px solid #e0e0e0;
+  font-weight: 600;
+  color: #555;
+}
+.mgmt-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.mgmt-table td.actions { white-space: nowrap; }
+.mgmt-table td.actions .btn { margin-right: 4px; }
+
+.mgmt-detail-table {
+  font-size: 13px;
+  border-collapse: collapse;
+}
+.mgmt-detail-table th {
+  text-align: left;
+  padding: 6px 16px 6px 0;
+  color: #666;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.mgmt-detail-table td {
+  padding: 6px 0;
+  color: #333;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.status-badge.active { background: #e8f5e9; color: #2e7d32; }
+.status-badge.disabled { background: #fce4ec; color: #c62828; }
+
+.mgmt-form { max-width: 480px; }
+.mgmt-form-row { margin-bottom: 12px; }
+.mgmt-form-row > label { display: block; font-size: 13px; font-weight: 500; color: #555; margin-bottom: 4px; }
+.mgmt-form-row input[type="text"],
+.mgmt-form-row input[type="email"],
+.mgmt-form-row input[type="password"],
+.mgmt-form-row input[type="number"],
+.mgmt-form-row select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.mgmt-form-row input:focus,
+.mgmt-form-row select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(0,102,204,0.1);
+}
+.mgmt-form-actions { margin-top: 16px; display: flex; gap: 8px; }
+
+.mgmt-msg { margin-top: 12px; font-size: 13px; padding: 8px 12px; border-radius: 4px; display: none; }
+.mgmt-msg.success { display: block; background: #e8f5e9; color: #2e7d32; }
+.mgmt-msg.error { display: block; background: #fce4ec; color: #c62828; }
+.mgmt-error { padding: 20px; color: #c62828; }
+
+.mgmt-checkbox { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-size: 13px; cursor: pointer; }
+.mgmt-checkbox input { margin: 0; }
+
+.mgmt-hint { font-size: 12px; color: #888; margin-bottom: 8px; }
+.mgmt-key-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  background: #f8f8f8;
+  border-radius: 4px;
+  border: 1px solid #e0e0e0;
+}
+.mgmt-key-box code {
+  flex: 1;
+  font-family: monospace;
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.key-copy-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  font-size: 16px;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+.key-copy-btn:hover { opacity: 1; }
+.key-copy-btn.copied { color: #2e7d32; opacity: 1; }
+
+.mgmt-reg-list { display: flex; flex-direction: column; gap: 12px; }
+.mgmt-reg-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  gap: 16px;
+}
+.reg-info { flex: 1; }
+.reg-info strong { display: block; margin-bottom: 4px; }
+.reg-date { font-size: 12px; color: #888; }
+.reg-message { font-size: 13px; color: #555; margin-top: 6px; padding: 6px 10px; background: #f8f8f8; border-radius: 4px; }
+.reg-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.reg-actions select { padding: 4px 8px; font-size: 12px; border: 1px solid #ddd; border-radius: 4px; }
