@@ -54,7 +54,7 @@ function parseFrontmatter(content) {
       const key = line.slice(0, colonIndex).trim().toLowerCase();
       const value = line.slice(colonIndex + 1).trim();
 
-      if ((key === 'name' || key === 'description') && value) {
+      if ((key === 'name' || key === 'description' || key === 'aliases' || key === 'version') && value) {
         metadata[key] = value;
       }
     }
