@@ -34,6 +34,24 @@ function truncateContent(content, maxLength = 100) {
 }
 
 /**
+ * Escape special regex characters in a string
+ */
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Split query into search terms and create matching utilities
+ */
+function parseQueryTerms(query) {
+  const terms = query.split(/\s+/).filter(t => t.length >= 1);
+  const termRegexes = terms.map(t => new RegExp(escapeRegex(t), 'gi'));
+  // Combined OR regex for highlighting any matched term
+  const highlightRegex = new RegExp(terms.map(t => escapeRegex(t)).join('|'), 'gi');
+  return { terms, termRegexes, highlightRegex };
+}
+
+/**
  * Find all matches of query in content with priority and highlighting
  * @param {string} content - File content
  * @param {string} query - Search query
@@ -50,11 +68,12 @@ function findMatches(content, query, filename, options = {}) {
 
   const lines = content.split('\n');
   const matches = [];
-  const queryRegex = new RegExp(query, 'gi');
+  const { terms, termRegexes, highlightRegex } = parseQueryTerms(query);
 
   // Check if filename matches (highest priority)
+  // Any term matching filename counts as a filename match
   const filenameLower = filename.toLowerCase().replace('.md', '');
-  if (filenameLower.includes(query.toLowerCase())) {
+  if (terms.some(t => filenameLower.includes(t.toLowerCase()))) {
     const filenameContent = highlight
       ? `<mark>Filename match: ${filename}</mark>`
       : `Filename match: ${filename}`;
@@ -68,10 +87,11 @@ function findMatches(content, query, filename, options = {}) {
   }
 
   // Check if document title matches (high priority)
+  // Any term matching title counts as a title match
   const title = extractTitle(content);
-  if (title && title.toLowerCase().includes(query.toLowerCase())) {
+  if (title && terms.some(t => title.toLowerCase().includes(t.toLowerCase()))) {
     const highlightedTitle = highlight
-      ? title.replace(new RegExp(query, 'gi'), (match) => `<mark>${match}</mark>`)
+      ? title.replace(highlightRegex, (match) => `<mark>${match}</mark>`)
       : title;
 
     const titleContent = highlight
@@ -86,15 +106,16 @@ function findMatches(content, query, filename, options = {}) {
     });
   }
 
-  // Check content for matches
+  // Check content for matches (any term on the line → match)
   lines.forEach((line, lineIndex) => {
-    if (queryRegex.test(line)) {
-      // Reset regex lastIndex for global flag
-      queryRegex.lastIndex = 0;
+    const lineHasMatch = termRegexes.some(rx => { rx.lastIndex = 0; return rx.test(line); });
+    if (lineHasMatch) {
+      // Reset all regex lastIndex
+      termRegexes.forEach(rx => { rx.lastIndex = 0; });
 
-      // Highlight the matched text (if enabled)
+      // Highlight all matched terms (if enabled)
       const highlightedContent = highlight
-        ? line.replace(queryRegex, (match) => `<mark>${match}</mark>`)
+        ? line.replace(highlightRegex, (match) => `<mark>${match}</mark>`)
         : line;
 
       // Extract context if requested
@@ -233,6 +254,16 @@ async function searchDocuments(config, logger, query, options = {}) {
             // Read file
             try {
               const content = await fs.readFile(entryPath, 'utf-8');
+
+              // File-level AND filter: all terms must exist somewhere in the file
+              const searchTerms = lowerQuery.split(/\s+/).filter(t => t.length >= 1);
+              if (searchTerms.length > 1) {
+                const contentLower = content.toLowerCase();
+                if (!searchTerms.every(t => contentLower.includes(t))) {
+                  continue; // Skip files missing any search term
+                }
+              }
+
               const normalizedPath = relativePath.replace(/\\/g, '/');
               const matches = findMatches(content, lowerQuery, entry.name, {
                 highlight,
@@ -376,10 +407,12 @@ function formatFullContext(results, fileContents, query) {
     const allSections = extractor.splitByHeadings(content);
     const queryLower = query.toLowerCase();
 
-    // Filter sections that contain the query
-    const matchingSections = allSections.filter(section =>
-      section.content.toLowerCase().includes(queryLower)
-    );
+    // Filter sections that contain any search term
+    const queryTerms = queryLower.split(/\s+/).filter(t => t.length >= 1);
+    const matchingSections = allSections.filter(section => {
+      const sectionLower = section.content.toLowerCase();
+      return queryTerms.some(t => sectionLower.includes(t));
+    });
 
     return {
       path: r.path,
