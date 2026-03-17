@@ -3,6 +3,7 @@
  * Manage signup requests - superuser only
  */
 const emailService = require('../../services/email-service');
+const activityLogger = require('../../utils/activity-logger');
 
 async function listPending(req, res) {
   const { registrationStore } = req.app.locals.stores;
@@ -78,6 +79,8 @@ async function approve(req, res) {
   const loginUrl = `${proto}://${req.headers.host || 'localhost'}/login`;
   await emailService.sendApprovalEmail(reg.email, loginUrl);
 
+  activityLogger.auth('SIGNUP_APPROVED', { email: reg.email, by: req.adminSession?.email || req.adminSession?.name || 'system' });
+
   const { passwordHash, userKeyHash, ...safeUser } = user;
   res.json({ success: true, user: safeUser, userKey });
 }
@@ -103,6 +106,8 @@ async function reject(req, res) {
     reviewedBy: req.adminSession.userId,
     reviewedAt: new Date().toISOString()
   });
+
+  activityLogger.auth('SIGNUP_REJECTED', { email: reg.email, by: req.adminSession?.email || req.adminSession?.name || 'system' });
 
   await emailService.sendRejectionEmail(reg.email);
 

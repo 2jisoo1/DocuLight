@@ -23,14 +23,18 @@ class AuthSettingsStore {
         requireReadLogin: false,
         sessionTimeout: 3600000,
         allowSignup: true,
-        allowedEmailDomains: []
+        allowedEmailDomains: [],
+        signupMode: 'approval',
+        selfSignup: { defaultGroupName: 'Viewer' }
       };
     }
     return {
       requireReadLogin: !!auth.requireReadLogin,
       sessionTimeout: auth.sessionTimeout,
       allowSignup: auth.allowSignup !== false,
-      allowedEmailDomains: auth.allowedEmailDomains || []
+      allowedEmailDomains: auth.allowedEmailDomains || [],
+      signupMode: auth.signupMode || 'approval',
+      selfSignup: auth.selfSignup || { defaultGroupName: 'Viewer' }
     };
   }
 
@@ -55,6 +59,17 @@ class AuthSettingsStore {
     if (updates.allowedEmailDomains !== undefined) {
       auth.allowedEmailDomains = updates.allowedEmailDomains;
     }
+    if (updates.signupMode !== undefined) {
+      if (['approval', 'self'].includes(updates.signupMode)) {
+        auth.signupMode = updates.signupMode;
+      }
+    }
+    if (updates.selfSignup !== undefined) {
+      auth.selfSignup = auth.selfSignup || {};
+      if (updates.selfSignup.defaultGroupName) {
+        auth.selfSignup.defaultGroupName = updates.selfSignup.defaultGroupName;
+      }
+    }
 
     // Write to config.json5
     await this._writeToConfig(auth);
@@ -77,7 +92,9 @@ class AuthSettingsStore {
         requireReadLogin: authValues.requireReadLogin,
         sessionTimeout: authValues.sessionTimeout,
         allowSignup: authValues.allowSignup,
-        allowedEmailDomains: authValues.allowedEmailDomains
+        allowedEmailDomains: authValues.allowedEmailDomains,
+        signupMode: authValues.signupMode,
+        selfSignup: authValues.selfSignup
       };
 
       const tmpPath = configPath + '.auth.tmp';

@@ -22,6 +22,7 @@ const GroupStore = require('./stores/group-store');
 const UserStore = require('./stores/user-store');
 const AuthSettingsStore = require('./stores/auth-settings-store');
 const RegistrationStore = require('./stores/registration-store');
+const activityLogger = require('./utils/activity-logger');
 const { getDocumentation } = require('./controllers/doc-controller');
 const { getIndexConfig } = require('./controllers/config-controller');
 const backupUtils = require('./utils/backup-utils');
@@ -153,10 +154,16 @@ app.get('/signup', (req, res) => {
   const cfg = req.app.locals.config || {};
   const basePath = cfg.basePath || '';
   const iconPath = (cfg.ui && cfg.ui.icon) || './public/images/icon.png';
+  const stores = req.app.locals.stores;
+  const authSettings = stores && stores.authSettingsStore ? stores.authSettingsStore.get() : {};
+  if (authSettings.allowSignup === false) {
+    return res.redirect(basePath + '/login?msg=signup_disabled');
+  }
   res.render('signup', {
     uiTitle: (cfg.ui && cfg.ui.title) || 'DocLight',
     uiIcon: resolveIconPath(iconPath, basePath),
-    basePath
+    basePath,
+    signupMode: authSettings.signupMode || 'approval'
   });
 });
 
@@ -314,6 +321,8 @@ app.get('/doc/*', (req, res) => {
   const cfg = req.app.locals.config || {};
   const iconPath = (cfg.ui && cfg.ui.icon) || './public/images/icon.png';
   const basePath = cfg.basePath || '';
+  const docPath = req.path.replace('/doc/', '');
+  activityLogger.doc('VIEW', { path: docPath, user: activityLogger.extractUser(req), ip: activityLogger.extractIp(req) });
   res.render('index', {
     title: 'DocuLight - Markdown Viewer',
     uiTitle: (cfg.ui && cfg.ui.title) || 'DocuLight',
@@ -380,6 +389,7 @@ async function start(options = {}) {
 
     // Create logger
     logger = createLogger(cfg);
+    activityLogger.init(logger);
     app.locals.config = cfg;
     app.locals.logger = logger;
 

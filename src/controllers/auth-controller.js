@@ -2,6 +2,7 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const sessionService = require('../services/session-service');
 const emailService = require('../services/email-service');
+const activityLogger = require('../utils/activity-logger');
 
 /**
  * POST /api/auth/setup — Create initial superuser
@@ -93,6 +94,7 @@ async function login(req, res) {
   // User not found — still run bcrypt to prevent timing attacks
   if (!user) {
     await bcrypt.hash('dummy', 12);
+    activityLogger.authWarn('LOGIN_FAILED', { email, ip: req.ip, reason: 'USER_NOT_FOUND' });
     return res.status(401).json({
       error: { code: 'INVALID_CREDENTIALS', message: '이메일 또는 패스워드가 올바르지 않습니다' }
     });
@@ -118,6 +120,7 @@ async function login(req, res) {
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
     await userStore.incrementFailedLogin(user.id);
+    activityLogger.authWarn('LOGIN_FAILED', { email, ip: req.ip, reason: 'INVALID_PASSWORD' });
     return res.status(401).json({
       error: { code: 'INVALID_CREDENTIALS', message: '이메일 또는 패스워드가 올바르지 않습니다' }
     });
@@ -148,6 +151,8 @@ async function login(req, res) {
   // Clear password from memory
   req.body.password = '';
 
+  activityLogger.auth('LOGIN', { email: user.email, ip: req.ip });
+
   res.json({
     success: true,
     session: {
@@ -164,6 +169,10 @@ async function login(req, res) {
 function logout(req, res) {
   const token = extractToken(req);
   if (token) {
+    const session = sessionService.getSession(token);
+    if (session) {
+      activityLogger.auth('LOGOUT', { email: session.email || session.name, ip: req.ip });
+    }
     sessionService.invalidateSession(token);
   }
 
@@ -402,6 +411,56 @@ async function signup(req, res) {
     });
   }
 
+  // ── 직접 가입 흐름 (signupMode === "self") ──
+  const signupMode = settings.signupMode || 'approval';
+  if (signupMode === 'self') {
+    const { groupStore } = req.app.locals.stores;
+    const defaultGroupName = settings.selfSignup?.defaultGroupName || 'Viewer';
+    let group = groupStore.findByName(defaultGroupName);
+    if (!group) {
+      group = groupStore.findByName('Viewer');
+      if (!group) {
+        return res.status(500).json({
+          error: { code: 'GROUP_NOT_FOUND', message: 'Default group not found' }
+        });
+      }
+    }
+
+    const result = await userStore.create({ email, password, groupId: group.id });
+    req.body.password = '';
+    req.body.passwordConfirm = '';
+
+    const session = sessionService.createSessionForUser(
+      result.user, group.permissions, settings
+    );
+
+    const config = req.app.locals.config;
+    res.cookie('doclight_admin_session', session.token, {
+      httpOnly: true,
+      sameSite: 'Strict',
+      secure: !!(config.ssl && config.ssl.enabled),
+      path: '/',
+      maxAge: settings.sessionTimeout
+    });
+
+    activityLogger.auth('SIGNUP_SELF', {
+      email: email,
+      ip: req.ip,
+      group: group.name
+    });
+
+    return res.json({
+      success: true,
+      mode: 'self',
+      session: {
+        permissions: session.permissions,
+        expiresAt: session.expiresAt
+      }
+    });
+  }
+
+  // ── 승인 기반 흐름 (기존 코드 유지) ──
+
   // Check pending registrations
   const pending = registrationStore.findByEmail(email);
   if (pending.length > 0) {
@@ -414,6 +473,8 @@ async function signup(req, res) {
   req.body.password = '';
   req.body.passwordConfirm = '';
   const result = await registrationStore.create({ email, passwordHash, message: message || '' });
+
+  activityLogger.auth('SIGNUP_REQUEST', { email, ip: req.ip });
 
   // Check SMTP availability
   const smtpAvailable = emailService.isConfigured() && await emailService.verify();

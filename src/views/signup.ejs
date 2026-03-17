@@ -28,7 +28,11 @@
 <body>
   <div class="signup-container">
     <h1><%= uiTitle %></h1>
-    <p class="subtitle">가입 요청</p>
+    <% if (typeof signupMode !== 'undefined' && signupMode === 'self') { %>
+    <p class="subtitle">계정을 생성하면 즉시 사용할 수 있습니다.</p>
+    <% } else { %>
+    <p class="subtitle">가입 요청을 보내면 관리자 승인 후 사용할 수 있습니다.</p>
+    <% } %>
 
     <div id="error-msg" class="error-msg"></div>
     <div id="success-msg" class="success-msg"></div>
@@ -46,11 +50,13 @@
         <label for="passwordConfirm">패스워드 확인</label>
         <input type="password" id="passwordConfirm" name="passwordConfirm" required placeholder="패스워드 재입력" autocomplete="new-password">
       </div>
+      <% if (typeof signupMode === 'undefined' || signupMode !== 'self') { %>
       <div class="form-group">
         <label for="message">가입 요청 메시지 (선택)</label>
         <textarea id="message" name="message" placeholder="관리자에게 전달할 메시지를 입력하세요"></textarea>
       </div>
-      <button type="submit" class="btn-primary" id="submit-btn">가입 요청</button>
+      <% } %>
+      <button type="submit" class="btn-primary" id="submit-btn"><%= (typeof signupMode !== 'undefined' && signupMode === 'self') ? '가입' : '가입 요청' %></button>
     </form>
 
     <a href="<%= basePath %>/login" class="back-link">로그인 페이지로 돌아가기</a>
@@ -95,7 +101,8 @@
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
       const passwordConfirm = document.getElementById('passwordConfirm').value;
-      const message = document.getElementById('message').value.trim();
+      const messageEl = document.getElementById('message');
+      const message = messageEl ? messageEl.value.trim() : '';
 
       if (password !== passwordConfirm) {
         errorEl.textContent = '패스워드가 일치하지 않습니다.';
@@ -115,6 +122,10 @@
         const data = await res.json();
 
         if (res.ok && data.success) {
+          if (data.mode === 'self') {
+            window.location.href = basePath + '/';
+            return;
+          }
           document.getElementById('signup-form').style.display = 'none';
           if (data.emailSent) {
             successEl.textContent = '인증 이메일이 발송되었습니다. 이메일의 링크를 클릭해주세요.';

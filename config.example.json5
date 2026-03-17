@@ -130,7 +130,15 @@
   //   allowSignup: true,
   //
   //   // Restrict signups to specific email domains (empty = all domains allowed)
-  //   allowedEmailDomains: []
+  //   allowedEmailDomains: [],
+  //
+  //   // Signup mode: "approval" (admin must approve) or "self" (instant registration)
+  //   signupMode: "approval",
+  //
+  //   // Self-signup settings (only used when signupMode is "self")
+  //   selfSignup: {
+  //     defaultGroupName: "Viewer"  // Default group for self-registered users
+  //   }
   // },
 
   // Admin Mode settings (optional)
