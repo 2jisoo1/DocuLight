@@ -1,0 +1,394 @@
+// DocuLight 설정 파일 (JSON5 형식)
+// 이 파일을 config.json5로 복사한 후 설정값을 수정하세요
+{
+  // 문서 루트 디렉토리 (절대 경로 권장)
+  docsRoot: "/data/docs",
+
+  // 사용자 관리 데이터 디렉토리
+  // users.json, groups.json, pending-registrations.json 저장
+  // 기본값: "./data"
+  dataDir: "./data",
+
+  // 이메일 서버 설정 (선택사항, 회원가입 워크플로우에 필요)
+  // email: {
+  //   host: "smtp.example.com",
+  //   port: 587,
+  //   secure: false,
+  //   auth: {
+  //     user: "noreply@example.com",
+  //     pass: "password"
+  //   },
+  //   from: "DocLight <noreply@example.com>"
+  // },
+
+  // 최대 업로드 파일 크기 (MB 단위)
+  maxUploadMB: 1000,
+
+  // 서버 포트 번호
+  port: 3000,
+
+  // 리버스 프록시 하위 경로 배포용 기본 경로 (선택사항)
+  // nginx 등에서 하위 경로 프록시로 배포할 때 (예: /develop/ → localhost:3000/)
+  // 하위 경로 접두사를 설정하면 정적 리소스와 URL이 올바르게 동작합니다.
+  // "/"로 시작하고 "/"로 끝나지 않아야 함 (예: "/develop", "/docs/v2")
+  // 기본값: "" (하위 경로 없음, 직접 접근)
+  // basePath: "/develop",
+
+  // UI 커스터마이징
+  ui: {
+    // 사이드바 제목 (기본값: "DocuLight")
+    title: "DocuLight",
+
+    // 아이콘 경로 (기본값: "./public/images/icon.png")
+    // 프로젝트 루트 기준 파일 경로 사용
+    // 서버가 public 디렉토리를 통해 웹 경로로 제공
+    icon: "./public/images/icon.png",
+
+    // 마크다운 콘텐츠 영역 최대 너비 (기본값: "1024px")
+    // 지원 단위: px, %, em, rem, vw 등
+    maxWidth: "1024px",
+
+    // 시작 시 자동 로드할 인덱스 파일 (선택사항)
+    // docsRoot 기준 상대 경로 사용 (예: "README.md", "guide/index.md")
+    // 특수값 "CHATBOT": 챗봇 모드를 메인 페이지로 활성화
+    //   - ChatbotService가 초기화됨
+    //   - / 경로가 /chatbot으로 리다이렉트
+    // 미지정 또는 파일 미존재 시 환영 화면 표시
+    indexFile: "README.md",
+
+
+    // 커스텀 API 문서 파일 (선택사항)
+    // 프로젝트 루트 기준 상대 경로 (예: "./public/api-doc.md")
+    // 기본값: ./public/api-doc.md
+    apiIndexFile: "./public/api-doc.md",
+
+    // 커스텀 MCP 문서 파일 (선택사항)
+    // 프로젝트 루트 기준 상대 경로 (예: "./public/mcp-doc.md")
+    // 기본값: ./public/mcp-doc.md
+    mcpIndexFile: "./public/mcp-doc.md"
+  },
+
+  // 제외할 파일 및 디렉토리 (gitignore 호환 패턴)
+  excludes: [
+    "**/.git/",
+    "**/.DS_Store",
+    "**/node_modules/",
+    "**/.idea/",
+    "*.tmp",
+    "*.log"
+  ],
+
+  // 로그 설정
+  log: {
+    dir: "./logs",           // 로그 디렉토리
+    level: "info",           // 로그 레벨: 'error' | 'warn' | 'info' | 'debug'
+    maxDays: 30,             // 로그 보존 기간 (일)
+    history: true            // 로그 이력 활성화 (향후 사용)
+  },
+
+  // 보안 설정 (선택사항)
+  security: {
+    // IP 허용 목록 패턴 (선택사항)
+    // 미지정 시 모든 IP 허용
+    allows: [
+      "127.0.0.1",           // 정확한 IP
+      "::1",                 // IPv6 로컬호스트
+      "10.0.1.*",            // 와일드카드: 10.0.1.0-255
+      "10.0.100-200.*",      // 범위: 10.0.100.0-255 ~ 10.0.200.0-255
+      "192.168.1.0/24"       // CIDR 표기법
+    ]
+  },
+
+  // SSL/TLS 설정 (선택사항)
+  // 활성화 시 HTTPS로 서버 실행
+  // 비활성화 또는 미지정 시 HTTP로 서버 실행
+  ssl: {
+    enabled: false,
+    cert: "/path/to/cert.pem",
+    key: "/path/to/key.pem",
+    ca: "/path/to/ca.pem"  // 선택사항: CA 인증서
+  },
+
+  // 핫 리로드 옵션 (선택사항)
+  // hotReload.allowPortSslAutoRestart: true로 설정 시, 포트 또는 SSL 설정 변경 시에도 자동 재시작 시도
+  // 기본값: false (권장) — 포트/SSL 변경은 외부 조율(로드밸런서, 인증서 등)이 필요한 경우가 많음
+  // 예시:
+  // hotReload: {
+  //   allowPortSslAutoRestart: false
+  // }
+
+  // 인증 설정
+  // 문서 열람 시 로그인 요구 여부 제어
+  // auth: {
+  //   // 문서 열람 시 로그인 필수 여부 (기본값: false)
+  //   requireReadLogin: false,
+  //
+  //   // 세션 만료 시간 (밀리초, 기본값: 3600000 = 1시간, 최소: 60000)
+  //   sessionTimeout: 3600000,
+  //
+  //   // 신규 사용자 가입 허용 (기본값: true)
+  //   allowSignup: true,
+  //
+  //   // 특정 이메일 도메인으로 가입 제한 (빈 배열 = 모든 도메인 허용)
+  //   allowedEmailDomains: [],
+  //
+  //   // 가입 모드: "approval" (관리자 승인 필요) 또는 "self" (즉시 가입)
+  //   signupMode: "approval",
+  //
+  //   // 직접 가입 설정 (signupMode가 "self"일 때만 사용)
+  //   selfSignup: {
+  //     defaultGroupName: "Viewer"  // 직접 가입 사용자의 기본 그룹
+  //   }
+  // },
+
+  // 관리자 모드 설정 (선택사항)
+  // 파일 관리 기능 제어
+  // 세션 만료 시간은 초기 설정 후 /admin 설정 페이지에서 관리
+  // admin: {
+  //   // 관리자 모드에서 파일 업로드 허용 (기본값: true)
+  //   allowUpload: true,
+  //
+  //   // 관리자 모드에서 파일/폴더 삭제 허용 (기본값: true)
+  //   allowDelete: true,
+  //
+  //   // 최대 업로드 크기 (MB, 기본값: maxUploadMB와 동일)
+  //   maxUploadSize: 10,
+  //
+  //   // 관리자 모드에서 편집 가능한 파일 확장자
+  //   // (기본값: [".md", ".txt", ".json", ".json5", ".yaml", ".yml"])
+  //   editableExtensions: [".md", ".txt", ".json", ".json5", ".yaml", ".yml"],
+  //
+  //   // 편집 가능 최대 파일 크기 (바이트, 기본값: 1048576 = 1MB)
+  //   // 이 크기를 초과하는 파일은 에디터에서 열 수 없음
+  //   maxEditableSize: 1048576
+  // },
+
+  // HTML 캐싱 시스템
+  cache: {
+    // 캐싱 시스템 활성화/비활성화
+    // false로 설정 시 클라이언트 측 렌더링 사용 (이전 동작)
+    enabled: true,
+
+    // 요청 기반 스캔 쓰로틀 (밀리초)
+    // 동시 사용자 요청 시 과도한 스캔 방지
+    // 권장값:
+    //   - 200: 낮은 트래픽, 빠른 업데이트
+    //   - 500: 보통 트래픽 (기본값)
+    //   - 1000: 높은 트래픽, 서버 부하 감소
+    scanThrottle: 500,
+
+    // 최대 메모리 캐시 크기 (MB)
+    // 초과 시 LRU 방식으로 제거
+    // 권장: 약 200개 파일(평균 35KB) 기준 100MB
+    maxMemorySize: 100,
+
+    // 최대 디스크 캐시 크기 (MB)
+    // 초과 시 오래된 캐시 삭제
+    maxDiskSize: 500,
+
+    // 서버 시작 시 모든 파일 사전 렌더링
+    // false: 지연 렌더링 (첫 요청 시) - 빠른 시작
+    // true: 즉시 렌더링 (느린 시작, 빠른 첫 요청)
+    preRenderOnStartup: true,
+
+    // 서버 측 Mermaid 다이어그램 렌더링
+    // Puppeteer 필요 (무거움, 첫 렌더링 느림)
+    // false: mermaid 코드를 클라이언트로 전송 (권장, 빠름)
+    // true: 서버에서 SVG 렌더링 (완전하지만 느림)
+    mermaidSSR: false,
+
+    // 캐시 디렉토리 (프로젝트 루트 기준 상대 경로)
+    // 미존재 시 자동 생성
+    cacheDir: "./.cache",
+
+    // HTML 압축 수준
+    // 0: 없음 (빠름, 디스크 많이 사용, 권장)
+    // 1: gzip (느림, 디스크 적게 사용)
+    compressionLevel: 0,
+
+    // 오래된 캐시 파일 자동 정리 (일 단위)
+    // 이 기간 동안 접근되지 않은 파일 삭제
+    // 0으로 설정 시 정리 비활성화
+    cleanupAfterDays: 30
+  },
+
+  // RAG 챗봇 설정
+  // AI 기반 문서 Q&A 챗봇 활성화
+  // chatbot: {
+  //   // LLM 설정
+  //   llm: {
+  //     // 제공자 유형: "openai" | "azure-openai" | "ollama"
+  //     type: "azure-openai",
+  //
+  //     // API 엔드포인트
+  //     // - OpenAI: "https://api.openai.com/v1"
+  //     // - Azure: "https://<리소스명>.openai.azure.com"
+  //     // - Ollama: "http://localhost:11434"
+  //     endpoint: "https://your-resource.openai.azure.com",
+  //
+  //     // API 키 (Ollama는 비워두세요)
+  //     apiKey: "your-api-key-here",
+  //
+  //     // 모델명
+  //     model: "gpt-4o",
+  //
+  //     // Azure OpenAI 전용: 배포 이름 (azure-openai 필수)
+  //     deploymentName: "gpt-4o",
+  //
+  //     // 컨텍스트 윈도우 크기 (토큰 단위)
+  //     contextLength: 128000,
+  //
+  //     // 생성 온도 (0-2, 기본값: 0.7)
+  //     temperature: 0.7,
+  //
+  //     // 최대 출력 토큰 수 (기본값: 4096)
+  //     maxTokens: 4096
+  //   },
+  //
+  //   // 임베딩 설정
+  //   embedding: {
+  //     // 제공자 유형: "openai" | "azure-openai" | "ollama"
+  //     type: "azure-openai",
+  //
+  //     // API 엔드포인트
+  //     endpoint: "https://your-resource.openai.azure.com",
+  //
+  //     // API 키 (Ollama는 비워두세요)
+  //     apiKey: "your-api-key-here",
+  //
+  //     // 모델명
+  //     model: "text-embedding-3-small",
+  //
+  //     // Azure OpenAI 전용: 배포 이름 (azure-openai 필수)
+  //     deploymentName: "text-embedding-3-small"
+  //   },
+  //
+  //   // RAG 설정 (선택사항)
+  //   rag: {
+  //     // 문서 청크 크기 (문자 단위, 기본값: 1000)
+  //     chunkSize: 1000,
+  //
+  //     // 청크 간 겹침 크기 (기본값: 200)
+  //     chunkOverlap: 200,
+  //
+  //     // 검색할 문서 수 (기본값: 20)
+  //     retrievalCount: 20,
+  //
+  //     // 검색된 문서의 최소 유사도 점수 (기본값: 0.3)
+  //     // 이 임계값 미만의 유사도를 가진 문서는 RAG에서 제외
+  //     // 범위: 0.0 - 1.0 (높을수록 엄격한 필터링)
+  //     // 권장: 일반 사용 0.3, 엄격한 관련성 0.5
+  //     minSimilarityScore: 0.3,
+  //
+  //     // 벡터 저장소 영속성 설정 (HNSWLib)
+  //     // 문서 임베딩의 영구 저장 활성화
+  //     persistence: {
+  //       // 벡터 저장소 데이터 디렉토리 (상대 또는 절대 경로)
+  //       // 기본값: "./data/vector"
+  //       dataDir: "./data/vector",
+  //
+  //       // 삭제된 문서 비율이 임계값 초과 시 자동 압축 활성화
+  //       // 기본값: true
+  //       autoCompact: true,
+  //
+  //       // 압축 임계값 (0.0 - 1.0)
+  //       // 삭제 비율이 이 값 이상일 때 전체 재구축 실행
+  //       // 기본값: 0.3 (30%)
+  //       compactThreshold: 0.3,
+  //
+  //       // 서버 시작 시 파일 시스템과 문서 동기화
+  //       // 기본값: true
+  //       syncOnStartup: true,
+  //
+  //       // 동기화 중 문서 처리 배치 크기
+  //       // 높은 값은 메모리를 더 사용하지만 동기화가 빠름
+  //       // 기본값: 50
+  //       batchSize: 50
+  //     }
+  //   },
+  //
+  //   // 컨텍스트 관리 (선택사항)
+  //   context: {
+  //     // 컨텍스트가 이 비율을 초과하면 압축 실행 (기본값: 0.7)
+  //     compressionThreshold: 0.7,
+  //
+  //     // 목표 압축 비율 (기본값: 0.1)
+  //     compressionTarget: 0.1
+  //   },
+  //
+  //   // 자기 교정 RAG 설정
+  //   // 답변을 평가하고 필요 시 RAG로 재시도하여 품질 향상
+  //   selfCorrection: {
+  //     // 자기 교정 RAG 워크플로우 활성화 (기본값: true)
+  //     // 활성화 시, 먼저 RAG 없이 답변을 생성(빠른 경로)한 후 평가.
+  //     // 답변 품질이 부족하면 RAG를 사용하여 재시도
+  //     enabled: true,
+  //
+  //     // 자기 교정 최대 재시도 횟수 (기본값: 2)
+  //     // 워크플로우의 무한 루프 방지
+  //     maxRetries: 2,
+  //
+  //     // 컨텍스트용 대화 이력 제한 (기본값: 10)
+  //     // 워크플로우에 포함할 이전 메시지 수
+  //     historyLimit: 10,
+  //
+  //     // 평가 신뢰도 임계값 (기본값: 0.7)
+  //     // 이 임계값 미만이면 답변을 재평가할 수 있음
+  //     evaluationThreshold: 0.7
+  //   },
+  //
+  //   // 다중 문서 요약 설정
+  //   // 사용자 요구사항 파싱 및 맵-리듀스 요약 활성화
+  //   summarization: {
+  //     // 향상된 요약 활성화 (기본값: true)
+  //     // 활성화 시, "1500자 이상" 같은 사용자 요구사항을 파싱하여
+  //     // 요약 생성에 적용
+  //     enabled: true,
+  //
+  //     // 맵-리듀스용 문서 수 임계값 (기본값: 5)
+  //     // 검색된 문서가 이 수를 초과하면 맵-리듀스 패턴 사용
+  //     // 이 임계값 미만이면 문서를 직접 요약
+  //     mapReduceThreshold: 5,
+  //
+  //     // 문서 그룹당 최대 토큰 수 (기본값: 4000)
+  //     // 부분 요약을 위해 토큰 예산별로 문서 그룹화
+  //     maxTokensPerGroup: 4000,
+  //
+  //     // 최대 병렬 맵 작업 수 (기본값: 3)
+  //     // 높은 값 = 빠른 처리, 더 많은 API 호출
+  //     maxParallelMaps: 3,
+  //
+  //     // 미지정 시 기본 형식 (기본값: "bullet_points")
+  //     // 옵션: "bullet_points", "numbered_list", "table", "prose", "brief"
+  //     defaultFormat: "bullet_points",
+  //
+  //     // 요구사항 대비 출력 길이 검증 (기본값: true)
+  //     // 출력이 길이 제약을 충족하지 않으면 조정된 프롬프트로 재시도
+  //     validateLength: true,
+  //
+  //     // 길이 검증 최대 재시도 횟수 (기본값: 2)
+  //     lengthValidationRetries: 2
+  //   },
+  //
+  //   // 클라이언트 측 설정 (브라우저로 전달)
+  //   client: {
+  //     // 요청 타임아웃 (밀리초, 기본값: 300000 = 5분)
+  //     // 느린 LLM 백엔드(예: 로컬 vLLM)의 경우 이 값을 늘리세요
+  //     // 권장값:
+  //     //   - 60000 (1분): 빠른 클라우드 API (OpenAI, Azure)
+  //     //   - 300000 (5분): 기본값, 균형
+  //     //   - 600000 (10분): 느린 로컬 LLM
+  //     //   - 0: 타임아웃 없음 (비권장)
+  //     timeout: 300000,
+  //
+  //     // 연결 유지 간격 (밀리초, 기본값: 30000 = 30초)
+  //     // 서버가 연결 타임아웃 방지를 위해 주기적 하트비트 전송
+  //     // 0으로 설정 시 연결 유지 비활성화
+  //     keepAliveInterval: 30000
+  //   },
+  //
+  //   // 커스텀 시스템 프롬프트 (선택사항)
+  //   // 비워두면 기본 RAG 프롬프트 사용
+  //   systemPrompt: ""
+  // }
+}
