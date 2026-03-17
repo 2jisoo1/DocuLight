@@ -7,6 +7,8 @@ const { searchDocuments } = require('../services/search-service');
 const { QueryDocumentService } = require('../services/mcp/query-document-service');
 const { SummarizeDocumentService } = require('../services/mcp/summarize-document-service');
 const { SmartSearchService } = require('../services/mcp/smart-search-service');
+const { ProjectResolverService } = require('../services/mcp/project-resolver-service');
+const { CodeBlockExtractorService } = require('../services/mcp/code-block-extractor');
 const { validatePath } = require('../utils/path-validator');
 const { notifyAdd, notifyBatchRemove, collectMdFiles } = require('../utils/embedding-notifier');
 
@@ -244,6 +246,62 @@ const TOOLS = [
       },
       required: ['query']
     }
+  },
+  {
+    name: 'resolve_project',
+    description: 'Resolve a project or library name to its document path. Use this FIRST when you know the project name but not the exact path. Returns matching projects sorted by relevance with scores. Supports fuzzy matching, aliases, and Korean names. After resolving, use query_document, query_code_examples, or DocuLight_smart_search with the returned path.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'Project or library name (natural language, e.g., "json5", "AnnotaQL", "옵션위버")'
+        },
+        version: {
+          type: 'string',
+          description: 'Specific version to resolve (e.g., "2.0"). If omitted, returns all versions.'
+        },
+        limit: {
+          type: 'integer',
+          description: 'Maximum results (default: 5)',
+          default: 5
+        }
+      },
+      required: ['name']
+    }
+  },
+  {
+    name: 'query_code_examples',
+    description: 'Extract code examples from documents that match a query. Returns code blocks with surrounding context (heading and description). Use language parameter to filter by programming language (java, python, javascript, etc.). More token-efficient than read_document when you only need code examples.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'What kind of code examples you need'
+        },
+        path: {
+          type: 'string',
+          description: 'Directory or file to search (default: /)',
+          default: '/'
+        },
+        language: {
+          type: 'string',
+          description: 'Filter by language (e.g., java, python, javascript). Omit for all languages.'
+        },
+        maxTokens: {
+          type: 'integer',
+          description: 'Maximum tokens to return (default: 3000)',
+          default: 3000
+        },
+        limit: {
+          type: 'integer',
+          description: 'Maximum code blocks to return (default: 10)',
+          default: 10
+        }
+      },
+      required: ['query']
+    }
   }
 ];
 
@@ -263,7 +321,8 @@ function requiresWriteAuth(toolName) {
  */
 function requiresReadAuth(toolName) {
   const readTools = ['list_documents', 'read_document', 'DocuLight_get_config',
-    'DocuLight_search', 'query_document', 'summarize_document', 'DocuLight_smart_search'];
+    'DocuLight_search', 'query_document', 'summarize_document', 'DocuLight_smart_search',
+    'resolve_project', 'query_code_examples'];
   return readTools.includes(toolName);
 }
 
@@ -609,6 +668,50 @@ async function executeTool(config, logger, name, args, req) {
       };
     }
 
+    case 'resolve_project': {
+      const resolver = req.app.locals.projectResolver;
+      if (!resolver) {
+        throw new Error('Project resolver not initialized');
+      }
+
+      const results = resolver.resolve(args.name, {
+        limit: args.limit || 5,
+        version: args.version || null
+      });
+
+      const output = resolver.formatAsMarkdown(args.name, results);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: output
+          }
+        ]
+      };
+    }
+
+    case 'query_code_examples': {
+      const extractor = new CodeBlockExtractorService(config, logger);
+      const results = await extractor.extract(args.query, {
+        path: args.path || '/',
+        language: args.language || null,
+        maxTokens: args.maxTokens || 3000,
+        limit: args.limit || 10
+      });
+
+      const output = extractor.formatAsMarkdown(args.query, results);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: output
+          }
+        ]
+      };
+    }
+
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -692,7 +795,8 @@ function createMcpRouter() {
             serverInfo: {
               name: 'DocuLight',
               version: '1.0.0'
-            }
+            },
+            instructions: 'Use this server to retrieve internal documentation and code examples.\n\nRecommended workflow:\n1. Call resolve_project to find the right document path for a project/library name\n2. Call query_document or query_code_examples with the resolved path\n3. Use DocuLight_smart_search for cross-document natural language search\n4. Use summarize_document to understand document structure before reading full content\n\nTips:\n- Always call resolve_project first if you don\'t know the exact document path\n- Use query_code_examples when you specifically need code snippets\n- Set maxTokens to control response size and save context window'
           }));
 
         default:
