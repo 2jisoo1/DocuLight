@@ -111,9 +111,37 @@ class SmartSearchService {
     }
 
     // 실제 검색 모드 결정
+    const hasEmbedding = this.hasEmbeddingConfig();
+    const hasVectorStore = !!this.vectorStoreManager;
+    const embeddingType = this.config.chatbot?.embedding?.type || null;
+    const embeddingModel = this.config.chatbot?.embedding?.model || null;
+
+    this.logger?.info('Smart search request', {
+      query,
+      requestedMode: mode,
+      searchPath,
+      maxTokens,
+      limit,
+      embedding: {
+        configured: hasEmbedding,
+        type: embeddingType,
+        model: embeddingModel,
+        vectorStoreReady: hasVectorStore
+      }
+    });
+
     let actualMode = mode;
     if (mode === 'auto') {
       actualMode = this.getAvailableMode();
+      this.logger?.info('Smart search mode resolved', {
+        requestedMode: mode,
+        resolvedMode: actualMode,
+        reason: actualMode === 'semantic'
+          ? `Embedding available (${embeddingType}/${embeddingModel})`
+          : hasEmbedding
+            ? 'Embedding configured but VectorStore not ready'
+            : 'No embedding configuration'
+      });
     } else if (mode === 'semantic' && !this.hasEmbeddingConfig()) {
       const error = new Error('SEMANTIC_SEARCH_UNAVAILABLE: Embedding configuration is required for semantic search');
       error.code = 'SEMANTIC_SEARCH_UNAVAILABLE';
@@ -135,6 +163,9 @@ class SmartSearchService {
       // 시맨틱 검색 실패 시 키워드로 폴백
       if (actualMode === 'semantic' && mode === 'auto') {
         this.logger?.warn('Semantic search failed, falling back to keyword search', {
+          query,
+          embeddingType,
+          embeddingModel,
           error: error.message
         });
         actualMode = 'keyword';
@@ -155,6 +186,8 @@ class SmartSearchService {
     this.logger?.info('Smart search completed', {
       query,
       mode: actualMode,
+      usedEmbedding: actualMode === 'semantic',
+      embeddingModel: actualMode === 'semantic' ? embeddingModel : null,
       path: searchPath,
       documentsFound: documentResults.length,
       tokensUsed,
