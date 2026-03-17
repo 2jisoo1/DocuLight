@@ -269,7 +269,6 @@ function requiresReadAuth(toolName) {
 
 /**
  * Validate API key (user-key) via SHA-256 hash lookup
- * Falls back to legacy apiKey for backward compatibility
  */
 function validateApiKey(req, config) {
   const providedKey = req.header('X-API-Key');
@@ -278,42 +277,32 @@ function validateApiKey(req, config) {
     return { valid: false, error: 'X-API-Key header is required for this operation' };
   }
 
-  // New user-key authentication (Step 17)
   const stores = req.app.locals.stores;
-  if (stores && stores.userStore && stores.userStore.getUserCount() > 0) {
-    const hash = crypto.createHash('sha256').update(providedKey).digest('hex');
-    const user = stores.userStore.findByUserKeyHash(hash);
+  if (!stores || !stores.userStore || stores.userStore.getUserCount() === 0) {
+    return { valid: false, error: 'No users configured. Please complete setup first.' };
+  }
 
-    if (user) {
-      if (user.status === 'disabled') {
-        return { valid: false, error: 'Account is disabled' };
-      }
-      const group = stores.groupStore.findById(user.groupId);
-      return {
-        valid: true,
-        user: {
-          userId: user.id,
-          email: user.email,
-          groupId: user.groupId,
-          permissions: group ? group.permissions : ['read']
-        }
-      };
-    }
+  const hash = crypto.createHash('sha256').update(providedKey).digest('hex');
+  const user = stores.userStore.findByUserKeyHash(hash);
 
-    // Fallback: try legacy apiKey
-    if (config.apiKey === providedKey || config.apiKeys?.some(k => k.key === providedKey)) {
-      return { valid: true, user: null };
-    }
-
+  if (!user) {
     return { valid: false, error: 'Invalid API key' };
   }
 
-  // Legacy apiKey authentication (no user management set up yet)
-  if (config.apiKey === providedKey || config.apiKeys?.some(k => k.key === providedKey)) {
-    return { valid: true, user: null };
+  if (user.status === 'disabled') {
+    return { valid: false, error: 'Account is disabled' };
   }
 
-  return { valid: false, error: 'Invalid API key' };
+  const group = stores.groupStore.findById(user.groupId);
+  return {
+    valid: true,
+    user: {
+      userId: user.id,
+      email: user.email,
+      groupId: user.groupId,
+      permissions: group ? group.permissions : ['read']
+    }
+  };
 }
 
 /**

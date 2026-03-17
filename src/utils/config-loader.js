@@ -5,88 +5,6 @@ const { validateIpPattern } = require('./ip-matcher.js');
 const { validateSSL } = require('./ssl-validator.js');
 
 /**
- * Normalize API keys configuration for backward compatibility.
- * Converts single apiKey to apiKeys array format.
- * @param {Object} config - Configuration object
- * @returns {Object} Configuration with normalized apiKeys
- */
-function normalizeApiKeys(config) {
-  // If apiKeys already exists, use it
-  if (config.apiKeys && Array.isArray(config.apiKeys)) {
-    return config;
-  }
-
-  // Convert single apiKey to apiKeys array (backward compatibility)
-  if (config.apiKey) {
-    config.apiKeys = [{
-      key: config.apiKey,
-      name: 'Default Admin',
-      permissions: ['read', 'write', 'delete']
-    }];
-  }
-
-  return config;
-}
-
-/**
- * Validate apiKeys configuration.
- * @param {Array} apiKeys - Array of API key configurations
- * @throws {Error} If apiKeys configuration is invalid
- */
-function validateApiKeys(apiKeys) {
-  if (!apiKeys || !Array.isArray(apiKeys) || apiKeys.length === 0) {
-    throw new Error('Configuration error: At least one API key required in apiKeys array');
-  }
-
-  const validPermissions = ['read', 'write', 'delete'];
-  const seenKeys = new Set();
-
-  for (let i = 0; i < apiKeys.length; i++) {
-    const keyConfig = apiKeys[i];
-
-    // Validate key is non-empty string
-    if (!keyConfig.key || typeof keyConfig.key !== 'string' || keyConfig.key.trim() === '') {
-      throw new Error(`Configuration error: apiKeys[${i}].key must be a non-empty string`);
-    }
-
-    // Check for default placeholder
-    if (keyConfig.key === 'CHANGE_THIS_TO_SECURE_KEY') {
-      throw new Error(
-        'Configuration error: API key must be changed from default value.\n' +
-        'Please update config.json5 with a secure API key.'
-      );
-    }
-
-    // Check for duplicate keys
-    if (seenKeys.has(keyConfig.key)) {
-      throw new Error(`Configuration error: Duplicate API key found at apiKeys[${i}]`);
-    }
-    seenKeys.add(keyConfig.key);
-
-    // Validate name (optional, set default)
-    if (!keyConfig.name) {
-      keyConfig.name = `API Key ${i + 1}`;
-    }
-
-    // Validate permissions (optional, set default)
-    if (!keyConfig.permissions) {
-      keyConfig.permissions = ['read', 'write', 'delete'];
-    } else if (!Array.isArray(keyConfig.permissions)) {
-      throw new Error(`Configuration error: apiKeys[${i}].permissions must be an array`);
-    } else {
-      for (const perm of keyConfig.permissions) {
-        if (!validPermissions.includes(perm)) {
-          throw new Error(
-            `Configuration error: Invalid permission "${perm}" in apiKeys[${i}].permissions. ` +
-            `Valid permissions: ${validPermissions.join(', ')}`
-          );
-        }
-      }
-    }
-  }
-}
-
-/**
  * Load and validate configuration from config.json5
  * @returns {Object} Validated configuration object
  * @throws {Error} If configuration is invalid or missing
@@ -130,20 +48,9 @@ function loadConfig() {
     throw new Error('Configuration error: docsRoot is required');
   }
 
-  // Normalize apiKeys (backward compatibility with single apiKey)
-  config = normalizeApiKeys(config);
-
-  // Validate apiKeys - skip if user management data exists (Step 17 migration)
-  const dataDir = config.dataDir ? path.resolve(config.dataDir) : path.resolve('./data');
-  const usersJsonPath = path.join(dataDir, 'users.json');
-  if (fs.existsSync(usersJsonPath)) {
-    if (config.apiKey || (config.apiKeys && config.apiKeys.length > 0)) {
-      console.warn('[DEPRECATED] apiKey/apiKeys는 폐기 예정입니다. 사용자 관리 시스템을 사용하세요.');
-    }
-  } else {
-    // No user data yet - validate apiKeys for backward compatibility
-    validateApiKeys(config.apiKeys);
-  }
+  // Remove legacy apiKey/apiKeys from config (no longer used)
+  delete config.apiKey;
+  delete config.apiKeys;
 
   // Validate docsRoot exists and is a directory
   const docsRoot = path.resolve(config.docsRoot);
@@ -165,6 +72,14 @@ function loadConfig() {
   if (!fs.existsSync(config.dataDir)) {
     fs.mkdirSync(config.dataDir, { recursive: true });
     console.log(`Created data directory: ${config.dataDir}`);
+  }
+
+  // Auto-create users.json if it doesn't exist
+  const usersJsonPath = path.join(config.dataDir, 'users.json');
+  if (!fs.existsSync(usersJsonPath)) {
+    const defaultUsersData = { version: 1, updatedAt: new Date().toISOString(), users: [] };
+    fs.writeFileSync(usersJsonPath, JSON.stringify(defaultUsersData, null, 2), 'utf-8');
+    console.log(`✅ users.json auto-generated: ${usersJsonPath}`);
   }
 
   // Parse email configuration (optional, null if not configured)

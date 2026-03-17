@@ -20,48 +20,6 @@ function generateToken() {
 }
 
 /**
- * Find API key configuration by key value
- * @param {string} apiKey - The API key to find
- * @param {Object} config - Application configuration
- * @returns {Object|null} API key configuration or null if not found
- */
-function findApiKeyConfig(apiKey, config) {
-  if (!config.apiKeys || !Array.isArray(config.apiKeys)) {
-    return null;
-  }
-  return config.apiKeys.find(k => k.key === apiKey) || null;
-}
-
-/**
- * Create a new session for the given API key
- * @param {string} apiKey - The API key to authenticate
- * @param {Object} config - Application configuration
- * @returns {Object|null} Session object or null if API key is invalid
- */
-function createSession(apiKey, config) {
-  const keyConfig = findApiKeyConfig(apiKey, config);
-  if (!keyConfig) {
-    return null;
-  }
-
-  const now = Date.now();
-  const timeout = config.admin?.sessionTimeout || 3600000; // Default 1 hour
-
-  const session = {
-    token: generateToken(),
-    name: keyConfig.name || 'Unknown',
-    permissions: keyConfig.permissions || ['read'],
-    createdAt: now,
-    expiresAt: now + timeout,
-    timeout: timeout,
-    lastAccessedAt: now
-  };
-
-  sessions.set(session.token, session);
-  return session;
-}
-
-/**
  * Validate a session token and refresh its access time
  * @param {string} token - The session token to validate
  * @returns {Object|null} Session object or null if invalid/expired
@@ -282,8 +240,7 @@ function refreshSession(token, authSettings) {
 }
 
 module.exports = {
-  // Core functions (legacy)
-  createSession,
+  // Core functions
   validateSession,
   getSession,
   invalidateSession,
