@@ -501,6 +501,17 @@ async function start(options = {}) {
       logger.warn('Failed to capture API layer', { error: e.message });
     }
 
+    // Initialize ProjectResolverService for resolve_project MCP tool
+    try {
+      const { ProjectResolverService } = require('./services/mcp/project-resolver-service');
+      const projectResolver = new ProjectResolverService(cfg, logger);
+      await projectResolver.buildIndex();
+      app.locals.projectResolver = projectResolver;
+      logger.info('ProjectResolverService initialized', { projects: projectResolver.index.length });
+    } catch (e) {
+      logger.warn('Failed to initialize ProjectResolverService', { error: e.message });
+    }
+
     // Ensure MCP router is mounted once
     if (!app.locals.mcpMounted) {
       app.use(createMcpRouter());
