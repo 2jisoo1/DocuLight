@@ -222,6 +222,18 @@ function loadConfig() {
     config.auth.sessionTimeout = 3600000;
   }
 
+  // signupMode 정규화
+  if (!['approval', 'self'].includes(config.auth.signupMode)) {
+    if (config.auth.signupMode) {
+      console.warn(`Warning: auth.signupMode "${config.auth.signupMode}" is invalid. Using default "approval".`);
+    }
+    config.auth.signupMode = 'approval';
+  }
+
+  // selfSignup 기본값
+  config.auth.selfSignup = config.auth.selfSignup || {};
+  config.auth.selfSignup.defaultGroupName = config.auth.selfSignup.defaultGroupName || 'Viewer';
+
   // Set defaults for admin settings (Phase 1: Admin Mode)
   config.admin = {
     sessionTimeout: 3600000,  // 1 hour default

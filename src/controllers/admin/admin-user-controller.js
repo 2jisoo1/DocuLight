@@ -4,6 +4,7 @@
  */
 
 const sessionService = require('../../services/session-service');
+const activityLogger = require('../../utils/activity-logger');
 
 async function listUsers(req, res) {
   const { userStore, groupStore } = req.app.locals.stores;
@@ -49,6 +50,7 @@ async function createUser(req, res) {
 
   try {
     const result = await userStore.create({ email, password, groupId });
+    activityLogger.admin('USER_CREATE', { email, group: group.name, by: req.adminSession?.email || req.adminSession?.name || 'system' });
     res.status(201).json({ success: true, user: result.user, userKey: result.userKey });
   } catch (err) {
     if (err.code === 'EMAIL_DUPLICATE') {
@@ -107,6 +109,7 @@ async function updateUser(req, res) {
   if (status !== undefined) updates.status = status;
 
   const user = await userStore.update(id, updates);
+  activityLogger.admin('USER_UPDATE', { email: existing.email, changes: Object.keys(updates), by: req.adminSession?.email || req.adminSession?.name || 'system' });
 
   // If disabled, invalidate all sessions
   if (status === 'disabled') {
@@ -137,6 +140,7 @@ async function deleteUser(req, res) {
   try {
     await userStore.delete(id);
     sessionService.invalidateByUserId(id);
+    activityLogger.admin('USER_DELETE', { email: existing.email, by: req.adminSession?.email || req.adminSession?.name || 'system' });
     res.json({ success: true });
   } catch (err) {
     if (err.code === 'LAST_SUPERUSER') {

@@ -248,6 +248,7 @@ const TOOLS = [
 ];
 
 const crypto = require('crypto');
+const activityLogger = require('../utils/activity-logger');
 
 /**
  * Check if tool requires write authentication
@@ -627,6 +628,19 @@ async function executeTool(config, logger, name, args, req) {
 /**
  * Create MCP router
  */
+function summarizeArgs(args) {
+  if (!args) return '{}';
+  const summary = {};
+  for (const [k, v] of Object.entries(args)) {
+    if (typeof v === 'string' && v.length > 100) {
+      summary[k] = v.substring(0, 100) + '...[truncated]';
+    } else {
+      summary[k] = v;
+    }
+  }
+  return JSON.stringify(summary);
+}
+
 function createMcpRouter() {
   const router = express.Router();
 
@@ -658,12 +672,29 @@ function createMcpRouter() {
           const { name, arguments: args } = params;
           logger.info('MCP: tools/call', { tool: name, args });
 
-          const result = await executeTool(config, logger, name, args || {}, req);
-          return res.json(createJsonRpcResponse(id, result));
+          // Determine user label for activity log
+          const authResult = validateApiKey(req, config);
+          const mcpUser = authResult.valid && authResult.user
+            ? (authResult.user.email || `apikey(${activityLogger.maskKey(authResult.user.userId)})`)
+            : 'anonymous';
+
+          try {
+            const result = await executeTool(config, logger, name, args || {}, req);
+            activityLogger.mcp('TOOL=' + name, { user: mcpUser, ip: req.ip, args: summarizeArgs(args) });
+            return res.json(createJsonRpcResponse(id, result));
+          } catch (toolError) {
+            if (toolError.message.startsWith('UNAUTHORIZED')) {
+              activityLogger.mcpError('AUTH_FAILED', { ip: req.ip, tool: name });
+            } else {
+              activityLogger.mcpError('TOOL=' + name + ' ERROR', { user: mcpUser, ip: req.ip, error: toolError.message });
+            }
+            throw toolError;
+          }
         }
 
         case 'initialize':
           logger.info('MCP: initialize called');
+          activityLogger.mcp('INITIALIZE', { ip: req.ip });
           return res.json(createJsonRpcResponse(id, {
             protocolVersion: '2024-11-05',
             capabilities: {

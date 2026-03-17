@@ -1990,19 +1990,26 @@ const ManagementModule = {
           <div class="mgmt-form-row"><label><input type="checkbox" id="set-requireReadLogin" ${s.requireReadLogin ? 'checked' : ''}> 읽기 로그인 필요 (접근 자체를 차단)</label></div>
           <div class="mgmt-form-row"><label><input type="checkbox" id="set-allowSignup" ${s.allowSignup ? 'checked' : ''}> 가입 요청 허용</label></div>
           <div class="mgmt-form-row"><label>세션 타임아웃 (분)</label><input type="number" id="set-timeout" value="${Math.round((s.sessionTimeout || 3600000) / 60000)}" min="1"></div>
+          <div class="mgmt-form-row"><label>가입 모드</label><select id="set-signupMode"><option value="approval" ${(s.signupMode || 'approval') === 'approval' ? 'selected' : ''}>승인 기반 (관리자 승인 필요)</option><option value="self" ${s.signupMode === 'self' ? 'selected' : ''}>직접 가입 (즉시 계정 생성)</option></select></div>
+          <div class="mgmt-form-row" id="self-signup-group-row" style="display:${s.signupMode === 'self' ? 'block' : 'none'}"><label>직접 가입 기본 그룹명</label><input type="text" id="set-selfSignupGroup" value="${(s.selfSignup && s.selfSignup.defaultGroupName) || 'Viewer'}" placeholder="Viewer"></div>
           <div class="mgmt-form-row"><label>가입 허용 이메일 도메인 (쉼표 구분)</label><input type="text" id="set-domains" value="${(s.allowedEmailDomains || []).join(', ')}" placeholder="example.com, company.co.kr"></div>
           <div class="mgmt-form-actions"><button class="btn btn-primary" id="settings-save">저장</button></div>
           <div id="settings-msg" class="mgmt-msg"></div>
         </div>
       </div>
     `;
+    document.getElementById('set-signupMode').addEventListener('change', function() {
+      document.getElementById('self-signup-group-row').style.display = this.value === 'self' ? 'block' : 'none';
+    });
     document.getElementById('settings-save').addEventListener('click', async () => {
       const msg = document.getElementById('settings-msg');
       const data = {
         requireReadLogin: document.getElementById('set-requireReadLogin').checked,
         allowSignup: document.getElementById('set-allowSignup').checked,
         sessionTimeout: parseInt(document.getElementById('set-timeout').value) * 60000,
-        allowedEmailDomains: document.getElementById('set-domains').value.split(',').map(d => d.trim()).filter(Boolean)
+        allowedEmailDomains: document.getElementById('set-domains').value.split(',').map(d => d.trim()).filter(Boolean),
+        signupMode: document.getElementById('set-signupMode').value,
+        selfSignup: { defaultGroupName: document.getElementById('set-selfSignupGroup').value.trim() || 'Viewer' }
       };
       const r = await AdminAPI.updateAuthSettings(data);
       if (r.success) { msg.textContent = '설정이 저장되었습니다.'; msg.className = 'mgmt-msg success'; }

@@ -3,6 +3,7 @@
  * CRUD operations for user groups - superuser only
  */
 
+const activityLogger = require('../../utils/activity-logger');
 const VALID_PERMISSIONS = ['superuser', 'write', 'read'];
 
 async function listGroups(req, res) {
@@ -36,6 +37,7 @@ async function createGroup(req, res) {
 
   try {
     const group = await groupStore.create({ name: name.trim(), permissions });
+    activityLogger.admin('GROUP_CREATE', { name: group.name, by: req.adminSession?.email || req.adminSession?.name || 'system' });
     res.status(201).json({ success: true, group });
   } catch (err) {
     if (err.code === 'GROUP_NAME_DUPLICATE') {
@@ -77,6 +79,7 @@ async function updateGroup(req, res) {
     if (permissions !== undefined) updates.permissions = permissions;
 
     const group = await groupStore.update(id, updates);
+    activityLogger.admin('GROUP_UPDATE', { name: group.name, changes: Object.keys(updates), by: req.adminSession?.email || req.adminSession?.name || 'system' });
     res.json({ success: true, group });
   } catch (err) {
     if (err.code === 'SYSTEM_GROUP_IMMUTABLE') {
@@ -102,6 +105,7 @@ async function deleteGroup(req, res) {
 
   try {
     await groupStore.delete(id);
+    activityLogger.admin('GROUP_DELETE', { name: existing.name, by: req.adminSession?.email || req.adminSession?.name || 'system' });
     res.json({ success: true });
   } catch (err) {
     if (err.code === 'SYSTEM_GROUP_CANNOT_DELETE') {
