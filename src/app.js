@@ -111,6 +111,9 @@ app.use((req, res, next) => {
   // API routes are protected by X-API-Key separately
   if (p.startsWith('/api/')) return next();
 
+  // MCP routes have their own X-API-Key authentication
+  if (p === '/mcp' || p.startsWith('/mcp/')) return next();
+
   // Check session cookie
   const token = req.cookies && req.cookies.doclight_admin_session;
   if (token && sessionService.validateSession(token)) {
