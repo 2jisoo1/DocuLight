@@ -36,6 +36,19 @@ class SimpleMemoryVectorStore {
   }
 
   /**
+   * 특정 filePath의 문서 벡터 제거
+   * @param {string} filePath - 제거할 파일 경로
+   * @returns {number} 제거된 벡터 수
+   */
+  removeDocumentsByFilePath(filePath) {
+    const before = this.vectors.length;
+    this.vectors = this.vectors.filter(
+      item => item.document.metadata?.filePath !== filePath
+    );
+    return before - this.vectors.length;
+  }
+
+  /**
    * 유사도 검색
    * @param {string} query - 검색 쿼리
    * @param {number} k - 반환할 문서 수
@@ -245,8 +258,11 @@ class VectorStoreManager {
       return { added: false, chunks: 0 };
     }
 
-    // 기존 문서 정보 제거 (실제 벡터는 재구축 시 제외)
+    // 기존 문서 벡터 및 트래킹 제거
     if (this.documentHashes.has(filePath)) {
+      if (this.vectorStore) {
+        this.vectorStore.removeDocumentsByFilePath(filePath);
+      }
       this._removeDocumentTracking(filePath);
     }
 
@@ -289,7 +305,7 @@ class VectorStoreManager {
   }
 
   /**
-   * 문서 제거 (트래킹만 - MemoryVectorStore는 직접 삭제 미지원)
+   * 문서 제거
    * @param {string} filePath - 파일 경로
    */
   async removeDocument(filePath) {
@@ -299,8 +315,13 @@ class VectorStoreManager {
       return;
     }
 
+    // 인메모리 모드: 실제 벡터 삭제
+    if (this.vectorStore) {
+      const removed = this.vectorStore.removeDocumentsByFilePath(filePath);
+      this.logger?.debug(`Removed ${removed} vectors for: ${filePath}`);
+    }
     this._removeDocumentTracking(filePath);
-    this.logger?.info(`Removed document tracking: ${filePath}`);
+    this.logger?.info(`Removed document: ${filePath}`);
   }
 
   /**
