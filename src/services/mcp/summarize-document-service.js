@@ -10,6 +10,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const { validatePath } = require('../../utils/path-validator');
 const { SectionExtractor } = require('./section-extractor');
+const { resolveRepresentativeFile } = require('./query-document-service');
 const { estimateTokens } = require('../chatbot/token-estimator');
 
 /**
@@ -82,8 +83,12 @@ class SummarizeDocumentService {
       throw notFoundError;
     }
 
-    // 파일인지 확인
-    if (!stats.isFile()) {
+    // 디렉토리인 경우 대표 파일 자동 선택
+    if (stats.isDirectory()) {
+      const resolved = await resolveRepresentativeFile(absolutePath, docPath);
+      absolutePath = resolved.absolutePath;
+      docPath = resolved.resolvedDocPath;
+    } else if (!stats.isFile()) {
       const invalidError = new Error(`INVALID_PATH: ${docPath} is not a file`);
       invalidError.code = 'INVALID_PATH';
       throw invalidError;

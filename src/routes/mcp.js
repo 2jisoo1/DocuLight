@@ -778,7 +778,14 @@ function createMcpRouter() {
             if (toolError.message.startsWith('UNAUTHORIZED')) {
               activityLogger.mcpError('AUTH_FAILED', { ip: req.ip, tool: name });
             } else {
-              activityLogger.mcpError('TOOL=' + name + ' ERROR', { user: mcpUser, ip: req.ip, error: toolError.message });
+              activityLogger.mcpError('TOOL=' + name + ' ERROR', {
+                user: mcpUser,
+                ip: req.ip,
+                error: toolError.message,
+                code: toolError.code,
+                stack: toolError.stack,
+                args: summarizeArgs(args)
+              });
             }
             throw toolError;
           }
@@ -803,9 +810,15 @@ function createMcpRouter() {
           return res.json(createJsonRpcError(id, -32601, 'Method not found', `Method ${method} not supported`));
       }
     } catch (error) {
-      logger.error('MCP error', {
+      const isBusinessError = ['INVALID_PATH', 'INVALID_QUERY', 'DOCUMENT_NOT_FOUND', 'PATH_TRAVERSAL', 'INVALID_FORMAT', 'UNAUTHORIZED'].includes(error.code);
+      const logMethod = isBusinessError ? 'warn' : 'error';
+      logger[logMethod]('MCP error', {
         method,
-        error: error.message
+        tool: method === 'tools/call' ? params?.name : undefined,
+        args: method === 'tools/call' ? summarizeArgs(params?.arguments) : undefined,
+        error: error.message,
+        code: error.code,
+        stack: isBusinessError ? undefined : error.stack
       });
 
       return res.json(createJsonRpcError(id, -32603, 'Internal error', error.message));
