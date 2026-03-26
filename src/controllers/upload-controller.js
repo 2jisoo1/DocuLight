@@ -3,6 +3,7 @@ const path = require('path');
 const { uploadFileData } = require('../services/file-service');
 const { validatePath } = require('../utils/path-validator');
 const { notifyAdd } = require('../utils/embedding-notifier');
+const { decodeFilename } = require('../utils/filename-decoder');
 
 /**
  * Configure multer for file uploads
@@ -23,7 +24,13 @@ function configureUpload() {
       });
 
       // Call the single-file handler
-      return upload.single('file')(req, res, next);
+      return upload.single('file')(req, res, (err) => {
+        if (err) return next(err);
+        if (req.file) {
+          req.file.originalname = decodeFilename(req.file.originalname);
+        }
+        next();
+      });
     } catch (e) {
       return next(e);
     }
