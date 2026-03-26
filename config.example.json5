@@ -212,6 +212,38 @@
     cleanupAfterDays: 30
   },
 
+  // Auto-Summary Configuration
+  // Automatically generates .summary.md files for directories using LLM
+  // Requires chatbot.llm (or summary.llm) to be configured
+  // summary: {
+  //   // Enable auto-summary (default: false)
+  //   enabled: false,
+  //
+  //   // Maximum lines in generated summary (default: 200)
+  //   maxLines: 200,
+  //
+  //   // Debounce time in ms after document changes (default: 30000 = 30s)
+  //   // Summary generation starts after no changes for this duration
+  //   debounceMs: 30000,
+  //
+  //   // Maximum concurrent summary generations (default: 1, max: 5)
+  //   concurrency: 1,
+  //
+  //   // Additional directory patterns to exclude from summarization
+  //   // Inherits from top-level excludes
+  //   excludeDirs: [],
+  //
+  //   // Optional: dedicated LLM for summaries (if omitted, uses chatbot.llm)
+  //   // llm: {
+  //   //   type: "openai",
+  //   //   endpoint: "https://api.openai.com/v1",
+  //   //   apiKey: "your-api-key",
+  //   //   model: "gpt-4o-mini",
+  //   //   temperature: 0.3,
+  //   //   maxTokens: 2048
+  //   // }
+  // },
+
   // RAG Chatbot Configuration
   // Enable AI-powered document Q&A chatbot
   // chatbot: {
