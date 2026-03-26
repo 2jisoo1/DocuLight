@@ -231,12 +231,10 @@ Content in nested document.
     );
   })) passed++; else failed++;
 
-  if (await it('should throw error for directory path', async () => {
-    // 먼저 디렉토리가 있는지 확인하기 위해 subdir 경로 사용
-    await expectReject(
-      service.queryDocument('subdir', 'test'),
-      /invalid|format/i
-    );
+  if (await it('should resolve directory path to representative file', async () => {
+    // subdir에 nested.md 하나만 있으므로 자동 선택
+    const result = await service.queryDocument('subdir', 'test');
+    expect(result.path).toContain('nested.md');
   })) passed++; else failed++;
 
   // ==================== formatAsMarkdown 테스트 ====================

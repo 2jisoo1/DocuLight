@@ -25,6 +25,77 @@ const { estimateTokens } = require('../chatbot/token-estimator');
  */
 
 /**
+ * 디렉토리 경로일 때 대표 .md 파일을 자동 선택
+ * @param {string} dirPath - 절대 디렉토리 경로
+ * @param {string} docPath - 원본 상대 경로
+ * @returns {Promise<{absolutePath: string, resolvedDocPath: string}>}
+ */
+async function resolveRepresentativeFile(dirPath, docPath) {
+  const entries = await fs.readdir(dirPath);
+  const mdFiles = entries.filter(f => f.toLowerCase().endsWith('.md'));
+
+  if (mdFiles.length === 0) {
+    const error = new Error(`INVALID_PATH: ${docPath} is a directory with no .md files`);
+    error.code = 'INVALID_PATH';
+    throw error;
+  }
+
+  if (mdFiles.length === 1) {
+    return {
+      absolutePath: path.join(dirPath, mdFiles[0]),
+      resolvedDocPath: path.join(docPath, mdFiles[0])
+    };
+  }
+
+  const summaryFile = mdFiles.find(f => f.toLowerCase() === '.summary.md');
+  if (summaryFile) {
+    return {
+      absolutePath: path.join(dirPath, summaryFile),
+      resolvedDocPath: path.join(docPath, summaryFile)
+    };
+  }
+
+  const readmeFile = mdFiles.find(f => f.toLowerCase() === 'readme.md');
+  if (readmeFile) {
+    return {
+      absolutePath: path.join(dirPath, readmeFile),
+      resolvedDocPath: path.join(docPath, readmeFile)
+    };
+  }
+
+  const indexFile = mdFiles.find(f => /index\./i.test(f));
+  if (indexFile) {
+    return {
+      absolutePath: path.join(dirPath, indexFile),
+      resolvedDocPath: path.join(docPath, indexFile)
+    };
+  }
+
+  const overviewFile = mdFiles.find(f => /overview\./i.test(f));
+  if (overviewFile) {
+    return {
+      absolutePath: path.join(dirPath, overviewFile),
+      resolvedDocPath: path.join(docPath, overviewFile)
+    };
+  }
+
+  const numberedFiles = mdFiles.filter(f => /^\d+/.test(f)).sort();
+  if (numberedFiles.length > 0) {
+    return {
+      absolutePath: path.join(dirPath, numberedFiles[0]),
+      resolvedDocPath: path.join(docPath, numberedFiles[0])
+    };
+  }
+
+  const fileList = mdFiles.join(', ');
+  const error = new Error(
+    `INVALID_PATH: ${docPath} is a directory. Could not determine representative file. Available files: ${fileList}`
+  );
+  error.code = 'INVALID_PATH';
+  throw error;
+}
+
+/**
  * QueryDocumentService 클래스
  * 문서 내 쿼리 기반 섹션 추출 서비스
  */
@@ -78,8 +149,12 @@ class QueryDocumentService {
       throw notFoundError;
     }
 
-    // 파일인지 확인
-    if (!stats.isFile()) {
+    // 디렉토리인 경우 대표 파일 자동 선택
+    if (stats.isDirectory()) {
+      const resolved = await resolveRepresentativeFile(absolutePath, docPath);
+      absolutePath = resolved.absolutePath;
+      docPath = resolved.resolvedDocPath;
+    } else if (!stats.isFile()) {
       const invalidError = new Error(`INVALID_PATH: ${docPath} is not a file`);
       invalidError.code = 'INVALID_PATH';
       throw invalidError;
@@ -186,4 +261,4 @@ class QueryDocumentService {
   }
 }
 
-module.exports = { QueryDocumentService };
+module.exports = { QueryDocumentService, resolveRepresentativeFile };
