@@ -1740,11 +1740,13 @@ const ManagementModule = {
       if (r.success) { msg.textContent = '패스워드가 변경되었습니다.'; msg.className = 'mgmt-msg success'; document.getElementById('pw-current').value = ''; document.getElementById('pw-new').value = ''; document.getElementById('pw-confirm').value = ''; }
       else { msg.textContent = r.error?.message || '변경 실패'; msg.className = 'mgmt-msg error'; }
     });
-    // Show key (one-time from regenerate or just show asterisks)
+    // Show key (use stored key from API or prompt regeneration)
     let keyVisible = false;
+    const storedKey = u.userKey || null;
     document.getElementById('key-show').addEventListener('click', () => {
       const disp = document.getElementById('user-key-display');
-      if (keyVisible) { disp.textContent = '********'; keyVisible = false; }
+      if (keyVisible) { disp.textContent = '********'; keyVisible = false; document.getElementById('key-copy').style.display = 'none'; }
+      else if (storedKey) { disp.textContent = storedKey; keyVisible = true; document.getElementById('key-copy').style.display = ''; }
       else { disp.textContent = '키를 보려면 재발급하세요.'; keyVisible = true; }
     });
     document.getElementById('key-regen').addEventListener('click', async () => {
@@ -1762,13 +1764,30 @@ const ManagementModule = {
     document.getElementById('key-copy').addEventListener('click', async () => {
       const key = document.getElementById('user-key-display').textContent;
       if (!key || key === '********') return;
+      const btn = document.getElementById('key-copy');
+      const msg = document.getElementById('key-msg');
+      let ok = false;
       try {
         await navigator.clipboard.writeText(key);
-        const btn = document.getElementById('key-copy');
-        btn.classList.add('copied');
-        btn.innerHTML = '&#x2714;';
+        ok = true;
+      } catch (e) {
+        // Fallback for non-secure contexts (HTTP)
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = key;
+          ta.style.cssText = 'position:fixed;left:-9999px;';
+          document.body.appendChild(ta);
+          ta.select();
+          ok = document.execCommand('copy');
+          document.body.removeChild(ta);
+        } catch (e2) { /* fallback also failed */ }
+      }
+      if (ok) {
+        btn.classList.add('copied'); btn.innerHTML = '&#x2714;';
         setTimeout(() => { btn.classList.remove('copied'); btn.innerHTML = '&#x1F4CB;'; }, 1500);
-      } catch (e) { /* clipboard not available */ }
+      } else if (msg) {
+        msg.textContent = '클립보드 복사 실패 — 키를 직접 선택하여 복사하세요.'; msg.className = 'mgmt-msg error';
+      }
     });
   },
 

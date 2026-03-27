@@ -3090,11 +3090,34 @@ const ViewerProfile = {
 
   copyKey() {
     const keyEl = document.getElementById('viewer-user-key');
-    if (keyEl && keyEl.textContent !== '(키 없음)') {
-      navigator.clipboard.writeText(keyEl.textContent).then(() => {
-        const msg = document.getElementById('viewer-key-msg');
-        if (msg) { msg.textContent = '복사되었습니다.'; msg.style.color = '#16a34a'; setTimeout(() => { msg.textContent = ''; }, 1500); }
+    if (!keyEl || keyEl.textContent === '(키 없음)') return;
+    const key = keyEl.textContent;
+    const msg = document.getElementById('viewer-key-msg');
+    const onSuccess = () => { if (msg) { msg.textContent = '복사되었습니다.'; msg.style.color = '#16a34a'; setTimeout(() => { msg.textContent = ''; }, 1500); } };
+    const onFail = () => { if (msg) { msg.textContent = '클립보드 복사 실패 — 키를 직접 선택하여 복사하세요.'; msg.style.color = '#dc2626'; } };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(key).then(onSuccess).catch(() => {
+        // Fallback for non-secure contexts (HTTP)
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = key;
+          ta.style.cssText = 'position:fixed;left:-9999px;';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy') ? onSuccess() : onFail();
+          document.body.removeChild(ta);
+        } catch (e) { onFail(); }
       });
+    } else {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = key;
+        ta.style.cssText = 'position:fixed;left:-9999px;';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy') ? onSuccess() : onFail();
+        document.body.removeChild(ta);
+      } catch (e) { onFail(); }
     }
   },
 
