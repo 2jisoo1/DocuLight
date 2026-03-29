@@ -48,10 +48,23 @@ function createJsonRpcError(id, code, message, data = null) {
   return error;
 }
 
+const DEFAULT_MCP_PREFIX = 'DocuLight';
+
 /**
- * MCP Tool 목록
+ * Convert ui.title to MCP tool name prefix.
+ * Spaces → underscores, non-alphanumeric removed, fallback DEFAULT_MCP_PREFIX.
  */
-const TOOLS = [
+function sanitizeForToolName(title) {
+  if (!title) return DEFAULT_MCP_PREFIX;
+  const sanitized = title.replace(/\s+/g, '_').replace(/[^A-Za-z0-9_]/g, '');
+  return sanitized || DEFAULT_MCP_PREFIX;
+}
+
+/**
+ * MCP Tool 목록 (prefix from config.ui.title)
+ */
+function buildTools(prefix) {
+  return [
   {
     name: 'list_documents',
     description: 'List files and folders in a specific directory (non-recursive). Returns names only, not content. Use this when you need to see what is in a single directory. For recursive listing, use list_full_tree instead.',
@@ -68,7 +81,7 @@ const TOOLS = [
   },
   {
     name: 'list_full_tree',
-    description: 'Recursively list all files and directories as a tree structure. Returns paths only, not content. Use maxDepth to limit recursion depth. Warning: Can be large for big document collections. Consider using list_documents for single directory, or DocuLight_search to find specific files.',
+    description: `Recursively list all files and directories as a tree structure. Returns paths only, not content. Use maxDepth to limit recursion depth. Warning: Can be large for big document collections. Consider using list_documents for single directory, or ${prefix}_search to find specific files.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -86,7 +99,7 @@ const TOOLS = [
   },
   {
     name: 'read_document',
-    description: 'Read the COMPLETE content of a markdown document. Returns the full file content which may use many tokens. For better efficiency: Use query_document if you need specific information from the document; Use summarize_document if you need to understand document structure first; Use DocuLight_smart_search if you are not sure which document contains the information. Only use read_document when you specifically need the entire file content.',
+    description: `Read the COMPLETE content of a markdown document. Returns the full file content which may use many tokens. For better efficiency: Use query_document if you need specific information from the document; Use summarize_document if you need to understand document structure first; Use ${prefix}_smart_search if you are not sure which document contains the information. Only use read_document when you specifically need the entire file content.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -131,7 +144,7 @@ const TOOLS = [
     }
   },
   {
-    name: 'DocuLight_get_config',
+    name: `${prefix}_get_config`,
     description: 'Get current DocLight server configuration. Sensitive values (API keys, etc.) are masked. Use section parameter to get specific config: "ui" for UI settings, "security" for security settings, "ssl" for SSL config, or "all" for everything. Useful for debugging or understanding server setup.',
     inputSchema: {
       type: 'object',
@@ -146,8 +159,8 @@ const TOOLS = [
     }
   },
   {
-    name: 'DocuLight_search',
-    description: 'Search for documents by keyword matching. Searches file names, titles, and content. Use mode parameter to control output detail: "titles_only" for minimal output (fastest, least tokens), "snippets" (default) for matched lines with surrounding context, "full_context" for complete sections containing matches. For semantic/meaning-based search, use DocuLight_smart_search instead. For searching within a known document, use query_document.',
+    name: `${prefix}_search`,
+    description: `Search for documents by keyword matching. Searches file names, titles, and content. Use mode parameter to control output detail: "titles_only" for minimal output (fastest, least tokens), "snippets" (default) for matched lines with surrounding context, "full_context" for complete sections containing matches. For semantic/meaning-based search, use ${prefix}_smart_search instead. For searching within a known document, use query_document.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -177,7 +190,7 @@ const TOOLS = [
   },
   {
     name: 'query_document',
-    description: 'Search within a SPECIFIC document and return only sections relevant to your query. Use this when: you know which document to look in, you need specific information (not the whole document), you want to minimize token usage. Returns sections ranked by relevance within your token budget. For searching across multiple documents, use DocuLight_smart_search instead.',
+    description: `Search within a SPECIFIC document and return only sections relevant to your query. Use this when: you know which document to look in, you need specific information (not the whole document), you want to minimize token usage. Returns sections ranked by relevance within your token budget. For searching across multiple documents, use ${prefix}_smart_search instead.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -213,7 +226,7 @@ const TOOLS = [
     }
   },
   {
-    name: 'DocuLight_smart_search',
+    name: `${prefix}_smart_search`,
     description: 'The most intelligent search option for finding information across multiple documents. Automatically uses vector search when available (understands meaning, not just keywords) and falls back to keyword search if embedding not configured. Returns only relevant sections, not full documents. Use mode="auto" (default) to let the system choose, "semantic" to force vector search, "keyword" for exact text matching. Set maxTokens to control output size. For searching within a specific document, use query_document instead.',
     inputSchema: {
       type: 'object',
@@ -249,7 +262,7 @@ const TOOLS = [
   },
   {
     name: 'resolve_project',
-    description: 'Resolve a project or library name to its document path. Use this FIRST when you know the project name but not the exact path. Returns matching projects sorted by relevance with scores. Supports fuzzy matching, aliases, and Korean names. After resolving, use query_document, query_code_examples, or DocuLight_smart_search with the returned path.',
+    description: `Resolve a project or library name to its document path. Use this FIRST when you know the project name but not the exact path. Returns matching projects sorted by relevance with scores. Supports fuzzy matching, aliases, and Korean names. After resolving, use query_document, query_code_examples, or ${prefix}_smart_search with the returned path.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -303,7 +316,8 @@ const TOOLS = [
       required: ['query']
     }
   }
-];
+  ];
+}
 
 const crypto = require('crypto');
 const activityLogger = require('../utils/activity-logger');
@@ -319,9 +333,9 @@ function requiresWriteAuth(toolName) {
 /**
  * Check if tool requires read authentication (when requireReadLogin is enabled)
  */
-function requiresReadAuth(toolName) {
-  const readTools = ['list_documents', 'read_document', 'DocuLight_get_config',
-    'DocuLight_search', 'query_document', 'summarize_document', 'DocuLight_smart_search',
+function requiresReadAuth(toolName, prefix) {
+  const readTools = ['list_documents', 'read_document', prefix + '_get_config',
+    prefix + '_search', 'query_document', 'summarize_document', prefix + '_smart_search',
     'resolve_project', 'query_code_examples'];
   return readTools.includes(toolName);
 }
@@ -367,10 +381,10 @@ function validateApiKey(req, config) {
 /**
  * MCP Tool 실행
  */
-async function executeTool(config, logger, name, args, req) {
+async function executeTool(config, logger, name, args, req, prefix) {
   // Check authentication for read tools (when requireReadLogin is enabled)
   const stores = req.app.locals.stores;
-  if (requiresReadAuth(name) && stores && stores.authSettingsStore) {
+  if (requiresReadAuth(name, prefix) && stores && stores.authSettingsStore) {
     const settings = stores.authSettingsStore.get();
     if (settings.requireReadLogin) {
       const authResult = validateApiKey(req, config);
@@ -523,7 +537,7 @@ async function executeTool(config, logger, name, args, req) {
       };
     }
 
-    case 'DocuLight_get_config': {
+    case prefix + '_get_config': {
       const configResult = await getConfig(config, logger, args.section || 'all');
 
       // JSON 포맷으로 출력
@@ -539,7 +553,7 @@ async function executeTool(config, logger, name, args, req) {
       };
     }
 
-    case 'DocuLight_search': {
+    case prefix + '_search': {
       const searchMode = args.mode || 'snippets';
       const searchResult = await searchDocuments(
         config,
@@ -644,7 +658,7 @@ async function executeTool(config, logger, name, args, req) {
       };
     }
 
-    case 'DocuLight_smart_search': {
+    case prefix + '_smart_search': {
       const smartSearchService = new SmartSearchService(config, logger);
       // app.locals에서 vectorStoreManager 참조
       smartSearchService.initialize(req.app.locals);
@@ -679,7 +693,7 @@ async function executeTool(config, logger, name, args, req) {
         version: args.version || null
       });
 
-      const output = resolver.formatAsMarkdown(args.name, results);
+      const output = resolver.formatAsMarkdown(args.name, results, { prefix });
 
       return {
         content: [
@@ -739,6 +753,7 @@ function createMcpRouter() {
   // MCP endpoint - JSON-RPC 2.0
   router.post('/mcp', express.json(), async (req, res) => {
     const { config, logger } = req.app.locals;
+    const prefix = sanitizeForToolName(config.ui?.title);
     const { jsonrpc, id, method, params } = req.body;
 
     // JSON-RPC 2.0 validation
@@ -754,7 +769,7 @@ function createMcpRouter() {
       switch (method) {
         case 'tools/list':
           logger.info('MCP: tools/list called');
-          return res.json(createJsonRpcResponse(id, { tools: TOOLS }));
+          return res.json(createJsonRpcResponse(id, { tools: buildTools(prefix) }));
 
         case 'tools/call': {
           if (!params || !params.name) {
@@ -771,7 +786,7 @@ function createMcpRouter() {
             : 'anonymous';
 
           try {
-            const result = await executeTool(config, logger, name, args || {}, req);
+            const result = await executeTool(config, logger, name, args || {}, req, prefix);
             activityLogger.mcp('TOOL=' + name, { user: mcpUser, ip: req.ip, args: summarizeArgs(args) });
             return res.json(createJsonRpcResponse(id, result));
           } catch (toolError) {
@@ -800,10 +815,10 @@ function createMcpRouter() {
               tools: {}
             },
             serverInfo: {
-              name: 'DocuLight',
+              name: prefix,
               version: '1.0.0'
             },
-            instructions: 'Use this server to retrieve internal documentation and code examples.\n\nRecommended workflow:\n1. Call resolve_project to find the right document path for a project/library name\n2. Call query_document or query_code_examples with the resolved path\n3. Use DocuLight_smart_search for cross-document natural language search\n4. Use summarize_document to understand document structure before reading full content\n\nTips:\n- Always call resolve_project first if you don\'t know the exact document path\n- Use query_code_examples when you specifically need code snippets\n- Set maxTokens to control response size and save context window'
+            instructions: `Use this server to retrieve internal documentation and code examples.\n\nRecommended workflow:\n1. Call resolve_project to find the right document path for a project/library name\n2. Call query_document or query_code_examples with the resolved path\n3. Use ${prefix}_smart_search for cross-document natural language search\n4. Use summarize_document to understand document structure before reading full content\n\nTips:\n- Always call resolve_project first if you don't know the exact document path\n- Use query_code_examples when you specifically need code snippets\n- Set maxTokens to control response size and save context window`
           }));
 
         default:

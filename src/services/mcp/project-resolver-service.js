@@ -302,7 +302,8 @@ class ProjectResolverService {
   /**
    * 결과를 마크다운으로 포맷
    */
-  formatAsMarkdown(query, results) {
+  formatAsMarkdown(query, results, options = {}) {
+    const smartSearchName = (options.prefix || options.defaultPrefix || 'DocuLight') + '_smart_search';
     const lines = [];
     lines.push(`# Project Resolution for "${query}"`);
     lines.push('');
@@ -344,7 +345,7 @@ class ProjectResolverService {
       lines.push('**Next steps:**');
       lines.push(`- Use \`query_document\` with path \`${results[0].path}/...\` to search within this project`);
       lines.push(`- Use \`query_code_examples\` with path \`${results[0].path}\` for code snippets`);
-      lines.push(`- Use \`DocuLight_smart_search\` with path \`${results[0].path}\` for natural language search`);
+      lines.push(`- Use \`${smartSearchName}\` with path \`${results[0].path}\` for natural language search`);
     }
 
     return lines.join('\n');

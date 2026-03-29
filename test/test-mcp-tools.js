@@ -76,30 +76,34 @@ function sendMcpRequest(method, params = null) {
     const tools = listRes.result.tools;
     const toolNames = tools.map(t => t.name);
 
-    if (!toolNames.includes('DocuLight_get_config')) {
-      throw new Error('DocuLight_get_config not found in tools list');
+    // Dynamically discover tool names (prefix depends on config.ui.title)
+    const configToolName = toolNames.find(n => n.endsWith('_get_config'));
+    const searchToolName = toolNames.find(n => n.endsWith('_search') && !n.endsWith('_smart_search'));
+
+    if (!configToolName) {
+      throw new Error('*_get_config not found in tools list');
     }
-    if (!toolNames.includes('DocuLight_search')) {
-      throw new Error('DocuLight_search not found in tools list');
+    if (!searchToolName) {
+      throw new Error('*_search not found in tools list');
     }
 
     console.log(`   ✓ Found ${tools.length} tools`);
-    console.log('   ✓ DocuLight_get_config registered');
-    console.log('   ✓ DocuLight_search registered\n');
+    console.log(`   ✓ ${configToolName} registered`);
+    console.log(`   ✓ ${searchToolName} registered\n`);
 
-    // 3. Test DocuLight_get_config
-    console.log('3. Testing DocuLight_get_config...');
+    // 3. Test *_get_config
+    console.log(`3. Testing ${configToolName}...`);
     const configRes = await sendMcpRequest('tools/call', {
-      name: 'DocuLight_get_config',
+      name: configToolName,
       arguments: { section: 'all' }
     });
 
     if (configRes.error) {
-      throw new Error('DocuLight_get_config failed: ' + JSON.stringify(configRes.error));
+      throw new Error(`${configToolName} failed: ` + JSON.stringify(configRes.error));
     }
 
     if (!configRes.result || !configRes.result.content) {
-      throw new Error('DocuLight_get_config returned invalid result');
+      throw new Error(`${configToolName} returned invalid result`);
     }
 
     const configText = configRes.result.content[0].text;
@@ -117,19 +121,19 @@ function sendMcpRequest(method, params = null) {
       console.log('   ✓ Full config returned for section=all\n');
     }
 
-    // 4. Test DocuLight_search
-    console.log('4. Testing DocuLight_search...');
+    // 4. Test *_search
+    console.log(`4. Testing ${searchToolName}...`);
     const searchRes = await sendMcpRequest('tools/call', {
-      name: 'DocuLight_search',
+      name: searchToolName,
       arguments: { query: 'test', limit: 5 }
     });
 
     if (searchRes.error) {
-      throw new Error('DocuLight_search failed: ' + JSON.stringify(searchRes.error));
+      throw new Error(`${searchToolName} failed: ` + JSON.stringify(searchRes.error));
     }
 
     if (!searchRes.result || !searchRes.result.content) {
-      throw new Error('DocuLight_search returned invalid result');
+      throw new Error(`${searchToolName} returned invalid result`);
     }
 
     const searchText = searchRes.result.content[0].text;
@@ -147,7 +151,7 @@ function sendMcpRequest(method, params = null) {
     // 5. Test error handling - invalid query
     console.log('5. Testing error handling...');
     const errorRes = await sendMcpRequest('tools/call', {
-      name: 'DocuLight_search',
+      name: searchToolName,
       arguments: { query: 'x' }  // Too short (< 2 chars)
     });
 
