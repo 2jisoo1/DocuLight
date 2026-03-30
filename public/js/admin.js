@@ -956,7 +956,7 @@ const ContextMenuModule = {
   buildMenuItems(targetPath, targetType) {
     const permissions = AdminState.session?.permissions || [];
     const hasWrite = permissions.includes('write');
-    const hasDelete = permissions.includes('delete');
+    const hasDelete = permissions.includes('write') || permissions.includes('superuser');
     const hasClipboard = AdminState.clipboard !== null;
 
     // 빈 공간 (루트) 우클릭 시
