@@ -75,6 +75,11 @@ function buildTools(prefix) {
           type: 'string',
           description: 'Directory path (default: root)',
           default: '/'
+        },
+        useDisplayName: {
+          type: 'boolean',
+          description: 'If true, show frontmatter title instead of filename for markdown files. Default: false (show actual filename).',
+          default: false
         }
       }
     }
@@ -93,6 +98,11 @@ function buildTools(prefix) {
         maxDepth: {
           type: 'integer',
           description: 'Optional maximum depth (0 = only this directory). If omitted, full depth.'
+        },
+        useDisplayName: {
+          type: 'boolean',
+          description: 'If true, show frontmatter title instead of filename for markdown files. Default: false (show actual filename).',
+          default: false
         }
       }
     }
@@ -411,7 +421,8 @@ async function executeTool(config, logger, name, args, req, prefix) {
 
   switch (name) {
     case 'list_documents': {
-      const result = await getTreeData(config, logger, args.path || '/');
+      const useDisplayName = args.useDisplayName === true;
+      const result = await getTreeData(config, logger, args.path || '/', { useDisplayName });
 
       // Format as text
       let output = '';
@@ -422,7 +433,11 @@ async function executeTool(config, logger, name, args, req, prefix) {
       }
       if (result.files && result.files.length > 0) {
         for (const file of result.files) {
-          output += `📄 ${file.name}\n`;
+          if (useDisplayName && file.displayName) {
+            output += `📄 ${file.displayName} (${file.name})\n`;
+          } else {
+            output += `📄 ${file.name}\n`;
+          }
         }
       }
       if (!output) {
@@ -441,7 +456,8 @@ async function executeTool(config, logger, name, args, req, prefix) {
 
     case 'list_full_tree': {
       const startPath = args.path || '/';
-      const result = await getFullTreeData(config, logger, startPath, { maxDepth: args.maxDepth });
+      const useDisplayName = args.useDisplayName === true;
+      const result = await getFullTreeData(config, logger, startPath, { maxDepth: args.maxDepth, useDisplayName });
 
       // 포맷 함수
       function formatTree(node, indent = '') {
@@ -451,7 +467,11 @@ async function executeTool(config, logger, name, args, req, prefix) {
           lines = lines.concat(formatTree(dir, indent + '  '));
         }
         for (const file of node.files) {
-          lines.push(`${indent}📄 ${file.name}`);
+          if (useDisplayName && file.displayName) {
+            lines.push(`${indent}📄 ${file.displayName} (${file.name})`);
+          } else {
+            lines.push(`${indent}📄 ${file.name}`);
+          }
         }
         return lines;
       }

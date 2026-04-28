@@ -15,7 +15,8 @@ const { parseFrontmatterFromFile } = require('./frontmatter-service');
  * @param {string} userPath - User-provided path (default: '/')
  * @returns {Promise<Object>} Tree data with dirs and files
  */
-async function getTreeData(config, logger, userPath = '/') {
+async function getTreeData(config, logger, userPath = '/', options = {}) {
+  const { useDisplayName = false } = options;
   const absolutePath = validatePath(config.docsRoot, userPath);
 
   // Check if path exists and is a directory
@@ -58,10 +59,10 @@ async function getTreeData(config, logger, userPath = '/') {
       const filePath = path.join(absolutePath, entry.name);
       const fileStats = await fs.stat(filePath);
 
-      // Parse frontmatter only for .md files
+      // Parse frontmatter only for .md files when useDisplayName is true
       let displayName = null;
       let description = null;
-      if (entry.name.endsWith('.md')) {
+      if (useDisplayName && entry.name.endsWith('.md')) {
         const frontmatter = await parseFrontmatterFromFile(filePath);
         displayName = frontmatter.name;
         description = frontmatter.description;
@@ -103,7 +104,7 @@ async function getTreeData(config, logger, userPath = '/') {
  * @returns {Promise<Object>} Recursive tree with stats
  */
 async function getFullTreeData(config, logger, startPath = '/', options = {}) {
-  const { maxDepth, includeAllFiles = false, includeMetadata = false } = options;
+  const { maxDepth, includeAllFiles = false, includeMetadata = false, useDisplayName = false } = options;
 
   // Validate and convert to absolute path
   const absoluteStart = validatePath(config.docsRoot, startPath);
@@ -152,10 +153,10 @@ async function getFullTreeData(config, logger, startPath = '/', options = {}) {
         const fileStats = await fs.stat(entryAbsolute);
         const extension = path.extname(entry.name).toLowerCase();
 
-        // Parse frontmatter only for .md files
+        // Parse frontmatter only for .md files when useDisplayName is true
         let displayName = null;
         let description = null;
-        if (entry.name.endsWith('.md')) {
+        if (useDisplayName && entry.name.endsWith('.md')) {
           const frontmatter = await parseFrontmatterFromFile(entryAbsolute);
           displayName = frontmatter.name;
           description = frontmatter.description;

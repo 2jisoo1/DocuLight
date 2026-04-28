@@ -193,6 +193,10 @@ body {
   color: var(--text-primary);
 }
 
+.icon-btn.active {
+  color: var(--accent-color, #4a9eff);
+}
+
 .tree-container {
   position: relative;
   flex: 1;

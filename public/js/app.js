@@ -240,9 +240,18 @@ async function fetchWithRetry(url, options = {}, retries = ErrorHandler.maxRetri
   }
 }
 
+function getUseDisplayName() {
+  return localStorage.getItem('doclight-useDisplayName') === 'true';
+}
+
 async function fetchTree(path = '/') {
   try {
-    const response = await fetchWithRetry(DocLightUtils.prefixPath(`/api/tree?path=${encodeURIComponent(path)}`));
+    const useDisplayName = getUseDisplayName();
+    let url = `/api/tree?path=${encodeURIComponent(path)}`;
+    if (useDisplayName) {
+      url += '&useDisplayName=true';
+    }
+    const response = await fetchWithRetry(DocLightUtils.prefixPath(url));
     return await response.json();
   } catch (error) {
     console.error('Failed to fetch tree:', error);
@@ -1038,7 +1047,11 @@ async function showFolderList(folderPath) {
     document.getElementById('breadcrumb').textContent = folderPath + '/';
 
     // Fetch folder contents
-    const response = await fetch(DocLightUtils.prefixPath(`/api/tree?path=${encodeURIComponent(folderPath)}`));
+    let treeUrl = `/api/tree?path=${encodeURIComponent(folderPath)}`;
+    if (getUseDisplayName()) {
+      treeUrl += '&useDisplayName=true';
+    }
+    const response = await fetch(DocLightUtils.prefixPath(treeUrl));
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -1633,6 +1646,38 @@ async function init() {
         await toggleDirectory(dirPath, wrapper, childrenContainer, expandIcon, level + 1);
       }
     });
+
+    // Display name toggle button
+    const displayNameToggleBtn = document.getElementById('display-name-toggle-btn');
+    if (displayNameToggleBtn) {
+      // Set initial visual state
+      if (getUseDisplayName()) {
+        displayNameToggleBtn.classList.add('active');
+        displayNameToggleBtn.title = 'Showing frontmatter titles (click for filenames)';
+      } else {
+        displayNameToggleBtn.title = 'Showing filenames (click for frontmatter titles)';
+      }
+
+      displayNameToggleBtn.addEventListener('click', async () => {
+        const current = getUseDisplayName();
+        localStorage.setItem('doclight-useDisplayName', String(!current));
+        displayNameToggleBtn.classList.toggle('active', !current);
+        displayNameToggleBtn.title = !current
+          ? 'Showing frontmatter titles (click for filenames)'
+          : 'Showing filenames (click for frontmatter titles)';
+
+        // Reload tree
+        try {
+          treeMenu.innerHTML = '<div class="loading">Loading...</div>';
+          const treeData = await fetchTree('/');
+          treeMenu.innerHTML = '';
+          await buildTree(treeData, treeMenu);
+          flatFileList = await fetchAllFilesRecursive('/');
+        } catch (error) {
+          console.error('Failed to reload tree after toggle:', error);
+        }
+      });
+    }
 
     // Refresh button
     document.getElementById('refresh-btn').addEventListener('click', async () => {

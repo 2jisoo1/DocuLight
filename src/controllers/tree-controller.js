@@ -7,8 +7,9 @@ async function getTree(req, res, next) {
   try {
     const { config, logger } = req.app.locals;
     const userPath = req.query.path || '/';
+    const useDisplayName = req.query.useDisplayName === 'true';
 
-    const result = await getTreeData(config, logger, userPath);
+    const result = await getTreeData(config, logger, userPath, { useDisplayName });
     res.json(result);
   } catch (error) {
     next(error);
@@ -23,8 +24,9 @@ async function getFullTree(req, res, next) {
     const { config, logger } = req.app.locals;
     const startPath = req.query.path || '/';
     const maxDepth = req.query.maxDepth ? parseInt(req.query.maxDepth) : undefined;
+    const useDisplayName = req.query.useDisplayName === 'true';
 
-    const result = await getFullTreeData(config, logger, startPath, { maxDepth });
+    const result = await getFullTreeData(config, logger, startPath, { maxDepth, useDisplayName });
 
     // Format response to match original REST API format
     res.json({
