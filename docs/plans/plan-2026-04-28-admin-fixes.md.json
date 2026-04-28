@@ -1,0 +1,334 @@
+{
+  "plan_contract": "1.0.0",
+  "plan_id": "2026-04-28-admin-fixes",
+  "plan_path": "docs/plans/plan-2026-04-28-admin-fixes.md",
+  "title": "관리자 페이지 3대 이슈 수정 (모달화 / PW 검증 / 잠금 해제)",
+  "mode": "NORMAL",
+  "planner_version": "snoworca-planner-v2.2.1",
+  "code_path": ".",
+  "spec_refs": [
+    "docs/analysis/2026-04-28.admin-password-modal.md",
+    "docs/analysis/2026-04-28.password-length-validation-bug.md",
+    "docs/analysis/2026-04-28.account-unlock-not-working.md"
+  ],
+  "scope_freeze": true,
+  "change_log": [],
+  "forbidden_patterns": [
+    "적절히|필요 시|알아서|상황에 맞게|기존 방식대로|어떻게든",
+    {"pattern": "probably|should work|I think|maybe", "flags": "i"},
+    "TODO(?!:)",
+    "prompt\\([^)]*\\)\\s*;?\\s*if"
+  ],
+  "pre_commit_gate": [
+    {"shell": "bash", "cmd": "node --test test/admin-password-validation.test.js", "expected_exit": 0, "stdout_regex": "pass [1-9]"},
+    {"shell": "pwsh", "cmd": "node --test test/admin-password-validation.test.js", "expected_exit": 0},
+    {"shell": "bash", "cmd": "node --test test/admin-unlock-user.test.js", "expected_exit": 0, "stdout_regex": "pass [1-9]"},
+    {"shell": "pwsh", "cmd": "node --test test/admin-unlock-user.test.js", "expected_exit": 0},
+    {"shell": "bash", "cmd": "node -e \"const ejs=require('ejs'),fs=require('fs');ejs.compile(fs.readFileSync('src/views/admin.ejs','utf8'));console.log('EJS_OK')\"", "expected_exit": 0, "stdout_regex": "EJS_OK"},
+    {"shell": "pwsh", "cmd": "node -e \"const ejs=require('ejs'),fs=require('fs');ejs.compile(fs.readFileSync('src/views/admin.ejs','utf8'));console.log('EJS_OK')\"", "expected_exit": 0},
+    {"shell": "bash", "cmd": "node -c public/js/admin.js", "expected_exit": 0},
+    {"shell": "pwsh", "cmd": "node -c public/js/admin.js", "expected_exit": 0}
+  ],
+  "requirements": [
+    {"req_id": "REQ-MODAL-001", "title": "관리자 ID/PW 변경 UI를 독립 모달로 분리 (옵션 A)"},
+    {"req_id": "REQ-PWVAL-001", "title": "패스워드 8자 이상 입력 시에도 8자 미만 에러 발생하는 trim 누락 버그 수정 (TDD 강제)"},
+    {"req_id": "REQ-UNLOCK-001", "title": "어드민 잠금 해제 버튼 UI 미반영 수정 (분석문서 모든 제안 수용)"}
+  ],
+  "phases": [
+    {
+      "phase_id": "phase-1",
+      "title": "Phase 1 — 패스워드 길이 검증 버그 (TDD 강제)",
+      "depends_on": [],
+      "tasks": [
+        {
+          "task_id": "TASK-P1-001",
+          "title": "[RED] 패스워드 trim 검증 실패 테스트 작성",
+          "req_ids": ["REQ-PWVAL-001"],
+          "owns": ["test/admin-password-validation.test.js"],
+          "reads": [],
+          "depends_on": [],
+          "is_new_file": true,
+          "feasibility": "Low",
+          "tdd_phase": "RED",
+          "source_anchors": ["N/A — 신규"],
+          "acceptance_tests": [
+            {"shell": "bash", "cmd": "node --test test/admin-password-validation.test.js", "expected_exit": 1, "stderr_regex": "Cannot find module|MODULE_NOT_FOUND"},
+            {"shell": "pwsh", "cmd": "node --test test/admin-password-validation.test.js", "expected_exit": 1}
+          ],
+          "rollback": {"strategy": "file-delete", "command": "rm test/admin-password-validation.test.js"},
+          "idempotent": false,
+          "estimated_minutes": 30
+        },
+        {
+          "task_id": "TASK-P1-002",
+          "title": "[GREEN] password-validator 헬퍼 구현",
+          "req_ids": ["REQ-PWVAL-001"],
+          "owns": ["src/utils/password-validator.js"],
+          "reads": ["src/utils/activity-logger.js"],
+          "depends_on": ["TASK-P1-001"],
+          "is_new_file": true,
+          "feasibility": "Low",
+          "tdd_phase": "GREEN",
+          "signature": "function validatePasswordLength(pw, minLength = 8): boolean / module.exports = { validatePasswordLength, MIN_PASSWORD_LENGTH: 8 }",
+          "source_anchors": ["src/utils/activity-logger.js:1-30"],
+          "acceptance_tests": [
+            {"shell": "bash", "cmd": "node --test test/admin-password-validation.test.js", "expected_exit": 0, "stdout_regex": "# pass [5-9]|# pass 1[0-9]"},
+            {"shell": "pwsh", "cmd": "node --test test/admin-password-validation.test.js", "expected_exit": 0}
+          ],
+          "rollback": {"strategy": "git-reset", "command": "git reset --hard HEAD~1"},
+          "idempotent": false,
+          "estimated_minutes": 20
+        },
+        {
+          "task_id": "TASK-P1-003",
+          "title": "[GREEN] backend 컨트롤러에 헬퍼 적용",
+          "req_ids": ["REQ-PWVAL-001"],
+          "owns": ["src/controllers/admin/admin-user-controller.js"],
+          "reads": ["src/utils/password-validator.js"],
+          "depends_on": ["TASK-P1-002"],
+          "is_new_file": false,
+          "feasibility": "Low",
+          "tdd_phase": "GREEN",
+          "source_anchors": [
+            "src/controllers/admin/admin-user-controller.js:32",
+            "src/controllers/admin/admin-user-controller.js:160-164"
+          ],
+          "acceptance_tests": [
+            {"shell": "bash", "cmd": "node --test test/admin-password-validation.test.js", "expected_exit": 0},
+            {"shell": "bash", "cmd": "node -c src/controllers/admin/admin-user-controller.js", "expected_exit": 0},
+            {"shell": "pwsh", "cmd": "node -c src/controllers/admin/admin-user-controller.js", "expected_exit": 0}
+          ],
+          "rollback": {"strategy": "git-reset", "command": "git reset --hard HEAD~1"},
+          "idempotent": false,
+          "estimated_minutes": 15
+        },
+        {
+          "task_id": "TASK-P1-004",
+          "title": "[GREEN] frontend admin.js 3개소 trim 적용",
+          "req_ids": ["REQ-PWVAL-001"],
+          "owns": ["public/js/admin.js"],
+          "reads": [],
+          "depends_on": ["TASK-P1-002"],
+          "is_new_file": false,
+          "feasibility": "Low",
+          "tdd_phase": "GREEN",
+          "source_anchors": [
+            "public/js/admin.js:1734",
+            "public/js/admin.js:1862",
+            "public/js/admin.js:1872-1873"
+          ],
+          "acceptance_tests": [
+            {"shell": "bash", "cmd": "node -c public/js/admin.js", "expected_exit": 0},
+            {"shell": "pwsh", "cmd": "node -c public/js/admin.js", "expected_exit": 0},
+            {"shell": "bash", "cmd": "grep -nE \"prompt\\([^)]+\\)\\s*;?\\s*if\" public/js/admin.js", "expected_exit": 1}
+          ],
+          "rollback": {"strategy": "git-reset", "command": "git reset --hard HEAD~1"},
+          "idempotent": false,
+          "estimated_minutes": 25
+        }
+      ],
+      "dod": [
+        "TASK-P1-001~004 전부 완료",
+        "test/admin-password-validation.test.js 5/5 pass",
+        "grep으로 password.length < 8 잔존 0건 (src/controllers/admin/admin-user-controller.js)",
+        "브라우저 manual: 공백 포함 8자 비밀번호 추가/리셋/변경 모두 통과"
+      ]
+    },
+    {
+      "phase_id": "phase-2",
+      "title": "Phase 2 — 계정 잠금 해제 미작동 (TDD 강제)",
+      "depends_on": ["phase-1"],
+      "tasks": [
+        {
+          "task_id": "TASK-P2-001",
+          "title": "[RED] userStore.resetFailedLogin 단위 테스트 작성",
+          "req_ids": ["REQ-UNLOCK-001"],
+          "owns": ["test/admin-unlock-user.test.js"],
+          "reads": ["src/stores/user-store.js"],
+          "depends_on": [],
+          "is_new_file": true,
+          "feasibility": "Low",
+          "tdd_phase": "RED",
+          "source_anchors": [
+            "src/stores/user-store.js:111-112",
+            "src/stores/user-store.js:253-265"
+          ],
+          "acceptance_tests": [
+            {"shell": "bash", "cmd": "node --test test/admin-unlock-user.test.js", "expected_exit": 1},
+            {"shell": "pwsh", "cmd": "node --test test/admin-unlock-user.test.js", "expected_exit": 1}
+          ],
+          "rollback": {"strategy": "file-delete", "command": "rm test/admin-unlock-user.test.js"},
+          "idempotent": false,
+          "estimated_minutes": 45
+        },
+        {
+          "task_id": "TASK-P2-002",
+          "title": "[GREEN] backend 검증 (필요 시 fixture 헬퍼만)",
+          "req_ids": ["REQ-UNLOCK-001"],
+          "owns": ["src/stores/user-store.js", "test/_fixtures/temp-user-store.js"],
+          "reads": [],
+          "depends_on": ["TASK-P2-001"],
+          "is_new_file": false,
+          "feasibility": "Medium",
+          "tdd_phase": "GREEN",
+          "source_anchors": ["src/stores/user-store.js:260-265"],
+          "acceptance_tests": [
+            {"shell": "bash", "cmd": "node --test test/admin-unlock-user.test.js", "expected_exit": 0, "stdout_regex": "# pass [3-9]"},
+            {"shell": "pwsh", "cmd": "node --test test/admin-unlock-user.test.js", "expected_exit": 0}
+          ],
+          "rollback": {"strategy": "git-reset", "command": "git reset --hard HEAD~1"},
+          "idempotent": false,
+          "estimated_minutes": 30
+        },
+        {
+          "task_id": "TASK-P2-003",
+          "title": "[GREEN] frontend unlockUser/resetPassword 핸들러에 목록 갱신 추가",
+          "req_ids": ["REQ-UNLOCK-001"],
+          "owns": ["public/js/admin.js"],
+          "reads": [],
+          "depends_on": ["TASK-P2-002"],
+          "is_new_file": false,
+          "feasibility": "Low",
+          "tdd_phase": "GREEN",
+          "source_anchors": [
+            "public/js/admin.js:1858",
+            "public/js/admin.js:1876-1877",
+            "public/js/admin.js:1882-1883"
+          ],
+          "acceptance_tests": [
+            {"shell": "bash", "cmd": "node -c public/js/admin.js", "expected_exit": 0},
+            {"shell": "pwsh", "cmd": "node -c public/js/admin.js", "expected_exit": 0},
+            {"shell": "bash", "cmd": "grep -c \"setTimeout(() => this.loadTab('users'), 700)\" public/js/admin.js", "expected_exit": 0, "stdout_regex": "^[3-9]$"}
+          ],
+          "rollback": {"strategy": "git-reset", "command": "git reset --hard HEAD~1"},
+          "idempotent": false,
+          "estimated_minutes": 15
+        }
+      ],
+      "dod": [
+        "TASK-P2-001~003 전부 완료",
+        "test/admin-unlock-user.test.js 3/3 pass",
+        "브라우저 manual: 잠긴 사용자 → 어드민 잠금해제 → UI에 상태 반영 확인",
+        "패스워드 리셋도 동일하게 UI 반영"
+      ]
+    },
+    {
+      "phase_id": "phase-3",
+      "title": "Phase 3 — 관리자 ID/PW 변경 모달화 (옵션 A, TDD 강제)",
+      "depends_on": ["phase-1", "phase-2"],
+      "tasks": [
+        {
+          "task_id": "TASK-P3-001",
+          "title": "[RED] 모달 폼 검증 함수 테스트 작성",
+          "req_ids": ["REQ-MODAL-001"],
+          "owns": ["test/admin-password-change-form.test.js"],
+          "reads": [],
+          "depends_on": [],
+          "is_new_file": true,
+          "feasibility": "Low",
+          "tdd_phase": "RED",
+          "source_anchors": ["test/admin-password-validation.test.js:1-30"],
+          "acceptance_tests": [
+            {"shell": "bash", "cmd": "node --test test/admin-password-change-form.test.js", "expected_exit": 1},
+            {"shell": "pwsh", "cmd": "node --test test/admin-password-change-form.test.js", "expected_exit": 1}
+          ],
+          "rollback": {"strategy": "file-delete", "command": "rm test/admin-password-change-form.test.js"},
+          "idempotent": false,
+          "estimated_minutes": 30
+        },
+        {
+          "task_id": "TASK-P3-002",
+          "title": "[GREEN] password-change-form 검증 모듈 구현",
+          "req_ids": ["REQ-MODAL-001"],
+          "owns": ["src/utils/password-change-form.js"],
+          "reads": ["src/utils/password-validator.js"],
+          "depends_on": ["TASK-P3-001", "TASK-P1-002"],
+          "is_new_file": true,
+          "feasibility": "Low",
+          "tdd_phase": "GREEN",
+          "signature": "function validatePasswordChangeForm({current, next, confirm}): {ok: boolean, error?: string}",
+          "source_anchors": ["src/utils/password-validator.js:1-15"],
+          "acceptance_tests": [
+            {"shell": "bash", "cmd": "node --test test/admin-password-change-form.test.js", "expected_exit": 0, "stdout_regex": "# pass [5-9]"},
+            {"shell": "pwsh", "cmd": "node --test test/admin-password-change-form.test.js", "expected_exit": 0}
+          ],
+          "rollback": {"strategy": "git-reset", "command": "git reset --hard HEAD~1"},
+          "idempotent": false,
+          "estimated_minutes": 20
+        },
+        {
+          "task_id": "TASK-P3-003",
+          "title": "[GREEN] admin.ejs에 #password-change-modal 모달 컨테이너 추가",
+          "req_ids": ["REQ-MODAL-001"],
+          "owns": ["src/views/admin.ejs"],
+          "reads": [],
+          "depends_on": ["TASK-P3-002"],
+          "is_new_file": false,
+          "feasibility": "Low",
+          "tdd_phase": "GREEN",
+          "source_anchors": [
+            "src/views/admin.ejs:99-118",
+            "src/views/admin.ejs:135-152"
+          ],
+          "acceptance_tests": [
+            {"shell": "bash", "cmd": "node -e \"const ejs=require('ejs'),fs=require('fs');ejs.compile(fs.readFileSync('src/views/admin.ejs','utf8'));console.log('EJS_OK')\"", "expected_exit": 0, "stdout_regex": "EJS_OK"},
+            {"shell": "pwsh", "cmd": "node -e \"const ejs=require('ejs'),fs=require('fs');ejs.compile(fs.readFileSync('src/views/admin.ejs','utf8'));console.log('EJS_OK')\"", "expected_exit": 0},
+            {"shell": "bash", "cmd": "grep -c \"id=\\\"password-change-modal\\\"\" src/views/admin.ejs", "expected_exit": 0, "stdout_regex": "^1$"}
+          ],
+          "rollback": {"strategy": "git-reset", "command": "git reset --hard HEAD~1"},
+          "idempotent": false,
+          "estimated_minutes": 25
+        },
+        {
+          "task_id": "TASK-P3-004",
+          "title": "[GREEN] admin.js 프로필 탭에서 인라인 폼 → 버튼 + 모달 핸들러로 교체",
+          "req_ids": ["REQ-MODAL-001"],
+          "owns": ["public/js/admin.js"],
+          "reads": ["src/utils/password-change-form.js"],
+          "depends_on": ["TASK-P3-002", "TASK-P3-003"],
+          "is_new_file": false,
+          "feasibility": "Low",
+          "tdd_phase": "GREEN",
+          "source_anchors": [
+            "public/js/admin.js:1694-1792",
+            "public/js/admin.js:1730-1742"
+          ],
+          "acceptance_tests": [
+            {"shell": "bash", "cmd": "node -c public/js/admin.js", "expected_exit": 0},
+            {"shell": "pwsh", "cmd": "node -c public/js/admin.js", "expected_exit": 0},
+            {"shell": "bash", "cmd": "grep -c \"id=\\\"pw-change-btn\\\"\\|getElementById('pw-change-btn')\" public/js/admin.js", "expected_exit": 0, "stdout_regex": "^[1-9][0-9]*$"}
+          ],
+          "rollback": {"strategy": "git-reset", "command": "git reset --hard HEAD~1"},
+          "idempotent": false,
+          "estimated_minutes": 60
+        }
+      ],
+      "dod": [
+        "TASK-P3-001~004 전부 완료",
+        "test/admin-password-change-form.test.js 5/5 pass",
+        "어드민 프로필 탭에 비밀번호 입력 필드 노출되지 않음 (옵션 A 핵심 요건)",
+        "패스워드 변경 버튼 → 모달 → 정상 변경 흐름 manual pass",
+        "ESC/배경 클릭으로 모달 닫힘 (기존 모달과 동등)"
+      ]
+    }
+  ],
+  "req_to_task_map": {
+    "REQ-PWVAL-001": ["TASK-P1-001", "TASK-P1-002", "TASK-P1-003", "TASK-P1-004"],
+    "REQ-UNLOCK-001": ["TASK-P2-001", "TASK-P2-002", "TASK-P2-003"],
+    "REQ-MODAL-001": ["TASK-P3-001", "TASK-P3-002", "TASK-P3-003", "TASK-P3-004"]
+  },
+  "execution_order_hint": [
+    "Phase 1 (RED→GREEN)",
+    "Phase 2 (RED→GREEN)",
+    "Phase 3 (RED→GREEN)",
+    "pre_commit_gate"
+  ],
+  "meta": {
+    "tdd_enforced": true,
+    "feasibility_summary": "전 항목 Low",
+    "node_version_required": "18+",
+    "sidecar_generated_at": "2026-04-28",
+    "sidecar_generated_by": "snoworca-pm v3.0 fallback (planner v2.2.1 누락 보정 — Option A)",
+    "sidecar_generation_note": "원본 plan.md (scope_freeze=true) 무수정. markdown 본문에서 phases/tasks/acceptance_tests/rollback/source_anchors 등을 추출하여 plan-contract-v1 dual-read S3 사이드카로 보정함."
+  }
+}

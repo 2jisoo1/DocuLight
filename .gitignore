@@ -55,4 +55,4 @@ tmpclaude-*-cwd
 # OMC state
 .omc/
 
-context.config.json5
+context.config.json5.snoworca/

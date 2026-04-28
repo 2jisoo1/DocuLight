@@ -5,6 +5,7 @@
 
 const sessionService = require('../../services/session-service');
 const activityLogger = require('../../utils/activity-logger');
+const { validatePasswordLength } = require('../../utils/password-validator');
 
 async function listUsers(req, res) {
   const { userStore, groupStore } = req.app.locals.stores;
@@ -29,7 +30,7 @@ async function createUser(req, res) {
     });
   }
 
-  if (!password || password.length < 8) {
+  if (!validatePasswordLength(password)) {
     return res.status(400).json({
       error: { code: 'WEAK_PASSWORD', message: 'Password must be at least 8 characters' }
     });
@@ -157,7 +158,7 @@ async function resetPassword(req, res) {
   const { id } = req.params;
   const { newPassword } = req.body;
 
-  if (!newPassword || newPassword.length < 8) {
+  if (!validatePasswordLength(newPassword)) {
     return res.status(400).json({
       error: { code: 'WEAK_PASSWORD', message: 'Password must be at least 8 characters' }
     });

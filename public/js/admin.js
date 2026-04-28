@@ -1707,13 +1707,7 @@ const ManagementModule = {
       </div>
       <div class="mgmt-section">
         <h3>패스워드 변경</h3>
-        <div class="mgmt-form" id="pw-form">
-          <div class="mgmt-form-row"><label>현재 패스워드</label><input type="password" id="pw-current" autocomplete="current-password"></div>
-          <div class="mgmt-form-row"><label>새 패스워드</label><input type="password" id="pw-new" autocomplete="new-password"></div>
-          <div class="mgmt-form-row"><label>새 패스워드 확인</label><input type="password" id="pw-confirm" autocomplete="new-password"></div>
-          <div class="mgmt-form-actions"><button class="btn btn-primary" id="pw-save">변경</button></div>
-          <div id="pw-msg" class="mgmt-msg"></div>
-        </div>
+        <button class="btn btn-primary" id="pw-change-btn">패스워드 변경</button>
       </div>
       <div class="mgmt-section">
         <h3>User Key (MCP/API 인증용)</h3>
@@ -1727,19 +1721,57 @@ const ManagementModule = {
         <div id="key-msg" class="mgmt-msg"></div>
       </div>
     `;
-    // Password change
-    document.getElementById('pw-save').addEventListener('click', async () => {
-      const msg = document.getElementById('pw-msg');
-      const cur = document.getElementById('pw-current').value;
-      const nw = document.getElementById('pw-new').value;
-      const cf = document.getElementById('pw-confirm').value;
-      if (!cur || !nw) { msg.textContent = '모든 필드를 입력하세요.'; msg.className = 'mgmt-msg error'; return; }
-      if (nw.length < 8) { msg.textContent = '패스워드는 최소 8자입니다.'; msg.className = 'mgmt-msg error'; return; }
-      if (nw !== cf) { msg.textContent = '새 패스워드가 일치하지 않습니다.'; msg.className = 'mgmt-msg error'; return; }
-      const r = await AdminAPI.changePassword(cur, nw, cf);
-      if (r.success) { msg.textContent = '패스워드가 변경되었습니다.'; msg.className = 'mgmt-msg success'; document.getElementById('pw-current').value = ''; document.getElementById('pw-new').value = ''; document.getElementById('pw-confirm').value = ''; }
-      else { msg.textContent = r.error?.message || '변경 실패'; msg.className = 'mgmt-msg error'; }
+    // Password change modal open/close + save
+    const pwModal = document.getElementById('password-change-modal');
+    const pwInputs = () => ({
+      curEl: document.getElementById('pw-modal-current'),
+      nwEl: document.getElementById('pw-modal-new'),
+      cfEl: document.getElementById('pw-modal-confirm'),
+      msgEl: document.getElementById('pw-modal-msg'),
     });
+    const resetPwModal = () => {
+      const { curEl, nwEl, cfEl, msgEl } = pwInputs();
+      if (curEl) curEl.value = '';
+      if (nwEl) nwEl.value = '';
+      if (cfEl) cfEl.value = '';
+      if (msgEl) { msgEl.textContent = ''; msgEl.style.display = 'none'; }
+    };
+    const closePwModal = () => {
+      if (pwModal && typeof ModalModule !== 'undefined' && ModalModule.hideModal) {
+        ModalModule.hideModal('password-change-modal');
+      } else if (pwModal) {
+        pwModal.classList.remove('show');
+      }
+      resetPwModal();
+    };
+    document.getElementById('pw-change-btn').addEventListener('click', () => {
+      resetPwModal();
+      if (typeof ModalModule !== 'undefined' && ModalModule.showModal) {
+        ModalModule.showModal('password-change-modal');
+      } else if (pwModal) {
+        pwModal.classList.add('show');
+      }
+    });
+    const pwCancelBtn = document.getElementById('pw-modal-cancel');
+    if (pwCancelBtn) pwCancelBtn.onclick = closePwModal;
+    const pwSaveBtn = document.getElementById('pw-modal-save');
+    if (pwSaveBtn) pwSaveBtn.onclick = async () => {
+      const { curEl, nwEl, cfEl, msgEl } = pwInputs();
+      const cur = (curEl?.value || '').trim();
+      const nw = (nwEl?.value || '').trim();
+      const cf = (cfEl?.value || '').trim();
+      const showErr = (text) => { if (msgEl) { msgEl.textContent = text; msgEl.style.display = ''; msgEl.className = 'error-message'; } };
+      if (!cur || !nw || !cf) { showErr('모든 필드를 입력해주세요.'); return; }
+      if (nw.length < 8) { showErr('새 비밀번호는 최소 8자 이상이어야 합니다.'); return; }
+      if (nw !== cf) { showErr('새 비밀번호가 일치하지 않습니다.'); return; }
+      const r = await AdminAPI.changePassword(cur, nw, cf);
+      if (r.success) {
+        closePwModal();
+        alert('패스워드가 변경되었습니다.');
+      } else {
+        showErr(r.error?.message || '변경 실패');
+      }
+    };
     // Show key (use stored key from API or prompt regeneration)
     let keyVisible = false;
     const storedKey = u.userKey || null;
@@ -1859,7 +1891,7 @@ const ManagementModule = {
         else { msg.textContent = r.error?.message || '저장 실패'; msg.className = 'mgmt-msg error'; }
       } else {
         const email = document.getElementById('user-email').value.trim();
-        const password = document.getElementById('user-password').value;
+        const password = document.getElementById('user-password').value.trim();
         const groupId = document.getElementById('user-group').value;
         if (!email || !password) { msg.textContent = '이메일과 패스워드를 입력하세요.'; msg.className = 'mgmt-msg error'; return; }
         const r = await AdminAPI.createUser({ email, password, groupId });
@@ -1869,17 +1901,17 @@ const ManagementModule = {
     });
     if (isEdit) {
       document.getElementById('reset-pw-btn')?.addEventListener('click', async () => {
-        const pw = prompt('새 패스워드를 입력하세요 (최소 8자):');
+        const pw = prompt('새 패스워드를 입력하세요 (최소 8자):')?.trim();
         if (!pw || pw.length < 8) { alert('패스워드는 최소 8자입니다.'); return; }
         const r = await AdminAPI.resetUserPassword(user.id, pw);
         const msg = document.getElementById('user-msg');
-        if (r.success) { msg.textContent = '패스워드가 리셋되었습니다.'; msg.className = 'mgmt-msg success'; }
+        if (r.success) { msg.textContent = '패스워드가 리셋되었습니다.'; msg.className = 'mgmt-msg success'; setTimeout(() => this.loadTab('users'), 700); }
         else { msg.textContent = r.error?.message || '리셋 실패'; msg.className = 'mgmt-msg error'; }
       });
       document.getElementById('unlock-btn')?.addEventListener('click', async () => {
         const r = await AdminAPI.unlockUser(user.id);
         const msg = document.getElementById('user-msg');
-        if (r.success) { msg.textContent = '잠금이 해제되었습니다.'; msg.className = 'mgmt-msg success'; }
+        if (r.success) { msg.textContent = '잠금이 해제되었습니다.'; msg.className = 'mgmt-msg success'; setTimeout(() => this.loadTab('users'), 700); }
         else { msg.textContent = r.error?.message || '해제 실패'; msg.className = 'mgmt-msg error'; }
       });
     }

@@ -259,7 +259,11 @@ class UserStore {
 
   async resetFailedLogin(id) {
     const user = this.idIndex.get(id);
-    if (!user) return;
+    if (!user) {
+      const error = new Error('USER_NOT_FOUND');
+      error.code = 'USER_NOT_FOUND';
+      throw error;
+    }
 
     user.failedLoginCount = 0;
     user.lockedUntil = null;

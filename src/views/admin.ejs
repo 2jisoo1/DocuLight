@@ -176,6 +176,30 @@
     </div>
   </div>
 
+  <!-- Phase 3: Password Change Modal -->
+  <div id="password-change-modal" class="modal">
+    <div class="modal-content">
+      <h2>패스워드 변경</h2>
+      <div class="form-group">
+        <label for="pw-modal-current">현재 비밀번호</label>
+        <input type="password" id="pw-modal-current" autocomplete="current-password">
+      </div>
+      <div class="form-group">
+        <label for="pw-modal-new">새 비밀번호</label>
+        <input type="password" id="pw-modal-new" autocomplete="new-password">
+      </div>
+      <div class="form-group">
+        <label for="pw-modal-confirm">새 비밀번호 확인</label>
+        <input type="password" id="pw-modal-confirm" autocomplete="new-password">
+      </div>
+      <div id="pw-modal-msg" class="error-message" style="display: none;"></div>
+      <div class="modal-buttons">
+        <button id="pw-modal-cancel" class="btn btn-secondary">Cancel</button>
+        <button id="pw-modal-save" class="btn btn-primary">변경</button>
+      </div>
+    </div>
+  </div>
+
   <!-- TOC Sidebar (Admin) -->
   <%- include('partials/toc-sidebar', {
     tocId: 'admin-toc-sidebar',
