@@ -55,4 +55,8 @@ tmpclaude-*-cwd
 # OMC state
 .omc/
 
-context.config.json5.snoworca/
+context.config.json5
+.snoworca/
+
+# Shell-variable artifact (Windows %SystemDrive%)
+%SystemDrive%/
