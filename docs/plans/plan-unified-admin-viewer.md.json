@@ -1,0 +1,519 @@
+{
+  "plan_id": "plan-unified-admin-viewer",
+  "spec_path": "docs/srs/srs-unified-admin-viewer.md",
+  "spec_version": "Draft v3",
+  "created": "2026-04-29",
+  "mode": "snoworca-planner Normal",
+  "scope_freeze": true,
+  "phases": [
+    {
+      "phase": 1,
+      "title": "정리 작업 (LocalPreview 제거 + /admin 리다이렉트 + 모듈 디렉토리)",
+      "tasks": [
+        {
+          "task_id": "TASK-P1-001",
+          "title": "LocalPreview 객체 + 호출 제거",
+          "req_ids": [
+            "REQ-F-011",
+            "REQ-NF-007"
+          ],
+          "files": [
+            "public/js/app.js"
+          ],
+          "source_anchors": [
+            "public/js/app.js:2523-3029",
+            "public/js/app.js:3265"
+          ],
+          "rollback": {
+            "strategy": "git-reset",
+            "command": "git reset --hard HEAD~1"
+          },
+          "estimated_hours": "1-2",
+          "id": "TASK-P1-001"
+        },
+        {
+          "task_id": "TASK-P1-002",
+          "title": ".local-preview-* CSS 셀렉터 제거",
+          "req_ids": [
+            "REQ-F-011"
+          ],
+          "files": [
+            "public/css/style.css"
+          ],
+          "source_anchors": [
+            "public/css/style.css:1470-1612"
+          ],
+          "rollback": {
+            "strategy": "git-reset",
+            "command": "git reset --hard HEAD~1"
+          },
+          "estimated_hours": "0.5",
+          "id": "TASK-P1-002"
+        },
+        {
+          "task_id": "TASK-P1-003",
+          "title": "/admin 및 /admin/* 302 리다이렉트",
+          "req_ids": [
+            "REQ-F-001",
+            "REQ-NF-001",
+            "REQ-NF-004"
+          ],
+          "files": [
+            "src/app.js"
+          ],
+          "source_anchors": [
+            "src/app.js:337-351"
+          ],
+          "rollback": {
+            "strategy": "git-reset",
+            "command": "git reset --hard HEAD~1"
+          },
+          "estimated_hours": "2-3",
+          "id": "TASK-P1-003"
+        },
+        {
+          "task_id": "TASK-P1-004",
+          "title": "public/js/modules/ 디렉토리 + README placeholder",
+          "req_ids": [
+            "REQ-NF-005"
+          ],
+          "files": [
+            "public/js/modules/README.md"
+          ],
+          "source_anchors": [
+            "N/A — 신규"
+          ],
+          "rollback": {
+            "strategy": "file-delete",
+            "command": "rm -rf public/js/modules"
+          },
+          "estimated_hours": "0.2",
+          "id": "TASK-P1-004"
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "title": "모드 시스템 코어 (mode.js + EJS 통합 + app.js 엔트리)",
+      "tasks": [
+        {
+          "task_id": "TASK-P2-001",
+          "title": "mode.js — 토글/권한/URL 동기화",
+          "req_ids": [
+            "REQ-F-002",
+            "REQ-F-003",
+            "REQ-F-004",
+            "REQ-F-009",
+            "REQ-F-010",
+            "REQ-NF-002",
+            "REQ-NF-005"
+          ],
+          "files": [
+            "public/js/modules/mode.js"
+          ],
+          "source_anchors": [
+            "public/js/admin.js:314-373"
+          ],
+          "rollback": {
+            "strategy": "file-delete",
+            "command": "rm public/js/modules/mode.js"
+          },
+          "estimated_hours": "4-6",
+          "id": "TASK-P2-001"
+        },
+        {
+          "task_id": "TASK-P2-002",
+          "title": "index.ejs 통합 페이지 확장 (토글 + 관리 버튼 DOM)",
+          "req_ids": [
+            "REQ-F-002",
+            "REQ-F-004",
+            "REQ-NF-005"
+          ],
+          "files": [
+            "src/views/index.ejs"
+          ],
+          "source_anchors": [
+            "src/views/index.ejs:96-127",
+            "src/views/admin.ejs:22-46"
+          ],
+          "rollback": {
+            "strategy": "git-reset",
+            "command": "git reset --hard HEAD~1"
+          },
+          "estimated_hours": "2",
+          "id": "TASK-P2-002"
+        },
+        {
+          "task_id": "TASK-P2-003",
+          "title": "app.js ESM 엔트리 변환 + 권한별 lazy import",
+          "req_ids": [
+            "REQ-NF-005"
+          ],
+          "files": [
+            "public/js/app.js"
+          ],
+          "source_anchors": [
+            "public/js/app.js:1-100"
+          ],
+          "rollback": {
+            "strategy": "git-reset",
+            "command": "git reset --hard HEAD~1"
+          },
+          "estimated_hours": "3-4",
+          "id": "TASK-P2-003"
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "title": "트리/DnD/업로드 모듈",
+      "tasks": [
+        {
+          "task_id": "TASK-P3-001",
+          "title": "tree.js 신규",
+          "req_ids": [
+            "REQ-F-003",
+            "REQ-F-005",
+            "REQ-F-013",
+            "REQ-NF-005"
+          ],
+          "files": [
+            "public/js/modules/tree.js"
+          ],
+          "source_anchors": [
+            "public/js/admin.js:378-572"
+          ],
+          "rollback": {
+            "strategy": "file-delete",
+            "command": "rm public/js/modules/tree.js"
+          },
+          "estimated_hours": "4",
+          "id": "TASK-P3-001"
+        },
+        {
+          "task_id": "TASK-P3-002",
+          "title": "dnd.js 신규",
+          "req_ids": [
+            "REQ-F-003",
+            "REQ-F-005",
+            "REQ-F-010",
+            "REQ-NF-005"
+          ],
+          "files": [
+            "public/js/modules/dnd.js"
+          ],
+          "source_anchors": [
+            "public/js/admin.js:2077-2304"
+          ],
+          "rollback": {
+            "strategy": "file-delete",
+            "command": "rm public/js/modules/dnd.js"
+          },
+          "estimated_hours": "3-4",
+          "id": "TASK-P3-002"
+        },
+        {
+          "task_id": "TASK-P3-003",
+          "title": "upload.js 신규",
+          "req_ids": [
+            "REQ-F-003",
+            "REQ-F-005",
+            "REQ-NF-005"
+          ],
+          "files": [
+            "public/js/modules/upload.js"
+          ],
+          "source_anchors": [
+            "public/js/admin.js:2524-2925"
+          ],
+          "rollback": {
+            "strategy": "file-delete",
+            "command": "rm public/js/modules/upload.js"
+          },
+          "estimated_hours": "4",
+          "id": "TASK-P3-003"
+        }
+      ]
+    },
+    {
+      "phase": 4,
+      "title": "modal-ui + 컨텍스트 메뉴 + 에디터 + 관리 모달 (작업 순서: P4-000 → P4-001 → P4-002 → P4-003)",
+      "tasks": [
+        {
+          "task_id": "TASK-P4-000",
+          "title": "modal-ui.js 신규 (showConfirm + confirmUnsaved 분리)",
+          "req_ids": [
+            "REQ-F-008",
+            "REQ-NF-003",
+            "REQ-NF-005"
+          ],
+          "files": [
+            "public/js/modules/modal-ui.js"
+          ],
+          "source_anchors": [
+            "public/js/admin.js:1042-1228"
+          ],
+          "rollback": {
+            "strategy": "file-delete",
+            "command": "rm public/js/modules/modal-ui.js"
+          },
+          "estimated_hours": "3",
+          "id": "TASK-P4-000"
+        },
+        {
+          "task_id": "TASK-P4-001",
+          "title": "context-menu.js 신규",
+          "req_ids": [
+            "REQ-F-006",
+            "REQ-NF-005"
+          ],
+          "files": [
+            "public/js/modules/context-menu.js"
+          ],
+          "source_anchors": [
+            "public/js/admin.js:901-1037"
+          ],
+          "rollback": {
+            "strategy": "file-delete",
+            "command": "rm public/js/modules/context-menu.js"
+          },
+          "estimated_hours": "3",
+          "id": "TASK-P4-001"
+        },
+        {
+          "task_id": "TASK-P4-002",
+          "title": "editor.js 신규 + unsaved hook",
+          "req_ids": [
+            "REQ-F-003",
+            "REQ-F-007",
+            "REQ-F-008",
+            "REQ-NF-005"
+          ],
+          "files": [
+            "public/js/modules/editor.js"
+          ],
+          "source_anchors": [
+            "public/js/admin.js:1308-1625"
+          ],
+          "rollback": {
+            "strategy": "file-delete",
+            "command": "rm public/js/modules/editor.js"
+          },
+          "estimated_hours": "5-7",
+          "id": "TASK-P4-002"
+        },
+        {
+          "task_id": "TASK-P4-003",
+          "title": "admin-modal.js 신규 (관리 모달 전용)",
+          "req_ids": [
+            "REQ-F-004",
+            "REQ-F-008",
+            "REQ-NF-003",
+            "REQ-NF-005"
+          ],
+          "files": [
+            "public/js/modules/admin-modal.js"
+          ],
+          "source_anchors": [
+            "public/js/admin.js:1630-2072"
+          ],
+          "rollback": {
+            "strategy": "file-delete",
+            "command": "rm public/js/modules/admin-modal.js"
+          },
+          "estimated_hours": "5-6",
+          "id": "TASK-P4-003"
+        }
+      ]
+    },
+    {
+      "phase": 5,
+      "title": "/doc/* 통합 + 회귀 + 정리",
+      "tasks": [
+        {
+          "task_id": "TASK-P5-001",
+          "title": "doc-viewer.ejs 통합",
+          "req_ids": [
+            "REQ-F-013",
+            "REQ-NF-004"
+          ],
+          "files": [
+            "src/views/doc-viewer.ejs"
+          ],
+          "source_anchors": [
+            "src/views/doc-viewer.ejs:1-372",
+            "src/views/index.ejs:96-127"
+          ],
+          "rollback": {
+            "strategy": "git-reset",
+            "command": "git reset --hard HEAD~1"
+          },
+          "estimated_hours": "2-3",
+          "id": "TASK-P5-001"
+        },
+        {
+          "task_id": "TASK-P5-002",
+          "title": "app.js try-catch graceful degradation 제거",
+          "req_ids": [
+            "REQ-NF-005"
+          ],
+          "files": [
+            "public/js/app.js"
+          ],
+          "source_anchors": [
+            "public/js/app.js:1-100"
+          ],
+          "rollback": {
+            "strategy": "git-reset",
+            "command": "git reset --hard HEAD~1"
+          },
+          "estimated_hours": "1",
+          "id": "TASK-P5-002"
+        },
+        {
+          "task_id": "TASK-P5-003",
+          "title": "admin.ejs + admin.js 제거 + admin.css 검토",
+          "req_ids": [
+            "REQ-NF-005"
+          ],
+          "files": [
+            "src/views/admin.ejs",
+            "public/js/admin.js"
+          ],
+          "source_anchors": [
+            "src/views/admin.ejs:1-218",
+            "public/js/admin.js:1-2974"
+          ],
+          "rollback": {
+            "strategy": "git-reset",
+            "command": "git reset --hard HEAD~1"
+          },
+          "estimated_hours": "1-2",
+          "id": "TASK-P5-003"
+        },
+        {
+          "task_id": "TASK-P5-004",
+          "title": "통합 회귀 e2e + 성능 + 릴리즈 노트",
+          "req_ids": [
+            "REQ-NF-001",
+            "REQ-NF-002",
+            "REQ-NF-007",
+            "REQ-F-012"
+          ],
+          "files": [
+            "test/e2e/unified-admin-viewer.spec.js",
+            "docs/release-notes/unified-admin-viewer.md"
+          ],
+          "source_anchors": [
+            "N/A — 신규"
+          ],
+          "rollback": {
+            "strategy": "git-reset",
+            "command": "git reset --hard HEAD~1"
+          },
+          "estimated_hours": "4-6",
+          "id": "TASK-P5-004"
+        }
+      ]
+    }
+  ],
+  "req_to_task": {
+    "REQ-F-001": [
+      "TASK-P1-003"
+    ],
+    "REQ-F-002": [
+      "TASK-P2-001",
+      "TASK-P2-002"
+    ],
+    "REQ-F-003": [
+      "TASK-P2-001",
+      "TASK-P3-001",
+      "TASK-P3-002",
+      "TASK-P3-003",
+      "TASK-P4-002"
+    ],
+    "REQ-F-004": [
+      "TASK-P2-001",
+      "TASK-P2-002",
+      "TASK-P4-003"
+    ],
+    "REQ-F-005": [
+      "TASK-P3-001",
+      "TASK-P3-002",
+      "TASK-P3-003"
+    ],
+    "REQ-F-006": [
+      "TASK-P4-001"
+    ],
+    "REQ-F-007": [
+      "TASK-P4-002"
+    ],
+    "REQ-F-008": [
+      "TASK-P4-000",
+      "TASK-P4-002",
+      "TASK-P4-003"
+    ],
+    "REQ-F-009": [
+      "TASK-P2-001"
+    ],
+    "REQ-F-010": [
+      "TASK-P2-001",
+      "TASK-P3-002"
+    ],
+    "REQ-F-011": [
+      "TASK-P1-001",
+      "TASK-P1-002"
+    ],
+    "REQ-F-012": [
+      "TASK-P5-004"
+    ],
+    "REQ-F-013": [
+      "TASK-P3-001",
+      "TASK-P5-001"
+    ],
+    "REQ-NF-001": [
+      "TASK-P1-003",
+      "TASK-P5-004"
+    ],
+    "REQ-NF-002": [
+      "TASK-P2-001",
+      "TASK-P5-004"
+    ],
+    "REQ-NF-003": [
+      "TASK-P4-000",
+      "TASK-P4-003"
+    ],
+    "REQ-NF-004": [
+      "TASK-P1-003",
+      "TASK-P5-001"
+    ],
+    "REQ-NF-005": [
+      "TASK-P1-004",
+      "TASK-P2-001",
+      "TASK-P2-002",
+      "TASK-P2-003",
+      "TASK-P3-001",
+      "TASK-P3-002",
+      "TASK-P3-003",
+      "TASK-P4-000",
+      "TASK-P4-001",
+      "TASK-P4-002",
+      "TASK-P4-003",
+      "TASK-P5-002",
+      "TASK-P5-003"
+    ],
+    "REQ-NF-006": [],
+    "REQ-NF-007": [
+      "TASK-P1-001",
+      "TASK-P5-004"
+    ]
+  },
+  "change_log": [
+    {
+      "date": "2026-04-29",
+      "reason": "plan-contract-v1.1 §2.3.1 정규화 — task.id 필드 추가 (task_id alias 유지). PM v3.0 plan_loader 호환.",
+      "diff_summary": "각 task에 id=task_id 추가. 18 TASK 전수 적용. 시맨틱 변경 없음.",
+      "approved_by": "user"
+    }
+  ]
+}
