@@ -8,6 +8,24 @@ Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-s
 
 **Never use browser-native dialogs (`alert`, `confirm`, `prompt`).** Use the project's in-app modal component for all confirmations, warnings, and prompts. Browser dialogs break the UI consistency, are not styleable, and block the event loop.
 
+## 0-1. Commit Conventions (Project-Specific)
+
+**Never include co-author signatures in commit messages.** Do not append `Co-Authored-By:`, `Generated with Claude Code`, or any similar attribution trailer. Commit messages must contain only the substantive description of the change.
+
+**Always run a commit-message review loop using a Haiku subagent before committing.** Workflow:
+
+1. Draft the commit message based on staged changes.
+2. Spawn a Haiku subagent (`Agent` tool with `model: "haiku"`) to evaluate the draft against these axes:
+   - **Accuracy**: does it match the actual diff?
+   - **Conventional Commits**: type/scope/subject form correct?
+   - **Scope**: subject ≤72 chars, imperative mood, no trailing period?
+   - **Body**: explains *why* (not just *what*); wraps at ~72 chars?
+   - **Forbidden trailers**: zero `Co-Authored-By` / `Generated with` lines?
+3. If the subagent flags any issue, revise and re-evaluate. Loop until the subagent returns a pass.
+4. Only then run `git commit`.
+
+This applies to every commit, including small fixes. Skipping the review loop is not acceptable.
+
 ## 1. Think Before Coding
 
 **Don't assume. Don't hide confusion. Surface tradeoffs.**
