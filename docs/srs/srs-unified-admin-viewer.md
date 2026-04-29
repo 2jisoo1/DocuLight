@@ -362,11 +362,11 @@ DocLight는 현재 뷰어 페이지(`/`, `/doc/*`)와 어드민 페이지(`/admi
 |---|---|
 | 모드 | snoworca-srs Normal |
 | 모델 | Claude 4.7 Opus (1M context) |
-| 라운드 수 | 1 (초안 — 평가자 미실행) |
-| 총 REQ 수 | F: 13, NF: 7 (합 20) |
-| 잔존 finding | (평가자 실행 전) |
+| 라운드 수 | 2 (1: 초안, 2: 2026-04-29 후속 회귀 보강) |
+| 총 REQ 수 | F: 16, NF: 9 (합 25) |
+| 잔존 finding | 0 (Critical/High 모두 처리, 코드 리뷰 PASS) |
 | 다음 단계 후보 | snoworca-feasibility (가능성 검증은 이미 사전 수행) → snoworca-planner (구현 계획) |
-| 참조 코드 | `public/js/app.js`, `public/js/admin.js`, `src/views/admin.ejs`, `src/views/index.ejs`, `src/routes/admin-api.js`, `src/controllers/auth-controller.js` |
+| 참조 코드 | `public/js/app.js`, `public/js/modules/{mode,tree,dnd,upload,context-menu,editor,modal-ui,admin-modal}.js`, `src/views/{index,doc-viewer}.ejs`, `src/routes/admin-api.js`, `src/middleware/auth.js`, `src/controllers/auth-controller.js` |
 
 ---
 
@@ -393,4 +393,102 @@ REQ-NF-004 호환성 (URL/API/브라우저)
 REQ-NF-005 코드 통합 규모
 REQ-NF-006 보안
 REQ-NF-007 가용성 (LocalPreview 제거 회귀)
+REQ-F-014  관리(설정) 모달 닫힘 정책
+REQ-F-015  superuser admin = 쓰기 권한 통합
+REQ-F-016  좌측 트리 root 드롭 영역 + 시각화
+REQ-NF-008 모드 전환 후 좌측 트리 무결성 (race-free 복원)
+REQ-NF-009 코드 변경 시 리뷰 루프 의무화
 ```
+
+---
+
+## 8. Delta — 후속 회귀 수정 및 보강 (2026-04-29)
+
+본 절은 초기 통합(§2~§3) 머지 직후 발견된 회귀와 사용자 피드백을 반영한 증분이다.
+원 요구사항(REQ-F-001~013 / REQ-NF-001~007)은 그대로 유효하며, 아래 항목은 그 위에 가산된다.
+
+### REQ-F-014 — 관리(설정) 모달 닫힘 정책
+
+**Description**: `#mgmt-modal`(설정창)은 다음 경로로만 닫힌다.
+
+- 헤더의 닫기 버튼 `#mgmt-close`(✕) 클릭
+- 모달이 열린 상태에서 `Esc` 키
+- **배경(오버레이) 클릭으로는 닫히지 않는다** — 실수 클릭으로 인한 작업 손실 방지
+
+**Acceptance**:
+1. ✕ 또는 Esc 로 닫으면 `display: none` 처리되고 활성 탭 상태가 초기화된다.
+2. 모달 외 영역 클릭은 무반응.
+3. `#mgmt-close` 에 hover 시 배경/테두리 강조 (다른 `icon-btn` 과 동일한 32×32 사이즈).
+
+### REQ-F-015 — superuser admin 모드 = 쓰기 권한 통합
+
+**Description**: superuser 권한은 `write` 권한을 묵시적으로 포함한다. admin 모드에서도
+**파일 업로드, 삭제, 이름 변경, 새 파일/폴더, 잘라내기/붙여넣기**가 모두 가능해야 한다.
+
+**클라이언트 매핑**: `permissions.includes('superuser')` 가 true 이면 `hasWrite`/`hasDelete`
+모두 true 로 평탄화. 서버 인가는 이미 superuser → write/delete 매핑을 수행 중(`src/middleware/auth.js`).
+
+**Acceptance**:
+1. superuser 세션이 admin 모드 트리에서 우클릭 시 컨텍스트 메뉴의 **Rename/Delete/New File/New Folder/Cut/Paste** 가 비활성(disabled) 클래스를 갖지 않는다.
+2. admin 모드에서 외부 파일을 트리에 드롭하면 `/api/admin/upload` POST 요청이 발생하고 200 응답을 받는다.
+3. 본 요구사항은 §1.4 권한 매트릭스의 superuser 행을 보강한다 (admin 모드 = view + edit 의 합집합).
+
+### REQ-F-016 — 좌측 트리 root 드롭 영역 + 시각화
+
+**Description**: 좌측 트리(`#tree-menu`)의 빈 배경(파일 리스트 아래쪽)에 외부 파일을
+드롭하면 root(`/`) 경로로 업로드되어야 한다. 드롭 가능한 영역은 시각적으로 표시된다.
+
+**구현 제약**:
+- `.tree-container`는 `display: flex; flex-direction: column;` 으로 자식 `#tree-menu`의
+  `flex: 1` 을 활성화해 빈 영역까지 트리 컨테이너 hit-area 에 포함시킨다.
+- 디렉토리 위 dragover 시 해당 디렉토리에 `.upload-dir-target` 클래스(파란 반투명 + dashed outline) 부여.
+- 디렉토리 외(파일 행 또는 빈 배경) dragover 시 `#tree-menu` 에 `.upload-root-target`(동일 효과) 부여.
+- `dragleave`(컨테이너 이탈) / `dragend`(드래그 취소) / `drop` 시 모든 강조 즉시 해제.
+
+**Acceptance**:
+1. `#tree-menu` 의 시각적 바닥 5px 위 좌표에서 `elementFromPoint` 가 `#tree-menu` 또는 그 자손이어야 한다.
+2. 해당 좌표에서 `drop` 이벤트 dispatch 시 `/api/admin/upload?path=%2F` 가 호출된다.
+3. 빈 배경 dragover 중 `#tree-menu` 가 `.upload-root-target` 클래스를 갖는다.
+
+### REQ-NF-008 — 모드 전환 후 좌측 트리 무결성 (race-free 복원)
+
+**Description**: admin/edit ↔ view 모드 토글 시 좌측 트리는 항상 정상 렌더된 상태를
+유지한다. 새로고침 없이도 view 모드 트리가 즉시 복원된다.
+
+**구현 제약**:
+- view 모드 트리 빌더는 `window.__viewTree.{activate, deactivate}` mutex 를 모듈
+  top-level 에 노출(초기화 실패해도 전역은 정의됨).
+- `activate` 는 in-flight Promise 를 캐싱하여 동시 호출 시 단일 실행으로 합친다(race-free).
+- 빌드 실패 시 `.tree-load-error` fallback 메시지 표시.
+- admin 트리(`public/js/modules/tree.js`) `deactivate` → `__viewTree.activate` 흐름이 끊기지 않는다.
+
+**Acceptance**:
+1. view → admin → view 토글 round-trip 후 `#tree-menu .tree-item-wrapper` 카운트가 토글 전과 동일하다.
+2. admin 모드에서 트리 클릭은 동일 viewer(`window.ViewerModule.loadFile`)로 라우팅되어 view 모드와 동일한 마크다운 렌더러를 사용한다.
+
+### REQ-NF-009 — 코드 변경 시 리뷰 루프 의무화
+
+**Description**: 모든 코드 변경(버그 수정·기능·리팩터)은 까칠한 코드 리뷰 서브에이전트의
+검수를 통과한 뒤에만 완료로 간주한다.
+
+**규약**: `CLAUDE.md §0-2` 정의 그대로 — 클린 코드(함수 단일 책임), 테스트 커버리지,
+예외 발생 가능성을 축으로 평가하고 Critical/High 가 0 이 될 때까지 반복.
+
+**Acceptance**: 변경 직후 리뷰 결과(심각도 분류 + 처리 내역)가 응답에 포함된다.
+
+### 보강된 기존 요구사항 메모
+
+- **REQ-F-002 모드 토글 UI**: 텍스트("편집/관리") → SVG 아이콘 교체, 순서 **편집 → 설정 → 관리** 로 정렬, `aria-pressed="true"` 일 때 활성 색상·테두리 강조 (`.mode-toggle[aria-pressed="true"]`).
+- **REQ-F-005 DnD 업로드**: 드롭 대상 결정 규칙에 빈 배경 → root(`/`) 명시(REQ-F-016).
+- **REQ-NF-003 브라우저 다이얼로그 금지**: `regenerateKey()` 의 `confirm()` 잔재를 `modal-ui.showConfirm({ dataModal: 'confirm-regenerate-key' })` 로 교체하여 정책 100% 준수.
+- **§4.3 클라이언트 모듈 매핑**: `window.ViewerProfile`, `window.ViewerModule`, `window.__viewTree` 가 ESM 모듈 ↔ 인라인 핸들러/모드 mutex 브릿지로 노출됨.
+
+### 회귀 e2e 인덱스
+
+| Test | 검증 |
+|------|------|
+| 11 | view → admin → view 토글 후 트리 카운트 보존 (REQ-NF-008) |
+| 12 | superuser 컨텍스트 메뉴 Rename/Delete 활성 (REQ-F-015) |
+| 13 | admin 모드에서 `#tree-menu` DnD 핸들러 바인딩 + 실제 drop → upload 요청 (REQ-F-005, REQ-F-015) |
+| 14 | 트리 빈 배경 drop → `/api/admin/upload?path=/` (REQ-F-016) |
+| 15 | 빈 배경 dragover → `#tree-menu.upload-root-target` 클래스 (REQ-F-016) |
