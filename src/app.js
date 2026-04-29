@@ -334,20 +334,17 @@ app.get('/doc/*', (req, res) => {
   });
 });
 
-// Admin page route (Phase 4: Admin Mode)
+// Admin routes — redirect to unified viewer with admin mode (Phase 1: TASK-P1-003)
 app.get('/admin', (req, res) => {
-  const cfg = req.app.locals.config || {};
-  const basePath = cfg.basePath || '';
-  const iconPath = (cfg.ui && cfg.ui.icon) || './public/images/icon.png';
-  res.render('admin', { config: cfg, uiIcon: resolveIconPath(iconPath, basePath), uiTitle: (cfg.ui && cfg.ui.title) || 'DocuLight' });
+  const basePath = (req.app.locals.config && req.app.locals.config.basePath) || '';
+  const qs = req.url.includes('?') ? '&' + req.url.split('?')[1] : '';
+  res.redirect(302, `${basePath}/?mode=admin${qs}`);
 });
 
-// Admin SPA routes (client-side routing support)
 app.get('/admin/*', (req, res) => {
-  const cfg = req.app.locals.config || {};
-  const basePath = cfg.basePath || '';
-  const iconPath = (cfg.ui && cfg.ui.icon) || './public/images/icon.png';
-  res.render('admin', { config: cfg, uiIcon: resolveIconPath(iconPath, basePath), uiTitle: (cfg.ui && cfg.ui.title) || 'DocuLight' });
+  const basePath = (req.app.locals.config && req.app.locals.config.basePath) || '';
+  const qs = req.url.includes('?') ? '&' + req.url.split('?')[1] : '';
+  res.redirect(302, `${basePath}/?mode=admin${qs}`);
 });
 
 // Chatbot page route (Step 15: RAG Chatbot)

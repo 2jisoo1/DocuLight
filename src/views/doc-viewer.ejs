@@ -260,6 +260,10 @@
     <div class="doc-header">
       <h1 id="doc-title">Loading...</h1>
       <div class="doc-meta" id="doc-meta"></div>
+      <!-- Mode Toggle Buttons (TASK-P5-001) -->
+      <button id="mode-edit-toggle" data-mode-toggle="edit" class="icon-btn mode-toggle" title="편집 모드" style="display:none;" aria-pressed="false">편집</button>
+      <button id="mode-admin-toggle" data-mode-toggle="admin" class="icon-btn mode-toggle" title="어드민 모드" style="display:none;" aria-pressed="false">관리</button>
+      <button id="mgmt-open-btn" class="icon-btn" title="관리 모달" style="display:none;">⚙</button>
     </div>
 
     <div id="loading" class="loading">
@@ -271,6 +275,24 @@
 
     <div id="content" class="markdown-body" style="display: none;"></div>
   </div>
+
+  <!-- Management Modal (TASK-P5-001) -->
+  <div id="mgmt-modal" class="modal">
+    <div class="modal-content mgmt-modal-content">
+      <div class="mgmt-panel-header">
+        <div id="mgmt-tabs" class="mgmt-tabs"></div>
+        <select id="mgmt-select" class="mgmt-select"></select>
+        <button id="mgmt-close" class="btn btn-small" title="닫기">✕</button>
+      </div>
+      <div id="mgmt-content" class="mgmt-content"></div>
+    </div>
+  </div>
+
+  <script>
+    window.BASE_PATH = '<%= basePath %>';
+    window.DOC_TYPE = '<%= docType %>';
+  </script>
+  <script type="module" src="<%= basePath %>/js/app.js"></script>
 
   <script>
     const DOC_TYPE = '<%= docType %>';

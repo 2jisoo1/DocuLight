@@ -11,6 +11,7 @@
     }
   </style>
   <link rel="stylesheet" href="<%= basePath %>/css/style.css">
+  <link rel="stylesheet" href="<%= basePath %>/css/admin.css">
   <% if (typeof chatbotMode !== 'undefined' && chatbotMode) { %>
   <link rel="stylesheet" href="<%= basePath %>/css/chatbot.css">
   <% } %>
@@ -118,6 +119,10 @@
             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
           </svg>
         </a>
+        <!-- Mode Toggle Buttons (TASK-P2-002) -->
+        <button id="mode-edit-toggle" data-mode-toggle="edit" class="icon-btn mode-toggle" title="편집 모드" style="display:none;" aria-pressed="false">편집</button>
+        <button id="mode-admin-toggle" data-mode-toggle="admin" class="icon-btn mode-toggle" title="어드민 모드" style="display:none;" aria-pressed="false">관리</button>
+        <button id="mgmt-open-btn" class="icon-btn" title="관리 모달" style="display:none;">⚙</button>
         <% if (typeof chatbotMode === 'undefined' || !chatbotMode) { %>
         <!-- TOC Toggle Button (Step 12: Phase 1) -->
         <button id="toc-toggle-btn" class="toc-toggle-btn" title="Table of Contents" aria-label="Toggle table of contents">
@@ -232,8 +237,20 @@
     <div class="toc-overlay" id="toc-overlay"></div>
   </div>
 
+  <!-- Management Modal (TASK-P2-002) -->
+  <div id="mgmt-modal" class="modal">
+    <div class="modal-content mgmt-modal-content">
+      <div class="mgmt-panel-header">
+        <div id="mgmt-tabs" class="mgmt-tabs"></div>
+        <select id="mgmt-select" class="mgmt-select"></select>
+        <button id="mgmt-close" class="btn btn-small" title="닫기">✕</button>
+      </div>
+      <div id="mgmt-content" class="mgmt-content"></div>
+    </div>
+  </div>
+
   <script>window.BASE_PATH = '<%= basePath %>';</script>
-  <script defer src="<%= basePath %>/js/app.js"></script>
+  <script type="module" src="<%= basePath %>/js/app.js"></script>
   <% if (typeof chatbotMode !== 'undefined' && chatbotMode) { %>
   <script>
     // Chatbot mode configuration (FR-CB-015)

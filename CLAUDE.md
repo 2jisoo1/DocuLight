@@ -4,6 +4,10 @@ Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-s
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
+## 0. UI Conventions (Project-Specific)
+
+**Never use browser-native dialogs (`alert`, `confirm`, `prompt`).** Use the project's in-app modal component for all confirmations, warnings, and prompts. Browser dialogs break the UI consistency, are not styleable, and block the event loop.
+
 ## 1. Think Before Coding
 
 **Don't assume. Don't hide confusion. Surface tradeoffs.**
