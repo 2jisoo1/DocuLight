@@ -1368,6 +1368,36 @@ async function expandParentFolders(filePath) {
 }
 
 // Load file and render
+window.ViewerModule = { loadFile: (...a) => loadFile(...a) };
+
+// View tree mutex bridge — defined at module top-level so admin tree.js can
+// always restore the view tree on deactivate, even when init() throws or the
+// page enters /?mode=admin before init() runs (review C2 + H1).
+let viewTreeActive = false;
+let viewTreeActivatePromise = null;
+window.__viewTree = {
+  activate: () => {
+    if (viewTreeActive) return Promise.resolve();
+    if (viewTreeActivatePromise) return viewTreeActivatePromise;
+    viewTreeActivatePromise = (async () => {
+      const target = document.getElementById('tree-menu');
+      if (!target) return;
+      try {
+        const data = await fetchTree('/');
+        await buildTree(data, target);
+        viewTreeActive = true;
+      } catch (e) {
+        console.warn('__viewTree.activate failed', e);
+        target.innerHTML = '<div class="tree-load-error">트리 로드 실패. 새로고침하세요.</div>';
+      } finally {
+        viewTreeActivatePromise = null;
+      }
+    })();
+    return viewTreeActivatePromise;
+  },
+  deactivate: () => { viewTreeActive = false; },
+};
+
 async function loadFile(path, hash = '', updateUrl = true, skipScroll = false) {
   try {
     // Close mobile menu if open (mobile only)
@@ -1595,6 +1625,7 @@ async function init() {
     const treeData = await fetchTree('/');
     const treeMenu = document.getElementById('tree-menu');
     await buildTree(treeData, treeMenu);
+    viewTreeActive = true;
 
     // Step 9.3: Recursively fetch all files for document navigation
     flatFileList = await fetchAllFilesRecursive('/');
@@ -2536,15 +2567,9 @@ const ViewerProfile = {
           btn.style.display = 'flex';
           btn.addEventListener('click', () => this.open());
           if (closeBtn) closeBtn.addEventListener('click', () => this.close());
-          // Show editor button for superuser/write permission users
+          // Legacy viewer-editor-btn replaced by mode toggles; keep hidden.
           const editorBtn = document.getElementById('viewer-editor-btn');
-          if (editorBtn && data.session.permissions) {
-            const perms = data.session.permissions;
-            if (perms.includes('superuser') || perms.includes('write')) {
-              editorBtn.href = (window.BASE_PATH || '') + '/admin';
-              editorBtn.style.display = 'flex';
-            }
-          }
+          if (editorBtn) editorBtn.style.display = 'none';
         }
       }
     } catch (e) {
@@ -2702,6 +2727,9 @@ const ViewerProfile = {
     return d.innerHTML;
   }
 };
+
+// Expose to window for inline onclick handlers (ESM module-scope -> global bridge)
+window.ViewerProfile = ViewerProfile;
 
 // Start application when DOM is ready
 document.addEventListener('DOMContentLoaded', async () => {

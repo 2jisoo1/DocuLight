@@ -721,6 +721,13 @@ body {
   outline-offset: -2px;
 }
 
+/* Root (tree-menu background) highlight when dragging over empty area */
+.upload-root-target {
+  background-color: rgba(0, 102, 204, 0.15);
+  outline: 2px dashed var(--primary-color);
+  outline-offset: -4px;
+}
+
 /* Floating upload toast in content area */
 .upload-toast {
   position: absolute;

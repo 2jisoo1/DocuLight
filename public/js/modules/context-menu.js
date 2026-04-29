@@ -50,8 +50,9 @@ function _getClipboard() {
 }
 
 function _buildMenuItems(targetPath, targetType) {
-  const hasWrite = state.permissions.includes('write');
-  const hasDelete = state.permissions.includes('write') || state.permissions.includes('superuser');
+  const isSuperuser = state.permissions.includes('superuser');
+  const hasWrite = state.permissions.includes('write') || isSuperuser;
+  const hasDelete = hasWrite;
   const hasClipboard = _getClipboard() !== null;
 
   if (targetType === 'root') {

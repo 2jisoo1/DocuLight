@@ -8,6 +8,23 @@ Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-s
 
 **Never use browser-native dialogs (`alert`, `confirm`, `prompt`).** Use the project's in-app modal component for all confirmations, warnings, and prompts. Browser dialogs break the UI consistency, are not styleable, and block the event loop.
 
+## 0-2. Code Review Loop (Project-Specific)
+
+**Whenever you modify code (new code, bug fix, refactor — any change), you MUST submit the change to a strict, picky code reviewer subagent before declaring the work done.**
+
+Workflow:
+
+1. Make the code change.
+2. Spawn a code-review subagent (`Agent` tool, `subagent_type: "superpowers:code-reviewer"` or equivalent picky reviewer agent) with this brief:
+   - **Clean Code**: function separation (single responsibility), naming, length, duplication, abstraction level mixing.
+   - **Tests**: are there tests covering this change? Do existing tests still pass? Are edge cases covered?
+   - **Exception/Error paths**: what can throw? Is rejection handled? Are async errors swallowed? Are null/undefined paths defended at boundaries?
+3. The reviewer returns findings classified by severity (Critical / High / Medium / Low).
+4. If any Critical or High issue is reported, **fix it and re-submit for review**. Loop until the reviewer returns no Critical/High issues.
+5. Medium/Low issues should be addressed when reasonable; record any deferred ones in the response to the user.
+
+The reviewer must be picky: prefer false positives over missed issues. Do not skip the loop even for "trivial" changes — trivial changes have produced regressions in this project before.
+
 ## 0-1. Commit Conventions (Project-Specific)
 
 **Never include co-author signatures in commit messages.** Do not append `Co-Authored-By:`, `Generated with Claude Code`, or any similar attribution trailer. Commit messages must contain only the substantive description of the change.

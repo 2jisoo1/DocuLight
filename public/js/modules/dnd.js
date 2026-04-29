@@ -11,6 +11,7 @@ let containerEl = null;
 let onDragOver = null;
 let onDragLeave = null;
 let onDrop = null;
+let onDragEnd = null;
 
 function hasFileType(dt) {
   if (!dt || !dt.types) return false;
@@ -33,6 +34,7 @@ function clearHighlight() {
   containerEl.querySelectorAll('.upload-dir-target').forEach((el) => {
     el.classList.remove('upload-dir-target');
   });
+  containerEl.classList.remove('upload-root-target');
 }
 
 function getFileFromEntry(fileEntry) {
@@ -100,11 +102,12 @@ async function collectFiles(dataTransfer) {
 }
 
 export function activate(treeContainerEl) {
-  if (!treeContainerEl) return;
   if (isMobileNoDnd()) return;
+  const target = treeContainerEl || (typeof document !== 'undefined' ? document.getElementById('tree-menu') : null);
+  if (!target) return;
   if (containerEl) deactivate();
 
-  containerEl = treeContainerEl;
+  containerEl = target;
 
   onDragOver = (e) => {
     if (!hasFileType(e.dataTransfer)) return;
@@ -116,6 +119,9 @@ export function activate(treeContainerEl) {
     clearHighlight();
     if (treeItem && treeItem.dataset.type === 'directory') {
       treeItem.classList.add('upload-dir-target');
+    } else {
+      // Non-directory hit (file row or empty background) — highlight root drop zone.
+      containerEl.classList.add('upload-root-target');
     }
   };
 
@@ -152,9 +158,17 @@ export function activate(treeContainerEl) {
     }
   };
 
+  // dragend fires when the drag is cancelled outside the container — clear stale highlight.
+  onDragEnd = () => clearHighlight();
+
   containerEl.addEventListener('dragover', onDragOver);
   containerEl.addEventListener('dragleave', onDragLeave);
   containerEl.addEventListener('drop', onDrop);
+  document.addEventListener('dragend', onDragEnd);
+
+  // Test-only: e2e probes window.__dndActive to verify handlers were bound.
+  // Not a public API; do not consume from production code.
+  if (typeof window !== 'undefined') window.__dndActive = true;
 }
 
 export function deactivate() {
@@ -162,9 +176,13 @@ export function deactivate() {
   if (onDragOver) containerEl.removeEventListener('dragover', onDragOver);
   if (onDragLeave) containerEl.removeEventListener('dragleave', onDragLeave);
   if (onDrop) containerEl.removeEventListener('drop', onDrop);
+  if (onDragEnd) document.removeEventListener('dragend', onDragEnd);
   clearHighlight();
   containerEl = null;
   onDragOver = null;
   onDragLeave = null;
   onDrop = null;
+  onDragEnd = null;
+
+  if (typeof window !== 'undefined') window.__dndActive = false;
 }

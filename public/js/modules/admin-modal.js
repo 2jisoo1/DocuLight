@@ -170,7 +170,7 @@ async function _fetchSession() {
 
 async function openManagementModal(initialTab) {
   await _fetchSession();
-  state.currentTab = initialTab || 'profile';
+  state.currentTab = initialTab || 'users';
   _showModal('mgmt-modal');
   renderTabs();
   await loadTab(state.currentTab);
@@ -186,7 +186,6 @@ function renderTabs() {
   if (!tabBar) return;
   const isSuperuser = state.permissions.includes('superuser');
   const tabs = [
-    { id: 'profile', label: '내 정보', show: true },
     { id: 'users', label: '사용자', show: isSuperuser },
     { id: 'groups', label: '그룹', show: isSuperuser },
     { id: 'registrations', label: '가입 요청', show: isSuperuser },
@@ -610,10 +609,14 @@ function _bindOpenButton() {
 function _bindCloseHandlers() {
   const modal = document.getElementById('mgmt-modal');
   if (!modal) return;
-  modal.querySelectorAll('[data-mgmt-close]').forEach((el) => {
+  modal.querySelectorAll('[data-mgmt-close], #mgmt-close').forEach((el) => {
     el.addEventListener('click', (e) => {
-      if (e.target === el) hide();
+      e.stopPropagation();
+      hide();
     });
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal.style.display !== 'none' && modal.style.display !== '') hide();
   });
 }
 
