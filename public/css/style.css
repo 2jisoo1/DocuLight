@@ -129,6 +129,13 @@ body {
   flex: 1;
 }
 
+/* sidebar-header는 justify-content:space-between이지만 자식이 3개(title/toggle/refresh)라
+   두 버튼 사이에도 빈 공간이 분배된다. 토글 버튼에 margin-left:auto를 주면 좌측 공간을
+   모두 흡수해 두 버튼이 우측에서 맞붙는다. */
+#display-name-toggle-btn {
+  margin-left: auto;
+}
+
 .content-header {
   padding: 0.75rem 1.5rem;
   border-bottom: 1px solid var(--border-color);
