@@ -4,6 +4,19 @@ Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-s
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
+## 0-0. Process Management (Project-Specific)
+
+**Never kill `node.exe` indiscriminately (e.g., `taskkill /IM node.exe`, `Stop-Process -Name node`, `pkill node`).** Claude Code itself, MCP servers (Playwright MCP, DocuLight MCP, etc.), and other unrelated tools all run on `node.exe`. Killing them will terminate the current session and break the user's tooling.
+
+When asked to stop DocLight test/dev server processes:
+
+1. Enumerate node processes with their full command line (e.g., `Get-CimInstance Win32_Process -Filter "Name='node.exe'"` and inspect `CommandLine`).
+2. Filter to processes whose command line contains `DocLight\node_modules` or `DocLight\src\app` (i.e., `nodemon src/app.js`, `cross-env … nodemon …`, `node src/app.js`).
+3. Kill **only those PIDs** by ID. Leave Playwright MCP, DocuLight MCP, npm helpers, and any other unrelated `node.exe` alone.
+4. Verify the kill by re-enumerating and confirming the DocLight-specific count is 0.
+
+This applies to every "stop the server" / "kill background processes" request without exception.
+
 ## 0. UI Conventions (Project-Specific)
 
 **Never use browser-native dialogs (`alert`, `confirm`, `prompt`).** Use the project's in-app modal component for all confirmations, warnings, and prompts. Browser dialogs break the UI consistency, are not styleable, and block the event loop.

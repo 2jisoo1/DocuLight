@@ -6,6 +6,7 @@
  * RAG 챗봇 API 컨트롤러
  */
 
+const path = require("path");
 const { HumanMessage } = require("@langchain/core/messages");
 
 /**
@@ -48,6 +49,31 @@ function sendSSE(res, event, data, logger = null) {
     logger?.error?.(`SSE send error: ${err.message}`);
     return false;
   }
+}
+
+/**
+ * 9종 정규화 SSE 이벤트 타입 (TASK-P1-005 / FR-11)
+ * @type {Set<string>}
+ */
+const SSE_EVENT_TYPES = new Set([
+  'plan', 'tool_use_start', 'tool_use_result', 'citation',
+  'token', 'error', 'end', 'retrieval', 'evaluation'
+]);
+
+/**
+ * 정규화된 SSE 이벤트 전송 — 9종 타입만 허용
+ * @param {Object} res - Express response 객체
+ * @param {'plan'|'tool_use_start'|'tool_use_result'|'citation'|'token'|'error'|'end'|'retrieval'|'evaluation'} event
+ * @param {Object} data
+ * @param {Object} [logger]
+ * @returns {boolean}
+ */
+function emitSseEvent(res, event, data, logger = null) {
+  if (!SSE_EVENT_TYPES.has(event)) {
+    logger?.error?.(`emitSseEvent: unknown event type "${event}"`);
+    return false;
+  }
+  return sendSSE(res, event, data, logger);
 }
 
 /**
@@ -116,6 +142,9 @@ async function chat(req, res, next) {
     logger?.debug("Request 'close' event fired");
   });
 
+  // tool_use_id 1:1 페어링 타이밍 맵 — try 밖에 선언해야 finally에서 clear() 가능
+  const toolUseTimings = new Map();
+
   try {
     // 세션 ID 생성 또는 사용
     const sessionId = threadId || chatbotService.createSession();
@@ -131,20 +160,18 @@ async function chat(req, res, next) {
     // 검색 결과 콜백
     const onRetrieval = (docs) => {
       if (checkConnection() && docs && docs.length > 0) {
-        const path = require("path");
         const docsRoot = req.app.locals.config?.docsRoot || "";
 
         // 절대 경로를 상대 경로로 변환
         const sources = [...new Set(docs.map(d => {
           const source = d.metadata?.source || "unknown";
           if (docsRoot && source.startsWith(docsRoot)) {
-            // docsRoot 기준 상대 경로로 변환
             return path.relative(docsRoot, source).replace(/\\/g, "/");
           }
           return source;
         }))];
 
-        sendSSE(res, "retrieval", {
+        emitSseEvent(res, 'retrieval', {
           count: docs.length,
           sources: sources.slice(0, 5)
         }, logger);
@@ -162,7 +189,63 @@ async function chat(req, res, next) {
     const onToken = (token) => {
       if (checkConnection()) {
         logger?.info(`Sending token event, length=${token?.length || 0}`);
-        sendSSE(res, "token", { content: token }, logger);
+        emitSseEvent(res, 'token', { content: token }, logger);
+      }
+    };
+
+    // Plan 이벤트 콜백 (ReAct 계획 단계)
+    const onPlan = (content) => {
+      if (checkConnection()) {
+        emitSseEvent(res, 'plan', { content }, logger);
+      }
+    };
+
+    // tool_use 시작 콜백 (1:1 페어링 타이밍 추적)
+    const onToolUseStart = ({ tool_use_id, name, input } = {}) => {
+      if (!tool_use_id) {
+        logger?.warn('onToolUseStart: missing tool_use_id, skipping');
+        return;
+      }
+      toolUseTimings.set(tool_use_id, Date.now());
+      if (checkConnection()) {
+        emitSseEvent(res, 'tool_use_start', { tool_use_id, name, input }, logger);
+      }
+    };
+
+    // tool_use 결과 콜백 (duration 포함)
+    const onToolUseResult = ({ tool_use_id, content, isError }) => {
+      const startTime = toolUseTimings.get(tool_use_id);
+      const duration = startTime !== undefined ? Date.now() - startTime : null;
+      toolUseTimings.delete(tool_use_id);
+      if (checkConnection()) {
+        emitSseEvent(res, 'tool_use_result', { tool_use_id, content, isError, duration }, logger);
+      }
+    };
+
+    // Citation 이벤트 콜백 ({citationId, quote ≤ 50자, path:line})
+    const onCitation = ({ citationId, quote, path: docPath, line }) => {
+      if (checkConnection()) {
+        // path traversal 정규화 (H-4: 클라이언트 노출 전 sanitize)
+        const docsRoot = req.app.locals.config?.docsRoot || '';
+        let safePath = docPath || '';
+        if (docsRoot && safePath.startsWith(docsRoot)) {
+          safePath = path.relative(docsRoot, safePath).replace(/\\/g, '/');
+        } else {
+          safePath = safePath.replace(/\.\.[/\\]/g, '').replace(/^[/\\]/, '');
+        }
+        emitSseEvent(res, 'citation', {
+          citationId,
+          quote: quote && quote.length > 50 ? quote.slice(0, 50) : quote,
+          path: safePath,
+          line
+        }, logger);
+      }
+    };
+
+    // 평가 이벤트 콜백
+    const onEvaluation = (evaluation) => {
+      if (checkConnection()) {
+        emitSseEvent(res, 'evaluation', evaluation, logger);
       }
     };
 
@@ -177,20 +260,25 @@ async function chat(req, res, next) {
       onStep,
       onRetrieval,
       onThinking,
-      onToken
+      onToken,
+      onPlan,
+      onToolUseStart,
+      onToolUseResult,
+      onCitation,
+      onEvaluation
     });
 
     const duration = Date.now() - startTime;
     logger?.info(`Chat workflow completed in ${duration}ms, socketOK=${checkConnection()}`);
 
     // 완료 이벤트 - always try to send regardless of connection status check
-    logger?.info(`Attempting to send done event...`);
-    const doneSent = sendSSE(res, "done", {
+    logger?.info(`Attempting to send end event...`);
+    const doneSent = emitSseEvent(res, "end", {
       threadId: sessionId,
       duration,
       thinkingMode
     }, logger);
-    logger?.info(`Done event send result: ${doneSent}`);
+    logger?.info(`End event send result: ${doneSent}`);
 
     logger?.info(`Chat completed: session=${sessionId}, duration=${duration}ms`);
 
@@ -198,12 +286,13 @@ async function chat(req, res, next) {
     logger?.error("Chat error:", error);
 
     if (checkConnection()) {
-      sendSSE(res, "error", {
+      emitSseEvent(res, 'error', {
         message: error.message || "An error occurred",
         code: error.code || "CHAT_ERROR"
       }, logger);
     }
   } finally {
+    toolUseTimings.clear();
     if (checkConnection()) {
       res.end();
     }
@@ -375,5 +464,7 @@ module.exports = {
   getStatus,
   createSession,
   sendSSE,
-  setupSSEHeaders
+  setupSSEHeaders,
+  emitSseEvent,
+  SSE_EVENT_TYPES
 };

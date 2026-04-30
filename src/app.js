@@ -509,6 +509,12 @@ async function start(options = {}) {
       logger.warn('Failed to initialize ProjectResolverService', { error: e.message });
     }
 
+    // Attach app.locals to chatbot service for agentic-mode tool execution
+    // (chatbot tools call MCP handlers that read req.app.locals).
+    if (app.locals.chatbotService && typeof app.locals.chatbotService.attachRuntimeContext === 'function') {
+      app.locals.chatbotService.attachRuntimeContext(app.locals);
+    }
+
     // Ensure MCP router is mounted once
     if (!app.locals.mcpMounted) {
       app.use(createMcpRouter());

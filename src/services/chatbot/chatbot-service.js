@@ -19,6 +19,8 @@ const {
   createSelfCorrectingGraph,
   ConversationManager
 } = require("./workflow");
+const { createAgenticGraph } = require("./workflow/agentic-graph");
+const { buildAgenticTools } = require("./agentic-tools");
 
 /**
  * 챗봇 서비스 클래스
@@ -40,14 +42,15 @@ class ChatbotService {
     this.graph = null;
     this.thinkingGraph = null;
     this.selfCorrectingGraph = null;  // Step 16: Self-Correcting RAG
+    this.agenticGraph = null;         // FR-14: Feature Flag B — Agentic graph
     this.docWatcher = null;
 
     // 세션 관리
     this.sessions = new Map();
     this.conversationManager = null;
 
-    // 동시성 제어를 위한 락 (60초 타임아웃)
-    this.sessionLock = new AsyncLock({ timeout: 60000 });
+    // 동시성 제어를 위한 락 (90초 타임아웃)
+    this.sessionLock = new AsyncLock({ timeout: 90000 });
 
     // 상태
     this.isInitialized = false;
@@ -148,6 +151,34 @@ class ChatbotService {
           config: this.config,
           logger: this.logger
         });
+      }
+
+      // 5.6 Agentic 그래프 생성 (FR-14: agenticMode=B)
+      // warnOnAuto=true: 'auto' 폴백 경고는 부팅 시 1회만 emit
+      const agenticMode = this._resolveAgenticMode(chatbotConfig.agenticMode, true);
+      if (agenticMode === "B") {
+        this.logger?.debug("Creating Agentic (B) graph...");
+        // thread_id 별 토큰 콜백 레지스트리 (finalize 노드 스트리밍용)
+        this.streamCallbacks = new Map();
+        // app.locals 호환 컨텍스트 — app.js에서 attachRuntimeContext()로 주입.
+        // 빌드 시점엔 vectorStoreManager만 셀프 보유, projectResolver 등은 후속 attach.
+        this.runtimeContext = { vectorStoreManager: this.vectorStoreManager };
+        // MCP 도구를 agentic 그래프 호환 형식으로 변환하여 등록.
+        const agenticTools = buildAgenticTools({
+          config: this.config,
+          logger: this.logger,
+          getRuntimeContext: () => this.runtimeContext,
+        });
+        this.logger?.info(`Agentic tools registered: ${agenticTools.length} tools`);
+        this.agenticGraph = createAgenticGraph({
+          llm: this.llm,
+          tools: agenticTools,
+          retriever,
+          config: this.config,
+          logger: this.logger,
+          streamCallbacks: this.streamCallbacks,
+        });
+        this.logger?.info("Agentic graph (agenticMode=B) initialized");
       }
 
       // 6. ConversationManager 초기화
@@ -276,16 +307,58 @@ class ChatbotService {
   }
 
   /**
+   * 외부 런타임 컨텍스트(app.locals)를 도구 호출용으로 등록.
+   * MCP 핸들러(`smart_search`, `resolve_project` 등)가 `req.app.locals`의 객체를 참조하므로
+   * agentic 그래프 빌드 후 app.js에서 호출하여 의존성을 주입.
+   *
+   * @param {object} appLocals - Express app.locals 또는 호환 객체
+   *   ({ vectorStoreManager?, projectResolver?, stores?, chatbotService?, ... })
+   */
+  attachRuntimeContext(appLocals) {
+    if (!appLocals || typeof appLocals !== 'object') return;
+    // 자체 vectorStoreManager는 우선순위 유지, 나머지는 외부값으로 채움.
+    this.runtimeContext = {
+      ...appLocals,
+      vectorStoreManager: this.vectorStoreManager || appLocals.vectorStoreManager,
+    };
+    this.logger?.debug?.('ChatbotService runtime context attached');
+  }
+
+  /**
+   * agenticMode 설정값을 정규화하여 반환.
+   * 'auto'는 Phase 1에서 FR-7 라우팅 휴리스틱 미구현으로 'A' 폴백.
+   * warn 로그는 호출자(initialize)에서 1회만 emit — 세션 생성마다 반복 금지.
+   * @param {string} [raw]
+   * @param {boolean} [warnOnAuto=false]
+   * @returns {'A'|'B'}
+   */
+  _resolveAgenticMode(raw, warnOnAuto = false) {
+    const mode = (raw || "A").toUpperCase();
+    if (mode === "B") return "B";
+    if (mode === "AUTO") {
+      if (warnOnAuto) {
+        // FR-7 라우팅 휴리스틱은 Phase 3(TASK-P3-002)에서 구현. Phase 1에서는 'A'로 폴백.
+        this.logger?.warn("agenticMode=auto: FR-7 routing heuristic not yet available (Phase 1). Falling back to 'A'.");
+      }
+      return "A";
+    }
+    return "A";
+  }
+
+  /**
    * 새 세션 생성
    * @returns {string} 세션 ID
    */
   createSession() {
     const sessionId = crypto.randomUUID();
+    // Δ-9: agenticMode는 세션 생성 시점에 고정. 이후 config 변경은 새 세션부터 반영.
+    const agenticMode = this._resolveAgenticMode(this.config.chatbot?.agenticMode);
     this.sessions.set(sessionId, {
       createdAt: new Date(),
       lastUpdatedAt: new Date(),
       messages: [],
-      summary: ""
+      summary: "",
+      agenticMode
     });
     return sessionId;
   }
@@ -346,10 +419,19 @@ class ChatbotService {
         thinkingMode
       };
 
-      // 그래프 선택 (Self-Correcting > Thinking > 기본)
+      // 그래프 선택 (Agentic B > Self-Correcting > Thinking > 기본)
       const selfCorrectionEnabled = selfCorrectionConfig.enabled !== false;
+      // Δ-9: 세션 생성 시점에 고정된 agenticMode 사용. 런타임 config 변경 무시.
+      const agenticMode = session.agenticMode || "A";
+      const currentConfigMode = this._resolveAgenticMode(this.config.chatbot?.agenticMode);
+      if (agenticMode !== currentConfigMode) {
+        this.logger?.warn(`Session ${sessionId} is using agenticMode=${agenticMode} (locked at session creation). Config now shows ${currentConfigMode}. Will apply to new sessions only.`);
+      }
       let graph;
-      if (selfCorrectionEnabled && this.selfCorrectingGraph && !thinkingMode) {
+      if (agenticMode === "B" && this.agenticGraph) {
+        graph = this.agenticGraph;
+        this.logger?.debug("Using Agentic (B) graph");
+      } else if (selfCorrectionEnabled && this.selfCorrectingGraph && !thinkingMode) {
         graph = this.selfCorrectingGraph;
         this.logger?.debug("Using Self-Correcting RAG graph");
       } else if (thinkingMode) {
@@ -360,7 +442,20 @@ class ChatbotService {
         this.logger?.debug("Using standard graph");
       }
 
+      // agentic 그래프의 finalize 노드가 토큰 단위 스트리밍을 지원.
+      // 등록된 onToken은 매 청크마다 누적된 content 전체를 받음 (클라이언트 누적 덮어쓰기 호환).
+      // 동시성 안전: 동일 sessionId의 중첩 호출은 sessionLock(line 368)이 직렬화하므로
+      // streamCallbacks.set이 활성 콜백을 덮어쓰지 않음.
+      const agenticStreamingActive =
+        agenticMode === "B" && this.agenticGraph && typeof onToken === "function" && this.streamCallbacks;
+
       try {
+        if (agenticStreamingActive) {
+          if (this.streamCallbacks.has(sessionId)) {
+            this.logger?.warn(`Stale streamCallback for session ${sessionId} — overwriting`);
+          }
+          this.streamCallbacks.set(sessionId, onToken);
+        }
         onStep?.("classifyQuery", "Analyzing your question...");
 
         // 그래프 스트리밍 실행
@@ -412,12 +507,15 @@ class ChatbotService {
           // 최종 응답은 스트림 완료 후 finalState에서 전송
         }
 
-        // 스트림 완료 후 최종 응답만 전송 (중간 답변 제외)
+        // 스트림 완료 후 최종 응답 전송.
+        // agentic streaming이 활성이면 finalize 노드가 이미 토큰별 onToken을 호출했으므로 중복 발송 회피.
         if (finalState && finalState.messages && finalState.messages.length > 0) {
           const lastMessage = finalState.messages[finalState.messages.length - 1];
           if (lastMessage instanceof AIMessage) {
             this.logger?.info(`Sending final AI response: ${lastMessage.content?.substring(0, 50)}...`);
-            onToken?.(lastMessage.content);
+            if (!agenticStreamingActive) {
+              onToken?.(lastMessage.content);
+            }
           }
         }
 
@@ -452,6 +550,14 @@ class ChatbotService {
       } catch (error) {
         this.logger?.error(`Chat error for session ${sessionId}:`, error);
         throw error;
+      } finally {
+        if (agenticStreamingActive) {
+          this.streamCallbacks.delete(sessionId);
+        }
+        // M3: 에러 경로에서도 BudgetController 누수 방지 (정상 경로는 finalize 노드가 이미 정리)
+        if (agenticMode === "B" && this.agenticGraph && typeof this.agenticGraph.cleanupThread === "function") {
+          try { this.agenticGraph.cleanupThread(sessionId); } catch (_) { /* swallow */ }
+        }
       }
     });
   }

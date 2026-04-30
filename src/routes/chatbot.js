@@ -8,6 +8,7 @@
 const express = require("express");
 const router = express.Router();
 const chatbotController = require("../controllers/chatbot-controller");
+const { chatbotRateLimiter } = require("../middleware/chatbot-rate-limiter");
 
 /**
  * POST /api/chatbot/chat
@@ -20,16 +21,22 @@ const chatbotController = require("../controllers/chatbot-controller");
  *   thinkingMode: boolean (optional) - Thinking 모드 활성화
  * }
  *
- * Response: SSE stream
+ * Response: SSE stream (9종 정규화 이벤트 — FR-11)
  * Events:
- *   - step: 워크플로우 단계 진행
- *   - retrieval: 검색 결과 정보
- *   - thinking: Thinking 모드 중간 결과
+ *   - plan: ReAct 계획 단계 출력
+ *   - tool_use_start: 도구 호출 시작 (tool_use_id, name, input)
+ *   - tool_use_result: 도구 호출 결과 (tool_use_id, content, isError, duration)
+ *   - citation: 인용 마커 (citationId, quote ≤ 50자, path, line)
  *   - token: 응답 토큰 스트리밍
- *   - done: 완료
  *   - error: 에러
+ *   - end: 완료 (threadId, duration, thinkingMode)
+ *   - retrieval: 검색 결과 정보
+ *   - evaluation: 응답 평가 결과
+ * Legacy (non-normalized):
+ *   - step: 워크플로우 단계 진행
+ *   - thinking: Thinking 모드 중간 결과
  */
-router.post("/chat", chatbotController.chat);
+router.post("/chat", chatbotRateLimiter, chatbotController.chat);
 
 /**
  * GET /api/chatbot/history/:threadId

@@ -275,4 +275,109 @@ const ChatbotAnnotation = Annotation.Root({
   }),
 });
 
-module.exports = { ChatbotAnnotation };
+// === Agentic Graph State (FR-1, TASK-P1-001) ===
+
+const AgenticAnnotation = Annotation.Root({
+  // 대화 메시지 히스토리 (tool_use / tool_result 포함)
+  messages: Annotation({
+    reducer: messagesStateReducer,
+    default: () => [],
+  }),
+
+  // LLM이 선택한 미처리 tool_use 블록 목록 (tool_call 노드 진입 전 대기)
+  // Schema: Array<{ id: string, name: string, input: object }>
+  agenticToolCalls: Annotation({
+    reducer: (_, action) => action,
+    default: () => [],
+  }),
+
+  // ReAct 루프 반복 횟수 — Reflexion 트리거 기준(iter ≥ 4) + 예산 제어 기준
+  iteration: Annotation({
+    reducer: (_, action) => action,
+    default: () => 0,
+  }),
+
+  // Reflexion self-critique 활성 여부 (self_check → reflexion 진입 시 true)
+  reflexion_active: Annotation({
+    reducer: (_, action) => action,
+    default: () => false,
+  }),
+
+  // 최대 반복 예산 (TASK-P1-004 BudgetController 확장 지점)
+  thinking_budget: Annotation({
+    reducer: (_, action) => action,
+    default: () => 10,
+  }),
+
+  // 중복 도구 호출 방지 해시 테이블 (SHA-1(name+args) → true)
+  // TASK-P1-004에서 BudgetController가 채움 — LangGraph 직렬화를 위해 object 사용
+  dedup_hashes: Annotation({
+    reducer: (_, action) => action,
+    default: () => ({}),
+  }),
+
+  // 명시적 종료 신호 (finalize 노드 진입 조건)
+  agenticDone: Annotation({
+    reducer: (_, action) => action,
+    default: () => false,
+  }),
+
+  // === Double-Check 상태 (FR-5, TASK-P2-001) ===
+
+  // 현재까지 수집된 비-에러 도구 결과 수 (인용 근거 카운트 근사)
+  citation_count: Annotation({
+    reducer: (_, action) => action,
+    default: () => 0,
+  }),
+
+  // self_check 품질 점수 (0.0~1.0). 기본 1.0 (불이익 없음).
+  // no-progress 감지 시 낮게 설정.
+  self_check_score: Annotation({
+    reducer: (_, action) => action,
+    default: () => 1.0,
+  }),
+
+  // 마지막으로 호출된 도구 이름 (double-check 시 차단 대상 결정)
+  last_tool_name: Annotation({
+    reducer: (_, action) => action,
+    default: () => "",
+  }),
+
+  // double-check 이미 실행됨 (무한 루프 방지)
+  double_check_triggered: Annotation({
+    reducer: (_, action) => action,
+    default: () => false,
+  }),
+
+  // === Routing Heuristic 결과 (FR-7, TASK-P3-002) ===
+
+  // 라우팅 휴리스틱이 제안한 첫 도구 후보 (0~3개, internal name 목록)
+  heuristicHints: Annotation({
+    reducer: (_, action) => action,
+    default: () => [],
+  }),
+
+  // === 한정 답변 모드 (FR-9, TASK-P3-003) ===
+
+  // 한정 답변 모드 이미 실행됨 (idempotent 보장)
+  limited_mode_triggered: Annotation({
+    reducer: (_, action) => action,
+    default: () => false,
+  }),
+
+  // === Pre-flight Query Classification (chitchat fast-path) ===
+
+  // 질의 분류 결과: "question" | "summary" | "chitchat" | "unknown"
+  queryType: Annotation({
+    reducer: (_, action) => action,
+    default: () => "unknown",
+  }),
+
+  // 분류 신뢰도 (0.0~1.0)
+  confidence: Annotation({
+    reducer: (_, action) => action,
+    default: () => 0,
+  }),
+});
+
+module.exports = { ChatbotAnnotation, AgenticAnnotation };

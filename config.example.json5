@@ -419,6 +419,11 @@
   //     keepAliveInterval: 30000
   //   },
   //
+  //   // Feature Flag A/B: Agentic graph routing (FR-14)
+  //   // "A" (default): Standard RAG graph (현행 동작 유지)
+  //   // "B": Agentic ReAct+Reflexion graph (LangGraph 기반 에이전틱 모드)
+  //   // agenticMode: "A",
+  //
   //   // Custom system prompt (optional)
   //   // Leave empty to use default RAG prompt
   //   systemPrompt: ""

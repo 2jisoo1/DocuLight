@@ -1,16 +1,4 @@
 const express = require('express');
-const path = require('path');
-const { getTreeData, getFullTreeData } = require('../services/tree-service');
-const { getRawContent, uploadFileData, deleteEntryData } = require('../services/file-service');
-const { getConfig } = require('../services/config-service');
-const { searchDocuments } = require('../services/search-service');
-const { QueryDocumentService } = require('../services/mcp/query-document-service');
-const { SummarizeDocumentService } = require('../services/mcp/summarize-document-service');
-const { SmartSearchService } = require('../services/mcp/smart-search-service');
-const { ProjectResolverService } = require('../services/mcp/project-resolver-service');
-const { CodeBlockExtractorService } = require('../services/mcp/code-block-extractor');
-const { validatePath } = require('../utils/path-validator');
-const { notifyAdd, notifyBatchRemove, collectMdFiles } = require('../utils/embedding-notifier');
 
 /**
  * MCP over HTTP (JSON-RPC 2.0)
@@ -331,6 +319,7 @@ function buildTools(prefix) {
 
 const crypto = require('crypto');
 const activityLogger = require('../utils/activity-logger');
+const handlers = require('../services/agent-tools/handlers');
 
 /**
  * Check if tool requires write authentication
@@ -410,7 +399,6 @@ async function executeTool(config, logger, name, args, req, prefix) {
     if (!authResult.valid) {
       throw new Error(`UNAUTHORIZED: ${authResult.error}`);
     }
-    // Check write permission if user info available
     if (authResult.user && authResult.user.permissions) {
       const { hasPermission } = require('../middleware/auth');
       if (!hasPermission(authResult.user.permissions, 'write')) {
@@ -419,336 +407,14 @@ async function executeTool(config, logger, name, args, req, prefix) {
     }
   }
 
-  switch (name) {
-    case 'list_documents': {
-      const useDisplayName = args.useDisplayName === true;
-      const result = await getTreeData(config, logger, args.path || '/', { useDisplayName });
-
-      // Format as text
-      let output = '';
-      if (result.dirs && result.dirs.length > 0) {
-        for (const dir of result.dirs) {
-          output += `📁 ${dir.name}/\n`;
-        }
-      }
-      if (result.files && result.files.length > 0) {
-        for (const file of result.files) {
-          if (useDisplayName && file.displayName) {
-            output += `📄 ${file.displayName} (${file.name})\n`;
-          } else {
-            output += `📄 ${file.name}\n`;
-          }
-        }
-      }
-      if (!output) {
-        output = '(Empty directory)';
-      }
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `# Documents at ${result.path}\n\n${output}`
-          }
-        ]
-      };
-    }
-
-    case 'list_full_tree': {
-      const startPath = args.path || '/';
-      const useDisplayName = args.useDisplayName === true;
-      const result = await getFullTreeData(config, logger, startPath, { maxDepth: args.maxDepth, useDisplayName });
-
-      // 포맷 함수
-      function formatTree(node, indent = '') {
-        let lines = [];
-        for (const dir of node.dirs) {
-          lines.push(`${indent}📁 ${dir.name}/`);
-          lines = lines.concat(formatTree(dir, indent + '  '));
-        }
-        for (const file of node.files) {
-          if (useDisplayName && file.displayName) {
-            lines.push(`${indent}📄 ${file.displayName} (${file.name})`);
-          } else {
-            lines.push(`${indent}📄 ${file.name}`);
-          }
-        }
-        return lines;
-      }
-
-      const lines = formatTree(result.root);
-      // 대규모 트리 출력 제한 (안전장치)
-      //const MAX_LINES = 5000;
-      let outputText;
-      //if (lines.length > MAX_LINES) {
-      //  outputText = lines.slice(0, MAX_LINES).join('\n') + `\n... (truncated ${lines.length - MAX_LINES} more lines)`;
-      //} else {
-        outputText = lines.join('\n');
-      //}
-
-      const header = `# Full Tree at ${result.startPath}\n\n` +
-        `Stats: Directories=${result.stats.totalDirs}, Files=${result.stats.totalFiles}` +
-        (typeof args.maxDepth === 'number' ? `, MaxDepth=${args.maxDepth}` : '') + '\n\n';
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: header + outputText
-          }
-        ]
-      };
-    }
-
-    case 'read_document': {
-      const content = await getRawContent(config, logger, args.path);
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `# ${args.path}\n\n${content}`
-          }
-        ]
-      };
-    }
-
-    case 'create_document': {
-      // Extract filename and directory
-      const pathParts = args.path.split('/').filter(p => p);
-      const filename = pathParts.pop();
-      const dirPath = pathParts.join('/');
-
-      const buffer = Buffer.from(args.content, 'utf-8');
-      await uploadFileData(config, logger, dirPath, buffer, filename);
-
-      // Embedding notification (fire-and-forget)
-      const { chatbotService } = req.app.locals;
-      const targetDir = validatePath(config.docsRoot, dirPath || '/');
-      notifyAdd(chatbotService, logger, path.join(targetDir, filename));
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Successfully created/updated: ${args.path}`
-          }
-        ]
-      };
-    }
-
-    case 'delete_document': {
-      // Collect .md paths before deletion for embedding notification
-      const { chatbotService: delChatbot } = req.app.locals;
-      const delAbsPath = validatePath(config.docsRoot, args.path);
-      const mdFiles = delChatbot ? await collectMdFiles(delAbsPath) : [];
-
-      await deleteEntryData(config, logger, args.path);
-
-      // Embedding notification (fire-and-forget)
-      notifyBatchRemove(delChatbot, logger, mdFiles);
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Successfully deleted: ${args.path}`
-          }
-        ]
-      };
-    }
-
-    case prefix + '_get_config': {
-      const configResult = await getConfig(config, logger, args.section || 'all');
-
-      // JSON 포맷으로 출력
-      let output = JSON.stringify(configResult, null, 2);
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `# Configuration (section: ${args.section || 'all'})\n\n\`\`\`json\n${output}\n\`\`\``
-          }
-        ]
-      };
-    }
-
-    case prefix + '_search': {
-      const searchMode = args.mode || 'snippets';
-      const searchResult = await searchDocuments(
-        config,
-        logger,
-        args.query,
-        {
-          limit: args.limit || 10,
-          path: args.path || '/',
-          mode: searchMode
-        }
-      );
-
-      // 결과 포맷팅 (모드별)
-      let output = `# Search Results for "${searchResult.query}"\n\n`;
-      output += `**Mode**: ${searchResult.mode}\n`;
-      output += `**Statistics**: ${searchResult.total} matches in ${searchResult.filesScanned} files scanned (${searchResult.duration})\n\n`;
-
-      if (searchResult.results.length === 0) {
-        output += '(No matches found)';
-      } else if (searchResult.mode === 'titles_only') {
-        // Minimal format: file list with titles
-        for (let i = 0; i < searchResult.results.length; i++) {
-          const fileResult = searchResult.results[i];
-          output += `${i + 1}. ${fileResult.path} - "${fileResult.title}"\n`;
-        }
-      } else if (searchResult.mode === 'full_context') {
-        // Detailed format: full sections
-        for (let i = 0; i < searchResult.results.length; i++) {
-          const fileResult = searchResult.results[i];
-          output += `## ${i + 1}. ${fileResult.path}\n\n`;
-          output += `**Title**: ${fileResult.title}\n\n`;
-
-          if (fileResult.sections && fileResult.sections.length > 0) {
-            for (const section of fileResult.sections) {
-              if (section.heading) {
-                output += `${section.heading}\n\n`;
-              }
-              // Remove heading from content if present
-              const content = section.heading
-                ? section.content.replace(section.heading, '').trim()
-                : section.content;
-              output += `${content}\n\n`;
-            }
-          }
-          output += '---\n\n';
-        }
-      } else {
-        // snippets (default): existing format
-        for (let i = 0; i < searchResult.results.length; i++) {
-          const fileResult = searchResult.results[i];
-          output += `## ${i + 1}. ${fileResult.path}\n\n`;
-
-          for (const match of fileResult.matches) {
-            output += `**Line ${match.line}**: ${match.content}\n\n`;
-            output += '```\n' + match.context + '\n```\n\n';
-          }
-        }
-      }
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: output
-          }
-        ]
-      };
-    }
-
-    case 'query_document': {
-      const queryService = new QueryDocumentService(config, logger);
-      const result = await queryService.queryDocument(
-        args.path,
-        args.query,
-        { maxTokens: args.maxTokens || 2000 }
-      );
-
-      const output = queryService.formatAsMarkdown(result);
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: output
-          }
-        ]
-      };
-    }
-
-    case 'summarize_document': {
-      const summarizeService = new SummarizeDocumentService(config, logger);
-      const summary = await summarizeService.summarizeDocument(args.path);
-      const output = summarizeService.formatAsMarkdown(summary);
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: output
-          }
-        ]
-      };
-    }
-
-    case prefix + '_smart_search': {
-      const smartSearchService = new SmartSearchService(config, logger);
-      // app.locals에서 vectorStoreManager 참조
-      smartSearchService.initialize(req.app.locals);
-
-      const result = await smartSearchService.smartSearch(args.query, {
-        path: args.path || '/',
-        mode: args.mode || 'auto',
-        maxTokens: args.maxTokens || 2000,
-        limit: args.limit || 5
-      });
-
-      const output = smartSearchService.formatAsMarkdown(result);
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: output
-          }
-        ]
-      };
-    }
-
-    case 'resolve_project': {
-      const resolver = req.app.locals.projectResolver;
-      if (!resolver) {
-        throw new Error('Project resolver not initialized');
-      }
-
-      const results = resolver.resolve(args.name, {
-        limit: args.limit || 5,
-        version: args.version || null
-      });
-
-      const output = resolver.formatAsMarkdown(args.name, results, { prefix });
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: output
-          }
-        ]
-      };
-    }
-
-    case 'query_code_examples': {
-      const extractor = new CodeBlockExtractorService(config, logger);
-      const results = await extractor.extract(args.query, {
-        path: args.path || '/',
-        language: args.language || null,
-        maxTokens: args.maxTokens || 3000,
-        limit: args.limit || 10
-      });
-
-      const output = extractor.formatAsMarkdown(args.query, results);
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: output
-          }
-        ]
-      };
-    }
-
-    default:
-      throw new Error(`Unknown tool: ${name}`);
+  // Resolve handler: strip dynamic prefix for prefix-based tools
+  const handlerKey = name.startsWith(prefix + '_') ? name.slice(prefix.length + 1) : name;
+  const handler = handlers[handlerKey];
+  if (!handler) {
+    throw new Error(`Unknown tool: ${name}`);
   }
+
+  return handler(config, logger, args, req, prefix);
 }
 
 /**
@@ -864,3 +530,5 @@ function createMcpRouter() {
 }
 
 module.exports = createMcpRouter;
+module.exports.buildTools = buildTools;
+module.exports.sanitizeForToolName = sanitizeForToolName;

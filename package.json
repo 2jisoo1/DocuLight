@@ -6,10 +6,11 @@
   "scripts": {
     "start": "node src/app.js",
     "dev": "cross-env HOST=0.0.0.0 nodemon src/app.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node scripts/run-tests.js",
     "test:startstop": "node test/test-start-stop.js",
     "test:watcher": "node test/test-watcher-restart.js",
-    "reset-admin": "node scripts/reset-admin.js"
+    "reset-admin": "node scripts/reset-admin.js",
+    "lint": "eslint --quiet src/ scripts/ test/"
   },
   "keywords": [
     "markdown",
@@ -52,11 +53,13 @@
     "zod": "^3.25.76"
   },
   "optionalDependencies": {
+    "better-sqlite3": "^12.9.0",
     "chokidar": "^3.5.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",
     "cross-env": "^7.0.3",
+    "eslint": "^8.57.1",
     "nodemon": "^3.0.2",
     "playwright": "^1.56.1"
   },

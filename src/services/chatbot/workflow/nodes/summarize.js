@@ -8,6 +8,7 @@
 const { HumanMessage } = require("@langchain/core/messages");
 const { SUMMARIZE_CONVERSATION_PROMPT } = require("../prompts");
 const { estimateTokens } = require("../../token-estimator");
+const { MultiTurnMemory } = require("../../multi-turn-memory");
 
 /**
  * 대화 히스토리 요약 노드
@@ -145,8 +146,29 @@ function needsSummarization(state, config = {}) {
   return currentTokens > thresholdTokens;
 }
 
+/**
+ * 이전 대화 턴 요약 (FR-18, TASK-P2-005).
+ * MultiTurnMemory의 얇은 래퍼 — 단발 호출용, prefetch 미지원.
+ * prefetch(zero-latency) 기능이 필요하면 MultiTurnMemory 인스턴스를 직접 사용할 것.
+ *
+ * @param {Array} messages - 대화 메시지 배열
+ * @param {object} opts
+ * @param {object} opts.llm - LLM 인스턴스
+ * @param {string} [opts.provider='']
+ * @param {number} [opts.maxLines=5]
+ * @param {number} [opts.maxTokens=200]
+ * @returns {Promise<string>}
+ */
+async function summarizePreviousTurns(messages, opts = {}) {
+  const { llm, provider = '', maxLines = 5, maxTokens = 200 } = opts;
+  if (!llm) throw new Error('summarizePreviousTurns: llm is required');
+  const mem = new MultiTurnMemory({ llm, provider });
+  return mem.summarizePreviousTurns(messages, { maxLines, maxTokens });
+}
+
 module.exports = {
   summarizeHistory,
   checkContextSize,
-  needsSummarization
+  needsSummarization,
+  summarizePreviousTurns,
 };

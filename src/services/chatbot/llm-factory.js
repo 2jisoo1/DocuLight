@@ -10,6 +10,7 @@
 
 const { ChatOpenAI, AzureChatOpenAI } = require("@langchain/openai");
 const { ChatOllama } = require("@langchain/ollama");
+const { createLLMWithFallback: _createLLMWithFallback } = require('./llm-fallback');
 
 /**
  * LLM 설정 오류
@@ -104,9 +105,29 @@ function createLLM(config) {
         temperature,
       });
 
+    case 'anthropic': {
+      if (!apiKey || !model) {
+        throw new LLMConfigError('Anthropic requires: apiKey, model');
+      }
+      let ChatAnthropic;
+      try {
+        ({ ChatAnthropic } = require('@langchain/anthropic'));
+      } catch (_) {
+        throw new LLMConfigError(
+          'Anthropic provider requires @langchain/anthropic: npm install @langchain/anthropic'
+        );
+      }
+      return new ChatAnthropic({
+        model,
+        anthropicApiKey: apiKey,
+        temperature,
+        maxTokens,
+      });
+    }
+
     default:
       throw new LLMConfigError(
-        `Unsupported LLM type: ${type}. Supported types: openai, azure-openai, ollama`
+        `Unsupported LLM type: ${type}. Supported types: openai, azure-openai, ollama, anthropic`
       );
   }
 }
@@ -127,11 +148,12 @@ function validateLLMConfig(config) {
 
   if (!type) {
     errors.push('llm.type is required');
-  } else if (!['openai', 'azure-openai', 'ollama'].includes(type)) {
-    errors.push(`Invalid llm.type: ${type}. Must be one of: openai, azure-openai, ollama`);
+  } else if (!['openai', 'azure-openai', 'ollama', 'anthropic'].includes(type)) {
+    errors.push(`Invalid llm.type: ${type}. Must be one of: openai, azure-openai, ollama, anthropic`);
   }
 
-  if (!endpoint) {
+  // Anthropic uses the default API endpoint; others require explicit endpoint
+  if (type !== 'anthropic' && !endpoint) {
     errors.push('llm.endpoint is required');
   }
 
@@ -139,9 +161,9 @@ function validateLLMConfig(config) {
     errors.push('llm.model is required');
   }
 
-  // OpenAI, Azure는 apiKey 필수
-  if (type !== 'ollama' && !apiKey) {
-    errors.push('llm.apiKey is required for openai/azure-openai');
+  // OpenAI, Azure, Anthropic은 apiKey 필수
+  if (!['ollama'].includes(type) && !apiKey) {
+    errors.push('llm.apiKey is required for openai/azure-openai/anthropic');
   }
 
   // Azure 전용 필드
@@ -155,8 +177,28 @@ function validateLLMConfig(config) {
   };
 }
 
+/**
+ * 설정 객체를 받아 재시도+폴백 체인 Runnable을 반환한다.
+ * @param {Object} primaryConfig - 주 LLM 설정 (createLLM 형식)
+ * @param {Array<Object>} [fallbackConfigs=[]] - 폴백 LLM 설정 목록
+ * @param {Object} [options={}] - createLLMWithFallback 옵션
+ * @returns {{ invoke: Function, retries: number, fallbackCount: number }}
+ */
+function createLLMWithFallback(primaryConfig, fallbackConfigs = [], options = {}) {
+  const primary = createLLM(primaryConfig);
+  const fallbacks = fallbackConfigs.map((cfg, i) => {
+    try {
+      return createLLM(cfg);
+    } catch (err) {
+      throw new LLMConfigError(`fallback[${i}]: ${err.message}`);
+    }
+  });
+  return _createLLMWithFallback(primary, fallbacks, options);
+}
+
 module.exports = {
   createLLM,
   validateLLMConfig,
-  LLMConfigError
+  LLMConfigError,
+  createLLMWithFallback,
 };

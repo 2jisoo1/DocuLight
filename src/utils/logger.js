@@ -3,10 +3,20 @@ const DailyRotateFile = require('winston-daily-rotate-file');
 const fs = require('fs');
 const path = require('path');
 
+// Three JSONL channels: app (text+file), metrics (JSONL), audit (JSONL)
+const JSONL_CHANNELS = ['app', 'metrics', 'audit'];
+
+// Shared JSONL format (one JSON object per line)
+const _jsonlFormat = winston.format.combine(
+  winston.format.timestamp({ format: 'YYYY-MM-DDTHH:mm:ss.SSSZ' }),
+  winston.format.errors({ stack: true }),
+  winston.format.json()
+);
+
 /**
- * Create and configure Winston logger
+ * Create and configure Winston logger with 3 JSONL channels
  * @param {Object} config - Configuration object with logDir and logLevel
- * @returns {winston.Logger} Configured logger instance
+ * @returns {winston.Logger} Configured logger instance with .metrics() and .audit() channels
  */
 function createLogger(config) {
   const logFormat = winston.format.combine(
@@ -43,7 +53,7 @@ function createLogger(config) {
     format: logFormat
   });
 
-  // Create logger
+  // Create app logger (channel 1: 'app')
   const logger = winston.createLogger({
     level: config.logLevel || 'info',
     transports: [
@@ -58,6 +68,41 @@ function createLogger(config) {
     ]
   });
 
+  // Channel 2: chatbot metrics JSONL (NFR-6 — neutral field names)
+  const metricsLogger = winston.createLogger({
+    level: 'info',
+    transports: [
+      new DailyRotateFile({
+        filename: 'chatbot-metrics-%DATE%.jsonl',
+        dirname: config.logDir,
+        datePattern: 'YYYYMMDD',
+        maxSize: '10m',
+        maxFiles: '30d',
+        format: _jsonlFormat
+      })
+    ]
+  });
+
+  // Channel 3: agent audit JSONL (NFR-6 — tool call audit trail)
+  const auditLogger = winston.createLogger({
+    level: 'info',
+    transports: [
+      new DailyRotateFile({
+        filename: 'agent-audit-%DATE%.jsonl',
+        dirname: config.logDir,
+        datePattern: 'YYYYMMDD',
+        maxSize: '10m',
+        maxFiles: '30d',
+        format: _jsonlFormat
+      })
+    ]
+  });
+
+  // Attach JSONL channels to the main logger
+  logger.metrics = (data) => metricsLogger.info('metrics', data);
+  logger.audit = (data) => auditLogger.info('audit', data);
+  logger._channels = JSONL_CHANNELS;
+
   // Log initialization
   logger.info('Logger initialized', {
     logDir: config.logDir,
@@ -67,9 +112,14 @@ function createLogger(config) {
 
   // Setup log cleanup if maxDays is configured
   const maxDays = config.log?.maxDays || 30;
-  if (maxDays > 0) {
-    setupLogCleanup(config.logDir, maxDays, logger);
-  }
+  const cleanupInterval = maxDays > 0 ? setupLogCleanup(config.logDir, maxDays, logger) : null;
+
+  // Release all file handles and the cleanup interval
+  logger.destroy = () => {
+    if (cleanupInterval) clearInterval(cleanupInterval);
+    metricsLogger.close();
+    auditLogger.close();
+  };
 
   return logger;
 }
@@ -84,8 +134,8 @@ function setupLogCleanup(logDir, maxDays, logger) {
   // Run cleanup immediately on startup
   deleteOldLogs(logDir, maxDays, logger);
 
-  // Run cleanup every hour
-  setInterval(() => {
+  // Run cleanup every hour; return handle so callers can clearInterval
+  return setInterval(() => {
     deleteOldLogs(logDir, maxDays, logger);
   }, 1000 * 60 * 60); // 1 hour
 }
@@ -113,7 +163,7 @@ function deleteOldLogs(logDir, maxDays, logger) {
         const stats = fs.statSync(filePath);
 
         // Only process log files
-        if (file.endsWith('.log') && stats.isFile()) {
+        if ((file.endsWith('.log') || file.endsWith('.jsonl')) && stats.isFile()) {
           const age = now - stats.mtime.getTime();
 
           if (age > maxAgeMs) {
@@ -142,4 +192,4 @@ function deleteOldLogs(logDir, maxDays, logger) {
   }
 }
 
-module.exports = { createLogger };
+module.exports = { createLogger, JSONL_CHANNELS };

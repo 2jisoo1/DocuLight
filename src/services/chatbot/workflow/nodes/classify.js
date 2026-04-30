@@ -242,4 +242,4 @@ function classifyByKeywords(input) {
   };
 }
 
-module.exports = { classifyQuery, classificationSchema };
+module.exports = { classifyQuery, classifyByKeywords, classificationSchema };
