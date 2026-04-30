@@ -14,7 +14,8 @@ const {
   SUMMARY_PROMPT,
   LOW_RELEVANCE_PROMPT,
   NO_CONTEXT_PROMPT,
-  FAST_GENERATE_PROMPT
+  FAST_GENERATE_PROMPT,
+  withSystemPromptAppend
 } = require("../prompts");
 const { formatRetrievedDocs } = require("./retrieve");
 
@@ -43,7 +44,7 @@ async function generateAnswer(state, { llm, config = {} }) {
     : lastMessage.content;
 
   // 시스템 프롬프트 (설정 또는 기본값)
-  const systemPrompt = config.chatbot?.systemPrompt || SYSTEM_PROMPT;
+  const systemPrompt = withSystemPromptAppend(config.chatbot?.systemPrompt || SYSTEM_PROMPT, config);
 
   try {
     let generatePrompt;
@@ -149,7 +150,7 @@ async function* generateAnswerStream(state, { llm, config = {}, onToken }) {
     ? lastMessage
     : lastMessage.content;
 
-  const systemPrompt = config.chatbot?.systemPrompt || SYSTEM_PROMPT;
+  const systemPrompt = withSystemPromptAppend(config.chatbot?.systemPrompt || SYSTEM_PROMPT, config);
 
   // 대화 히스토리 구성 (마지막 메시지 제외, 최대 10개)
   const historyMessages = messages.slice(0, -1).slice(-10);
@@ -249,7 +250,7 @@ async function generateWithLowRelevance(state, { llm, config = {} }) {
     ? lastMessage
     : lastMessage.content;
 
-  const systemPrompt = config.chatbot?.systemPrompt || SYSTEM_PROMPT;
+  const systemPrompt = withSystemPromptAppend(config.chatbot?.systemPrompt || SYSTEM_PROMPT, config);
 
   try {
     // 상위 3개 문서만 사용
@@ -320,7 +321,7 @@ async function generateNoContext(state, { llm, config = {} }) {
     })
     .join("\n");
 
-  const systemPrompt = config.chatbot?.systemPrompt || SYSTEM_PROMPT;
+  const systemPrompt = withSystemPromptAppend(config.chatbot?.systemPrompt || SYSTEM_PROMPT, config);
 
   try {
     const prompt = NO_CONTEXT_PROMPT
@@ -389,7 +390,7 @@ async function fastGenerate(state, { llm, config = {} }) {
     })
     .join("\n");
 
-  const systemPrompt = config.chatbot?.systemPrompt || SYSTEM_PROMPT;
+  const systemPrompt = withSystemPromptAppend(config.chatbot?.systemPrompt || SYSTEM_PROMPT, config);
 
   try {
     let generatePrompt;

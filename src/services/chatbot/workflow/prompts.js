@@ -615,7 +615,18 @@ EXAMPLES:
 
 Provide ONLY the rewritten question, nothing else:`;
 
+/**
+ * 기본/커스텀 시스템 프롬프트에 사용자 정의 한 줄을 덧붙인다.
+ * config.chatbot.systemPromptAppend 가 비어있으면 base 그대로 반환.
+ */
+function withSystemPromptAppend(base, config) {
+  const append = config?.chatbot?.systemPromptAppend;
+  if (typeof append !== 'string' || append.trim() === '') return base;
+  return `${base}\n\n${append.trim()}`;
+}
+
 module.exports = {
+  withSystemPromptAppend,
   AGENTIC_SYSTEM_PROMPT,
   SYSTEM_PROMPT,
   CLASSIFY_PROMPT,

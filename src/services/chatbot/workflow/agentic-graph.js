@@ -24,7 +24,7 @@ const { BudgetController } = require("../../agent-tools/budget");
 const { trimMessagesPairwise } = require("../../agent-tools/messages-trim");
 const { doubleCheckNode, shouldDoubleCheck } = require("./nodes/double-check");
 const { classifyByKeywords } = require("./nodes/classify");
-const { SYSTEM_PROMPT } = require("./prompts");
+const { SYSTEM_PROMPT, withSystemPromptAppend } = require("./prompts");
 
 /**
  * AIMessage에서 tool_use 블록을 추출.
@@ -165,7 +165,7 @@ function createAgenticGraph({ llm, tools = [], retriever, config = {}, logger, c
   const reflexionEnabled = agenticCfg.reflexionEnabled === true;
   // 시스템 프롬프트: state.messages에 누적하지 않고 LLM invoke 시점에만 첫 위치에 prepend.
   // (OpenAI-호환 LLM은 system을 첫 메시지에만 허용 + checkpointer 오염 방지).
-  const systemPromptText = agenticCfg.systemPrompt || SYSTEM_PROMPT;
+  const systemPromptText = withSystemPromptAppend(agenticCfg.systemPrompt || SYSTEM_PROMPT, config);
   const systemMessage = new SystemMessage(systemPromptText);
   const withSystem = (msgs) => {
     const arr = msgs || [];

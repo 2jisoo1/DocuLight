@@ -341,6 +341,12 @@ function loadConfig() {
     // 시스템 프롬프트 기본값
     config.chatbot.systemPrompt = config.chatbot.systemPrompt || '';
 
+    // systemPromptAppend: 기본/커스텀 시스템 프롬프트에 항상 덧붙이는 한 줄 컨텍스트
+    // 예) "이것은 XYZ 솔루션 매뉴얼입니다." → 모든 LLM 호출의 system 메시지 끝에 자동 주입
+    config.chatbot.systemPromptAppend = typeof config.chatbot.systemPromptAppend === 'string'
+      ? config.chatbot.systemPromptAppend
+      : '';
+
     // Client 설정 기본값 (브라우저로 전달)
     config.chatbot.client = {
       timeout: 300000,        // 5분 기본값

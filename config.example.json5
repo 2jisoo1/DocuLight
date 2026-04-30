@@ -420,6 +420,12 @@
   //
   //   // Custom system prompt (optional)
   //   // Leave empty to use default RAG prompt
-  //   systemPrompt: ""
+  //   systemPrompt: "",
+  //
+  //   // Always-on system prompt suffix (optional)
+  //   // If set, this single line is ALWAYS appended to the active system prompt
+  //   // (default OR custom systemPrompt above). Useful for fixed product/role context.
+  //   // Example: "This is the manual for the XYZ solution."
+  //   systemPromptAppend: ""
   // }
 }
