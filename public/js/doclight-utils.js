@@ -396,3 +396,7 @@ const DocLightUtils = (() => {
     renderMarkdown
   };
 })();
+
+// Classic script 의 top-level const 는 window 에 자동 노출되지 않으므로
+// 다른 모듈에서 window.DocLightUtils 로 접근할 수 있도록 명시적으로 등록한다.
+window.DocLightUtils = DocLightUtils;
