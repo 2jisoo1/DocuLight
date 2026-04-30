@@ -11,8 +11,9 @@ const subscribers = new Set();
 const VALID_MODES = ['view', 'edit', 'admin'];
 
 function _basePath() {
-  // <base> 태그 또는 window.basePath 우선, 없으면 ''
-  if (typeof window !== 'undefined' && typeof window.basePath === 'string') return window.basePath;
+  if (typeof window === 'undefined') return '';
+  if (typeof window.BASE_PATH === 'string') return window.BASE_PATH;
+  if (typeof window.basePath === 'string') return window.basePath;
   return '';
 }
 
