@@ -152,7 +152,7 @@ function extractLastHumanText(messages) {
   return "";
 }
 
-function createAgenticGraph({ llm, tools = [], retriever, config = {}, logger, checkpointer, streamCallbacks }) {
+function createAgenticGraph({ llm, tools = [], retriever, config = {}, logger, checkpointer, streamCallbacks, stepCallbacks }) {
   const memoryCheckpointer = checkpointer || new MemorySaver();
   const agenticCfg = config.chatbot?.agentic ?? {};
   const reflexionThreshold = agenticCfg.reflexionThreshold ?? 4;
@@ -205,6 +205,16 @@ function createAgenticGraph({ llm, tools = [], retriever, config = {}, logger, c
   const budgetRegistry = new Map();
   const getBudget = (cfg) => budgetRegistry.get(cfg?.configurable?.thread_id ?? 'default');
 
+  // 진행 단계 알림: thread_id별 onStep 콜백을 stepCallbacks에서 조회.
+  // payload: { i18nKey, vars }. 콜백 throw는 그래프 진행을 막지 않도록 swallow.
+  const emitStep = (cfg, i18nKey, vars) => {
+    const threadId = cfg?.configurable?.thread_id ?? 'default';
+    const cb = stepCallbacks?.get(threadId);
+    if (typeof cb !== 'function') return;
+    try { cb(i18nKey, vars || {}); }
+    catch (err) { logger?.warn(`[AgenticGraph] emitStep error: ${err?.message || err}`); }
+  };
+
   // ── 노드 1: analyze ──────────────────────────────────────────────────────
   // 초기 쿼리 분석. 그래프 진입 전 상태를 초기화하고 tool_call로 위임.
   // 실제 LLM 분석은 tool_call 노드에서 수행 (ReAct 패턴).
@@ -233,8 +243,9 @@ function createAgenticGraph({ llm, tools = [], retriever, config = {}, logger, c
   // 사용자 질의를 chitchat / summary / question / unknown으로 분류.
   // chitchat은 도구 루프 우회 → finalize 직행으로 응답 시간/비용 절감.
   // 키워드 기반 동기 분류만 사용 (LLM 호출 추가 없음 — 분류 자체가 latency 원인이면 안 됨).
-  const classifyNode = async (state) => {
+  const classifyNode = async (state, cfg) => {
     logger?.debug("[AgenticGraph] classify — pre-flight query classification (keyword)");
+    emitStep(cfg, "classifying");
     const userInput = extractLastHumanText(state.messages || []);
     if (!userInput) {
       return { queryType: "unknown", confidence: 0 };
@@ -262,6 +273,7 @@ function createAgenticGraph({ llm, tools = [], retriever, config = {}, logger, c
   // LLM이 tool_calls를 반환하면 즉시 실행; 반환하지 않으면 agenticDone=true.
   const toolCallNode = async (state, cfg) => {
     logger?.debug(`[AgenticGraph] tool_call — iteration ${(state.iteration ?? 0) + 1}`);
+    emitStep(cfg, "thinking_next");
     // bindTools를 통해 도구 정보가 LLM에 바인딩됨 — invoke 옵션 추가 불필요.
     const response = await llmWithTools.invoke(withSystem(state.messages));
     const toolCalls = extractToolCalls(response);
@@ -289,7 +301,10 @@ function createAgenticGraph({ llm, tools = [], retriever, config = {}, logger, c
     const clearedCalls = [];
 
     if (toolCalls.length > 0) {
-      const toolResults = await executeTools(toolCalls, toolIndex, toolTimeoutMs, logger, bc);
+      const toolResults = await executeTools(
+        toolCalls, toolIndex, toolTimeoutMs, logger, bc,
+        (i18nKey, vars) => emitStep(cfg, i18nKey, vars)
+      );
       newMessages.push(...toolResults);
     }
 
@@ -306,6 +321,7 @@ function createAgenticGraph({ llm, tools = [], retriever, config = {}, logger, c
   // TASK-P2-001: citation_count / last_tool_name 갱신.
   const observeNode = async (state, cfg) => {
     logger?.debug("[AgenticGraph] observe");
+    emitStep(cfg, "reading_results");
     const bc = getBudget(cfg);
 
     // TASK-P2-001: 유효 JSON + 비-에러 ToolMessage 수를 citation_count 근사값으로 사용.
@@ -434,6 +450,7 @@ function createAgenticGraph({ llm, tools = [], retriever, config = {}, logger, c
   // streamCallbacks에 thread_id별 onToken이 등록되어 있으면 토큰 단위 스트리밍.
   // 클라이언트는 누적 덮어쓰기 방식이므로 매 청크마다 누적된 content 전체를 전달.
   const finalizeNode = async (state, cfg) => {
+    emitStep(cfg, "composing");
     const threadId = cfg?.configurable?.thread_id ?? 'default';
     const onToken = streamCallbacks?.get(threadId);
     const canStream = typeof llm.stream === "function" && typeof onToken === "function";
@@ -539,13 +556,48 @@ function createAgenticGraph({ llm, tools = [], retriever, config = {}, logger, c
 // ── 내부 헬퍼 ────────────────────────────────────────────────────────────────
 
 /**
+ * 도구 호출 input에서 사용자 표시용 vars(name/target) 추출.
+ * 클라이언트가 i18n 메시지 템플릿에 보간할 짧은 라벨 1~2개만 반환.
+ */
+function summarizeToolInput(toolName, input) {
+  const safe = (v, max = 60) => {
+    if (v == null) return undefined;
+    const s = String(v).trim();
+    if (!s) return undefined;
+    return s.length > max ? s.slice(0, max - 1) + "…" : s;
+  };
+  const baseName = (p) => {
+    if (!p) return undefined;
+    const norm = String(p).replace(/\\/g, "/");
+    const parts = norm.split("/").filter(Boolean);
+    return parts[parts.length - 1] || norm;
+  };
+  const i = input || {};
+  // 우선순위: path basename > document path > project name > query > raw
+  const target =
+    safe(baseName(i.path)) ||
+    safe(baseName(i.document_path)) ||
+    safe(baseName(i.documentPath)) ||
+    safe(i.project_name) ||
+    safe(i.projectName) ||
+    safe(i.query, 40) ||
+    safe(i.q, 40);
+  return { name: toolName, target };
+}
+
+/**
  * tool_use 블록 목록을 실행하고 ToolMessage 배열 반환.
  * 도구별 타임아웃(toolTimeoutMs) 적용. non-Error 예외 안전 직렬화(M-3 수정).
  * FR-8: budget 인자 제공 시 dedup·path canonicalization·tool_call 예산 검사 수행.
  */
-async function executeTools(toolCalls, toolIndex, toolTimeoutMs, logger, budget) {
+async function executeTools(toolCalls, toolIndex, toolTimeoutMs, logger, budget, emitStep) {
   const results = [];
   for (const call of toolCalls) {
+    if (typeof emitStep === "function") {
+      try {
+        emitStep(`tool:${call.name}`, summarizeToolInput(call.name, call.input));
+      } catch (_) { /* swallow */ }
+    }
     // FR-3 이중 방어: registry 단계 + tool_call 진입 단계 (TASK-P1-003)
     if (!isReadOnlyTool(call.name)) {
       throw new Error(`Blocked: tool "${call.name}" is not read-only (C/U/D operation)`);

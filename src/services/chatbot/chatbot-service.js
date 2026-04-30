@@ -121,6 +121,8 @@ class ChatbotService {
       this.logger?.debug("Creating Agentic graph...");
       // thread_id 별 토큰 콜백 레지스트리 (finalize 노드 스트리밍용)
       this.streamCallbacks = new Map();
+      // thread_id 별 진행 단계 콜백 레지스트리 (각 노드 진입 시 i18nKey 전달)
+      this.stepCallbacks = new Map();
       // app.locals 호환 컨텍스트 — app.js에서 attachRuntimeContext()로 주입.
       this.runtimeContext = { vectorStoreManager: this.vectorStoreManager };
       // MCP 도구를 agentic 그래프 호환 형식으로 변환하여 등록.
@@ -137,6 +139,7 @@ class ChatbotService {
         config: this.config,
         logger: this.logger,
         streamCallbacks: this.streamCallbacks,
+        stepCallbacks: this.stepCallbacks,
       });
       this.logger?.info("Agentic graph initialized");
 
@@ -355,6 +358,8 @@ class ChatbotService {
       // streamCallbacks.set이 활성 콜백을 덮어쓰지 않음.
       const agenticStreamingActive =
         this.agenticGraph && typeof onToken === "function" && this.streamCallbacks;
+      const agenticStepActive =
+        this.agenticGraph && typeof onStep === "function" && this.stepCallbacks;
 
       try {
         if (agenticStreamingActive) {
@@ -363,7 +368,19 @@ class ChatbotService {
           }
           this.streamCallbacks.set(sessionId, onToken);
         }
-        onStep?.("classifyQuery", "Analyzing your question...");
+        if (agenticStepActive) {
+          if (this.stepCallbacks.has(sessionId)) {
+            this.logger?.warn(`Stale stepCallback for session ${sessionId} — overwriting`);
+          }
+          // 그래프 노드는 (i18nKey, vars) 시그니처로 호출. 컨트롤러의 onStep은 (step, message, extra)
+          // 시그니처를 사용하므로 어댑터로 변환 — message는 i18nKey 그대로(서버 영문 폴백 불필요).
+          this.stepCallbacks.set(sessionId, (i18nKey, vars) => {
+            try { onStep(i18nKey, i18nKey, { i18nKey, vars: vars || {} }); }
+            catch (e) { this.logger?.warn(`onStep adapter error: ${e?.message || e}`); }
+          });
+        }
+        // controller가 SSE 시작 직후 이미 "understanding"을 발사했고, 그래프 classifyNode가
+        // 곧바로 emitStep("classifying")을 호출하므로 service에서 중복 발사 불필요.
 
         // 그래프 스트리밍 실행
         const streamConfig = {
@@ -445,6 +462,9 @@ class ChatbotService {
       } finally {
         if (agenticStreamingActive) {
           this.streamCallbacks.delete(sessionId);
+        }
+        if (agenticStepActive) {
+          this.stepCallbacks.delete(sessionId);
         }
         // M3: 에러 경로에서도 BudgetController 누수 방지 (정상 경로는 finalize 노드가 이미 정리)
         if (this.agenticGraph && typeof this.agenticGraph.cleanupThread === "function") {

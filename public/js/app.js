@@ -1760,13 +1760,18 @@ async function init() {
     // Sidebar header click - navigate to welcome or index
     const sidebarTitle = document.querySelector('.sidebar-title');
     if (sidebarTitle) {
-      sidebarTitle.addEventListener('click', async () => {
-        const homePath = DocLightUtils.prefixPath('/');
-        // If not on home page, do a full navigation to home
-        if (window.location.pathname !== homePath) {
-          window.location.href = homePath;
+      sidebarTitle.addEventListener('click', async (e) => {
+        // Normalize trailing slash for accurate home detection (basePath may produce "/dev/" while location may be "/dev")
+        const stripSlash = (p) => (p.length > 1 && p.endsWith('/')) ? p.slice(0, -1) : p;
+        const homePath = stripSlash(DocLightUtils.prefixPath('/'));
+        const currentPathname = stripSlash(window.location.pathname);
+        // If not on home page, let the anchor's default navigation handle it
+        if (currentPathname !== homePath) {
           return;
         }
+
+        // Already on home - SPA behavior, suppress anchor reload
+        e.preventDefault();
 
         // Already on home - chatbot mode: do nothing
         if (window.CHATBOT_MODE) {
@@ -1790,18 +1795,6 @@ async function init() {
         }
       });
 
-      // Add keyboard navigation support (Enter key)
-      sidebarTitle.addEventListener('keydown', async (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          sidebarTitle.click();
-        }
-      });
-
-      // Make it focusable for keyboard navigation
-      sidebarTitle.setAttribute('tabindex', '0');
-      sidebarTitle.setAttribute('role', 'button');
-      sidebarTitle.setAttribute('aria-label', 'Navigate to home');
     }
 
     // Check URL for document path

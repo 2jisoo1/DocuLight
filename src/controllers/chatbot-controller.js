@@ -151,9 +151,15 @@ async function chat(req, res, next) {
     logger?.info(`Chat request: session=${sessionId}`);
 
     // 워크플로우 단계 콜백
-    const onStep = (step, stepMessage) => {
+    // extra: { i18nKey, vars } — 클라이언트 i18n 보간용 (없을 수도 있음, 영문 fallback)
+    const onStep = (step, stepMessage, extra) => {
       if (checkConnection()) {
-        sendSSE(res, "step", { step, message: stepMessage }, logger);
+        const payload = { step, message: stepMessage };
+        if (extra && typeof extra === "object") {
+          if (extra.i18nKey) payload.i18nKey = extra.i18nKey;
+          if (extra.vars) payload.vars = extra.vars;
+        }
+        sendSSE(res, "step", payload, logger);
       }
     };
 
@@ -243,7 +249,7 @@ async function chat(req, res, next) {
     };
 
     // 초기 단계 전송
-    onStep("start", "Processing your message...");
+    onStep("understanding", "understanding", { i18nKey: "understanding", vars: {} });
 
     // 워크플로우 실행
     const startTime = Date.now();

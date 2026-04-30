@@ -29,7 +29,172 @@
     threadId: null,
     isProcessing: false,
     eventSource: null,
-    messageHistory: []
+    messageHistory: [],
+    // 현재 요청의 사용자 입력 언어(i18n 키 번역용). 'ko' | 'en' | ...
+    currentLang: 'en'
+  };
+
+  // ============================================
+  // i18n: 진행 단계 메시지 카탈로그
+  // 서버는 i18nKey + vars만 전송, 클라가 사용자 언어로 번역
+  // ============================================
+  const i18n = {
+    detect(text) {
+      if (!text) return 'en';
+      // Hangul block
+      if (/[\uac00-\ud7af\u1100-\u11ff\u3130-\u318f]/.test(text)) return 'ko';
+      // Hiragana / Katakana
+      if (/[\u3040-\u309f\u30a0-\u30ff]/.test(text)) return 'ja';
+      // CJK Unified (assume Chinese if not preceded by kana)
+      if (/[\u4e00-\u9fff]/.test(text)) return 'zh';
+      return 'en';
+    },
+
+    // {key: {ko, en, ja, zh}} — vars 보간은 {name}, {target}
+    catalog: {
+      understanding: {
+        ko: '질문을 이해하고 있어요',
+        en: 'Understanding your question',
+        ja: '質問を理解しています',
+        zh: '正在理解您的问题'
+      },
+      classifying: {
+        ko: '의도를 파악하는 중이에요',
+        en: 'Identifying intent',
+        ja: '意図を把握しています',
+        zh: '正在识别意图'
+      },
+      thinking_next: {
+        ko: '다음 단계를 생각하고 있어요',
+        en: 'Thinking about the next step',
+        ja: '次のステップを考えています',
+        zh: '正在思考下一步'
+      },
+      reading_results: {
+        ko: '결과를 읽고 있어요',
+        en: 'Reading the results',
+        ja: '結果を読んでいます',
+        zh: '正在阅读结果'
+      },
+      composing: {
+        ko: '답변을 정리하고 있어요',
+        en: 'Composing the answer',
+        ja: '回答をまとめています',
+        zh: '正在整理回答'
+      },
+      retrieval_found: {
+        ko: '관련 문서 {count}개를 찾았어요',
+        en: 'Found {count} relevant document(s)',
+        ja: '関連文書を{count}件見つけました',
+        zh: '找到 {count} 个相关文档'
+      },
+      'tool:search': {
+        ko: '"{target}" 으로 문서를 검색하고 있어요',
+        en: 'Searching documents for "{target}"',
+        ja: '「{target}」で文書を検索しています',
+        zh: '正在搜索 "{target}" 相关文档'
+      },
+      'tool:get_config': {
+        ko: '서버 설정을 확인하고 있어요',
+        en: 'Checking server configuration',
+        ja: 'サーバー設定を確認しています',
+        zh: '正在检查服务器配置'
+      },
+      'tool:smart_search': {
+        ko: '"{target}" 을 깊이 있게 찾아보고 있어요',
+        en: 'Searching deeply for "{target}"',
+        ja: '「{target}」を詳しく探しています',
+        zh: '正在深入搜索 "{target}"'
+      },
+      'tool:resolve_project': {
+        ko: '"{target}" 프로젝트를 확인하고 있어요',
+        en: 'Looking up project "{target}"',
+        ja: 'プロジェクト「{target}」を確認しています',
+        zh: '正在查找项目 "{target}"'
+      },
+      'tool:search_projects': {
+        ko: '프로젝트를 찾고 있어요',
+        en: 'Looking through projects',
+        ja: 'プロジェクトを探しています',
+        zh: '正在查找项目'
+      },
+      'tool:list_documents': {
+        ko: '문서 목록을 살펴보고 있어요',
+        en: 'Browsing the document list',
+        ja: '文書リストを見ています',
+        zh: '正在浏览文档列表'
+      },
+      'tool:list_full_tree': {
+        ko: '문서 트리를 펼쳐보고 있어요',
+        en: 'Looking at the document tree',
+        ja: '文書ツリーを展開しています',
+        zh: '正在查看文档树'
+      },
+      'tool:read_document': {
+        ko: '"{target}" 문서를 읽고 있어요',
+        en: 'Reading "{target}"',
+        ja: '「{target}」を読んでいます',
+        zh: '正在阅读 "{target}"'
+      },
+      'tool:summarize_document': {
+        ko: '"{target}" 문서를 요약하고 있어요',
+        en: 'Summarizing "{target}"',
+        ja: '「{target}」を要約しています',
+        zh: '正在总结 "{target}"'
+      },
+      'tool:query_document': {
+        ko: '"{target}" 문서를 살펴보고 있어요',
+        en: 'Examining "{target}"',
+        ja: '「{target}」を確認しています',
+        zh: '正在查看 "{target}"'
+      },
+      'tool:query_code_examples': {
+        ko: '코드 예제를 찾고 있어요',
+        en: 'Looking for code examples',
+        ja: 'コード例を探しています',
+        zh: '正在查找代码示例'
+      },
+      // 미등록 도구 fallback
+      'tool:_generic': {
+        ko: '"{name}" 도구를 사용 중이에요',
+        en: 'Using "{name}"',
+        ja: '「{name}」ツールを使用しています',
+        zh: '正在使用 "{name}"'
+      }
+    },
+
+    // 보간 결과는 plain text (escape 미수행). 출력 단계(setStatus)에서 escapeHtml로 단일 방어.
+    // 누락 키는 placeholder를 빈 문자열로 대체하여 어색한 `{target}` 노출 방지.
+    interpolate(template, vars) {
+      if (!template) return '';
+      return template.replace(/\{(\w+)\}/g, (m, k) => {
+        const v = vars && vars[k];
+        return v != null && String(v).length > 0 ? String(v) : '';
+      });
+    },
+
+    translate(key, vars, lang) {
+      const language = lang || state.currentLang || 'en';
+      let entry = this.catalog[key];
+      // tool:* 도구 키 매칭: MCP prefix(예: DOCU_LIGHT_smart_search)가 붙어 있을 수 있어
+      // 카탈로그의 알려진 tool 키 끝과 endsWith 매칭 시도. 실패 시 generic fallback.
+      if (!entry && key && key.indexOf('tool:') === 0) {
+        const suffix = key.slice('tool:'.length);
+        // 알려진 tool 키를 길이 내림차순으로 정렬 — `smart_search`가 `search`보다 우선 매칭되도록.
+        // suffix === knownTail 또는 suffix endsWith ('_' + knownTail) 인 경우만 매칭 (segment 경계 보존).
+        const known = Object.keys(this.catalog)
+          .filter((k) => k.indexOf('tool:') === 0 && k !== 'tool:_generic')
+          .sort((a, b) => b.length - a.length);
+        const matched = known.find((k) => {
+          const tail = k.slice('tool:'.length);
+          return suffix === tail || suffix.endsWith('_' + tail);
+        });
+        entry = matched ? this.catalog[matched] : this.catalog['tool:_generic'];
+      }
+      if (!entry) return key;
+      const tmpl = entry[language] || entry.en || Object.values(entry)[0];
+      return this.interpolate(tmpl, vars);
+    }
   };
 
   // ============================================
@@ -202,7 +367,7 @@
 
     createBotMessage() {
       const messageEl = document.createElement('div');
-      messageEl.className = 'message bot-message streaming';
+      messageEl.className = 'message bot-message streaming pending-status';
       messageEl.innerHTML = `
         <div class="message-avatar">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -233,7 +398,24 @@
       return messageEl;
     },
 
+    setStatus(messageEl, text) {
+      if (!messageEl) return;
+      // 토큰 스트리밍이 시작되지 않은 경우에만 status 표시 (이미 본문이 들어왔으면 무시)
+      if (!messageEl.classList.contains('pending-status')) return;
+      const textEl = messageEl.querySelector('.message-text');
+      if (!textEl) return;
+      // SECURITY: text는 i18n template + vars 보간 결과이며 vars는 사용자/모델 입력에서 유래.
+      // renderer.escapeHtml(div.textContent → div.innerHTML 패턴)이 유일한 XSS 방어선이다.
+      // 절대 marked/마크다운 렌더로 교체하지 말 것 — 즉시 XSS 발생.
+      textEl.innerHTML = `<span class="status-text">${renderer.escapeHtml(text)}<span class="status-dots"><span>.</span><span>.</span><span>.</span></span></span>`;
+      this.scrollToBottom();
+    },
+
     updateBotMessage(messageEl, content, isStreaming = true) {
+      // 첫 토큰 도착 — status placeholder 제거
+      if (messageEl.classList.contains('pending-status')) {
+        messageEl.classList.remove('pending-status');
+      }
       const textEl = messageEl.querySelector('.message-text');
       textEl.innerHTML = renderer.render(content);
 
@@ -405,7 +587,7 @@
       return response.json();
     },
 
-    async sendMessage(message, threadId) {
+    async sendMessage(message, threadId, botMessageEl) {
       return new Promise((resolve, reject) => {
         const url = `${CONFIG.API_BASE}/chat`;
         const body = JSON.stringify({ message, threadId });
@@ -442,7 +624,6 @@
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
           let buffer = '';
-          let botMessageEl = null;
           let fullContent = '';
           let sources = [];
           let resolved = false;
@@ -463,13 +644,10 @@
                 try {
                   const data = JSON.parse(eventData);
                   this.handleEvent(eventType, data, {
-                    onBotMessageCreate: () => {
-                      if (!botMessageEl) {
-                        botMessageEl = messageUI.createBotMessage();
-                      }
-                      return botMessageEl;
-                    },
+                    botMessageEl: () => botMessageEl,
                     onContent: (content) => {
+                      // 빈 토큰은 무시 — pending-status 상태를 유지하여 빈 말풍선 깜빡임 방지
+                      if (!content) return;
                       fullContent = content;
                       if (botMessageEl) {
                         messageUI.updateBotMessage(botMessageEl, fullContent, true);
@@ -535,20 +713,31 @@
     },
 
     handleEvent(type, data, callbacks) {
+      const msgEl = callbacks.botMessageEl && callbacks.botMessageEl();
       switch (type) {
-        case 'step':
-          workflowUI.updateStep(data.step, data.message);
+        case 'step': {
+          // 서버가 i18nKey를 보내주면 클라가 사용자 언어로 번역, 없으면 영문 message fallback
+          const key = data.i18nKey || data.step;
+          const text = data.i18nKey
+            ? i18n.translate(data.i18nKey, data.vars || {})
+            : (data.message || data.step || '');
+          if (msgEl) messageUI.setStatus(msgEl, text);
+          // legacy DOM도 함께 갱신 (있으면)
+          workflowUI.updateStep(data.step, text);
           break;
+        }
 
         case 'retrieval':
-          workflowUI.showRetrieval(data.count, data.sources);
           // Cache sources for link resolution in renderer
           renderer.setSources(data.sources || []);
           callbacks.onSources(data.sources || []);
+          if (msgEl) {
+            messageUI.setStatus(msgEl, i18n.translate('retrieval_found', { count: data.count }));
+          }
+          workflowUI.showRetrieval(data.count, data.sources);
           break;
 
         case 'token':
-          callbacks.onBotMessageCreate();
           callbacks.onContent(data.content);
           break;
 
@@ -588,12 +777,16 @@
       state.isProcessing = true;
       this.updateUI(true);
 
+      // 사용자 입력 언어를 감지하여 i18n 번역에 사용
+      state.currentLang = i18n.detect(message);
+
       // Add user message to UI
       messageUI.addUserMessage(message);
 
-      // Show workflow indicator
-      workflowUI.show();
-      workflowUI.updateStep('start', 'Connecting...');
+      // 응답 말풍선을 즉시 생성하고 초기 상태("질문을 이해하고 있어요") 표시.
+      // 첫 token 도착 시 status가 본문으로 자연스럽게 전환됨 (updateBotMessage가 pending-status 제거).
+      const botMessageEl = messageUI.createBotMessage();
+      messageUI.setStatus(botMessageEl, i18n.translate('understanding', {}));
 
       try {
         // Create session if needed
@@ -603,16 +796,24 @@
         }
 
         // Send message
-        const result = await api.sendMessage(message, state.threadId);
+        const result = await api.sendMessage(message, state.threadId, botMessageEl);
 
         // Update state
         state.threadId = result.threadId || state.threadId;
 
       } catch (error) {
         console.error('Chat error:', error);
+        // 진행 상태만 표시되어 있는 비어있는 말풍선은 제거 (오류 메시지로 대체)
+        if (botMessageEl && botMessageEl.classList.contains('pending-status')) {
+          botMessageEl.remove();
+        }
         messageUI.addErrorMessage(error.message || 'Failed to get response');
-        workflowUI.hide();
       } finally {
+        // 정상/비정상 경로 모두에서 진행 상태만 남고 본문이 비어있는 말풍선이 남아있으면 정리.
+        // (예: chitchat fast-path에서 LLM이 빈 문자열 반환, abort 등)
+        if (botMessageEl && botMessageEl.classList.contains('pending-status')) {
+          botMessageEl.remove();
+        }
         state.isProcessing = false;
         this.updateUI(false);
       }
