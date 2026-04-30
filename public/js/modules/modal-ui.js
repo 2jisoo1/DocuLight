@@ -44,7 +44,7 @@ const STYLES = `
 }
 `;
 
-function _ensureStyle() {
+export function ensureModalStyle() {
   if (typeof document === 'undefined') return;
   if (document.getElementById(STYLE_ID)) return;
   const style = document.createElement('style');
@@ -55,7 +55,7 @@ function _ensureStyle() {
 
 export function showConfirm(opts) {
   return new Promise((resolve) => {
-    _ensureStyle();
+    ensureModalStyle();
     const { title, body, primary, secondary, cancel, dataModal } = opts || {};
 
     const overlay = document.createElement('div');

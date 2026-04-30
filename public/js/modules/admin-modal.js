@@ -4,7 +4,7 @@
 // REQ-F-004, REQ-F-008, REQ-NF-003, REQ-NF-005.
 // window.alert/confirm/prompt 사용 금지 (CLAUDE.md §0). showConfirm 또는 내부 _alert/_promptText 사용.
 
-import { showConfirm } from './modal-ui.js';
+import { showConfirm, ensureModalStyle } from './modal-ui.js';
 
 const state = {
   currentTab: null,
@@ -57,6 +57,7 @@ async function _confirm(message) {
 
 function _promptText(opts) {
   return new Promise((resolve) => {
+    ensureModalStyle();
     const { title, label, type = 'text', placeholder = '' } = opts || {};
     const overlay = document.createElement('div');
     overlay.className = 'doclight-modal-overlay';
