@@ -61,9 +61,9 @@ let saveBtn = null;
 let hiddenSiblings = []; // [{el, prevDisplay}]
 let activated = false;
 
-function _bp() {
-  const fn = (typeof window !== 'undefined' && window._bp);
-  return typeof fn === 'function' ? fn : (p) => p;
+function _bp(p) {
+  const fn = (typeof window !== 'undefined' && window.DocLightUtils && window.DocLightUtils.prefixPath);
+  return typeof fn === 'function' ? fn(p) : p;
 }
 
 function _ensureStyle() {
@@ -219,7 +219,7 @@ export async function open(path) {
 
   let result;
   try {
-    const response = await fetch(_bp()(`/api/admin/content?path=${encodeURIComponent(path)}`), {
+    const response = await fetch(_bp(`/api/admin/content?path=${encodeURIComponent(path)}`), {
       credentials: 'include',
     });
     result = await response.json();
@@ -263,7 +263,7 @@ export async function save() {
 
   let result;
   try {
-    const response = await fetch(_bp()('/api/admin/content'), {
+    const response = await fetch(_bp('/api/admin/content'), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',

@@ -16,13 +16,13 @@ let container = null;
 let activated = false;
 let loadSeq = 0;
 
-function _bp() {
-  const fn = (typeof window !== 'undefined' && window._bp);
-  return typeof fn === 'function' ? fn : (p) => p;
+function _bp(p) {
+  const fn = (typeof window !== 'undefined' && window.DocLightUtils && window.DocLightUtils.prefixPath);
+  return typeof fn === 'function' ? fn(p) : p;
 }
 
 async function fetchTree(path = '/') {
-  const response = await fetch(_bp()(`/api/admin/tree?path=${encodeURIComponent(path)}`), {
+  const response = await fetch(_bp(`/api/admin/tree?path=${encodeURIComponent(path)}`), {
     credentials: 'include'
   });
   return response.json();

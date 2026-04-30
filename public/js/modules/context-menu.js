@@ -14,14 +14,14 @@ const state = {
 
 let activated = false;
 
-function _bp() {
-  const fn = (typeof window !== 'undefined' && window._bp);
-  return typeof fn === 'function' ? fn : (p) => p;
+function _bp(p) {
+  const fn = (typeof window !== 'undefined' && window.DocLightUtils && window.DocLightUtils.prefixPath);
+  return typeof fn === 'function' ? fn(p) : p;
 }
 
 async function _fetchPermissions() {
   try {
-    const res = await fetch(_bp()('/api/auth/session'), { credentials: 'include' });
+    const res = await fetch(_bp('/api/auth/session'), { credentials: 'include' });
     if (res.status !== 200) {
       state.permissions = [];
       return;
