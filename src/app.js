@@ -48,6 +48,27 @@ const app = express();
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
+// basePath URL normalization — strip configured basePath prefix from req.url
+// so downstream routers/guards/static can use bare paths regardless of whether
+// the request arrives directly (e.g. http://host:port/manual/...) or via a
+// reverse proxy that already stripped /manual. Placed before any middleware
+// that may inspect req.url/req.path so all downstream code sees the bare path.
+app.use((req, res, next) => {
+  const cfg = req.app.locals.config || {};
+  let bp = cfg.basePath || '';
+  if (!bp) return next();
+  // Normalize: ensure leading slash, strip trailing slashes
+  if (bp[0] !== '/') bp = '/' + bp;
+  bp = bp.replace(/\/+$/, '');
+  if (!bp) return next();
+  if (req.url === bp) {
+    req.url = '/';
+  } else if (req.url.startsWith(bp + '/') || req.url.startsWith(bp + '?')) {
+    req.url = req.url.substring(bp.length) || '/';
+  }
+  next();
+});
+
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

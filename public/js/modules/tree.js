@@ -14,6 +14,7 @@ const state = {
 
 let container = null;
 let activated = false;
+let loadSeq = 0;
 
 function _bp() {
   const fn = (typeof window !== 'undefined' && window._bp);
@@ -50,9 +51,12 @@ function getFileIcon(extension) {
 }
 
 async function loadTree() {
+  const myRun = ++loadSeq;
   state.isLoading = true;
   try {
     const result = await fetchTree('/');
+    // Stale fetch — a newer activate() has superseded this run
+    if (myRun !== loadSeq) return;
     if (result && result.success) {
       state.fileTree = result.tree;
       renderTree();
@@ -60,9 +64,10 @@ async function loadTree() {
       console.error('Failed to load tree:', result && result.error);
     }
   } catch (error) {
+    if (myRun !== loadSeq) return;
     console.error('Tree load error:', error);
   } finally {
-    state.isLoading = false;
+    if (myRun === loadSeq) state.isLoading = false;
   }
 }
 
@@ -211,7 +216,6 @@ function updateSelection() {
 }
 
 export function activate() {
-  if (activated) return;
   if (typeof window !== 'undefined' && window.__viewTree && typeof window.__viewTree.deactivate === 'function') {
     try { window.__viewTree.deactivate(); } catch (e) { console.warn('viewTree.deactivate failed', e); }
   }
@@ -220,6 +224,10 @@ export function activate() {
     console.warn('tree.js activate: #tree-menu not found');
     return;
   }
+  // Always re-render — view-mode tree DOM may still occupy #tree-menu even
+  // after viewTree.deactivate(), and entering admin/edit mode must replace it
+  // with the editable tree (folder emoji icons, drag handles, etc.).
+  container.innerHTML = '';
   activated = true;
   loadTree();
 }
