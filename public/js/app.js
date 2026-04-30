@@ -2731,7 +2731,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   try { modalUi.activate?.(); } catch (e) { console.warn('modal-ui.js not yet implemented', e); }
 
   // (b) onModeChange 핸들러 먼저 등록 (CRITICAL — initMode 호출 전 필수)
-  const loaded = { tree: null, dnd: null, upload: null, ctx: null, editor: null, adminModal: null };
+  const loaded = { tree: null, dnd: null, upload: null, ctx: null, editor: null, adminModal: null, fileModal: null, clipboard: null };
   onModeChange(async (mode) => {
     if (mode === 'edit' || mode === 'admin') {
       loaded.tree     ||= await import('./modules/tree.js');
@@ -2739,11 +2739,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       loaded.upload   ||= await import('./modules/upload.js');
       loaded.ctx      ||= await import('./modules/context-menu.js');
       loaded.editor   ||= await import('./modules/editor.js');
+      loaded.fileModal ||= await import('./modules/file-modal.js');
+      loaded.clipboard ||= await import('./modules/clipboard.js');
       loaded.tree?.activate?.();
       loaded.dnd?.activate?.();
       loaded.upload?.activate?.();
       loaded.ctx?.activate?.();
       loaded.editor?.activate?.();
+      loaded.fileModal?.activate?.();
+      loaded.clipboard?.activate?.();
       if (mode === 'admin') {
         loaded.adminModal ||= await import('./modules/admin-modal.js');
         loaded.adminModal?.activate?.();
@@ -2757,6 +2761,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       loaded.upload?.deactivate?.();
       loaded.dnd?.deactivate?.();
       loaded.tree?.deactivate?.();
+      loaded.fileModal?.deactivate?.();
+      loaded.clipboard?.deactivate?.();
       loaded.adminModal?.deactivate?.();
     }
   });

@@ -168,34 +168,86 @@ function renderNodes(parentEl, nodes, depth) {
   }
 }
 
+// 가시 트리(확장된 폴더 포함)를 평탄화한 리스트. Shift 클릭 범위 선택의 인덱스 기준.
+function _flattenVisibleTree() {
+  if (!state.fileTree || !state.fileTree.root) return [];
+  const out = [];
+  const walk = (nodes) => {
+    if (!Array.isArray(nodes)) return;
+    for (const n of nodes) {
+      out.push(n);
+      if (n.type === 'directory' && state.expandedPaths.has(n.path)) {
+        walk([...(n.dirs || []), ...(n.files || [])]);
+      }
+    }
+  };
+  walk([...(state.fileTree.root.dirs || []), ...(state.fileTree.root.files || [])]);
+  return out;
+}
+
+function _selectRange(fromPath, toPath) {
+  const flat = _flattenVisibleTree();
+  const i1 = flat.findIndex((n) => n.path === fromPath);
+  const i2 = flat.findIndex((n) => n.path === toPath);
+  if (i1 === -1 || i2 === -1) {
+    state.selectedPaths = [toPath];
+    state.lastSelectedPath = toPath;
+    return;
+  }
+  const [from, to] = i1 < i2 ? [i1, i2] : [i2, i1];
+  state.selectedPaths = flat.slice(from, to + 1).map((n) => n.path);
+}
+
+function _toggleSelection(path) {
+  const idx = state.selectedPaths.indexOf(path);
+  if (idx === -1) {
+    state.selectedPaths.push(path);
+  } else {
+    state.selectedPaths.splice(idx, 1);
+  }
+  state.lastSelectedPath = path;
+}
+
 function handleItemClick(e, node) {
   e.stopPropagation();
 
-  const Selection = window.SelectionModule;
-  const Viewer = window.ViewerModule;
-  const URLMod = window.URLModule;
+  const Viewer = (typeof window !== 'undefined') ? window.ViewerModule : null;
+  const URLMod = (typeof window !== 'undefined') ? window.URLModule : null;
 
+  // Shift 범위 선택. lastSelectedPath 가 없으면 (첫 클릭 등) 단일 선택으로 폴백.
+  if (e.shiftKey) {
+    if (state.lastSelectedPath) {
+      // _selectRange 는 의도적으로 lastSelectedPath 를 갱신하지 않는다 —
+      // 연속 Shift 클릭(A → Shift+B → Shift+C) 시 anchor(A) 가 보존되어
+      // 표준 파일 탐색기(Finder/Explorer) 동작을 따른다.
+      _selectRange(state.lastSelectedPath, node.path);
+    } else {
+      state.selectedPaths = [node.path];
+      state.lastSelectedPath = node.path;
+    }
+    updateSelection();
+    return;
+  }
+
+  // Ctrl/Cmd 토글 — 단일 항목 추가/제거.
+  if (e.ctrlKey || e.metaKey) {
+    _toggleSelection(node.path);
+    updateSelection();
+    return;
+  }
+
+  // 수식 키 없음 — 단일 선택.
   if (node.type === 'directory') {
-    if (e.ctrlKey || e.metaKey || e.shiftKey) {
-      if (Selection && typeof Selection.handleClick === 'function') {
-        Selection.handleClick(node.path, node.type, e);
-      }
-    } else {
-      toggleExpand(node.path);
-      state.selectedPaths = [node.path];
-      state.lastSelectedPath = node.path;
-      updateSelection();
-    }
+    toggleExpand(node.path);
+    state.selectedPaths = [node.path];
+    state.lastSelectedPath = node.path;
+    updateSelection();
   } else {
-    if (Selection && typeof Selection.handleClick === 'function') {
-      Selection.handleClick(node.path, node.type, e);
-    } else {
-      state.selectedPaths = [node.path];
-      state.lastSelectedPath = node.path;
-      updateSelection();
-      if (Viewer && typeof Viewer.loadFile === 'function') Viewer.loadFile(node.path);
-      if (URLMod && typeof URLMod.navigateTo === 'function') URLMod.navigateTo(node.path);
-    }
+    state.selectedPaths = [node.path];
+    state.lastSelectedPath = node.path;
+    updateSelection();
+    if (Viewer && typeof Viewer.loadFile === 'function') Viewer.loadFile(node.path);
+    if (URLMod && typeof URLMod.navigateTo === 'function') URLMod.navigateTo(node.path);
   }
 }
 
@@ -209,7 +261,9 @@ function toggleExpand(path) {
 }
 
 function updateSelection() {
-  document.querySelectorAll('.tree-item').forEach(item => {
+  // admin tree 컨테이너로 스코프 한정 — 페이지 다른 위치의 .tree-item 우연 매칭 방지.
+  const root = container || document;
+  root.querySelectorAll('.tree-item').forEach((item) => {
     const isSelected = state.selectedPaths.includes(item.dataset.path);
     item.classList.toggle('selected', isSelected);
   });
@@ -229,6 +283,7 @@ export function activate() {
   // with the editable tree (folder emoji icons, drag handles, etc.).
   container.innerHTML = '';
   activated = true;
+  _exposeWindowModule();
   loadTree();
 }
 
@@ -241,8 +296,12 @@ export function deactivate() {
   state.selectedPaths = [];
   state.lastSelectedPath = null;
   state.fileTree = null;
+  state.cutPaths = new Set();
   container = null;
   activated = false;
+  if (typeof window !== 'undefined' && window.TreeModule) {
+    delete window.TreeModule;
+  }
   if (typeof window !== 'undefined' && window.__viewTree && typeof window.__viewTree.activate === 'function') {
     try { window.__viewTree.activate(); } catch (e) { console.warn('viewTree.activate failed', e); }
   }
@@ -255,4 +314,33 @@ export async function refresh() {
 
 export function getSelectedPath() {
   return state.lastSelectedPath || (state.selectedPaths.length > 0 ? state.selectedPaths[0] : null);
+}
+
+// 다중 선택 시 모든 선택 경로 반환. 선택이 없으면 빈 배열.
+export function getSelectedPaths() {
+  return Array.isArray(state.selectedPaths) ? state.selectedPaths.slice() : [];
+}
+
+// clipboard.js 가 cut 표시를 토글하기 위해 호출. 빈 배열 또는 falsy 면 cut 표시 모두 제거.
+export function setCutPaths(paths) {
+  state.cutPaths = new Set(Array.isArray(paths) ? paths : []);
+}
+
+export { loadTree, renderTree };
+
+// context-menu.js / file-modal.js 등 다른 ESM 모듈은 window.TreeModule 을 통해
+// 트리 상태에 접근한다 (순환 import 회피). activate 시점에 명시적으로 노출하여
+// import 만으로 글로벌이 오염되는 부수효과를 피한다.
+function _exposeWindowModule() {
+  if (typeof window === 'undefined') return;
+  window.TreeModule = {
+    activate,
+    deactivate,
+    refresh,
+    loadTree,
+    renderTree,
+    getSelectedPath,
+    getSelectedPaths,
+    setCutPaths,
+  };
 }

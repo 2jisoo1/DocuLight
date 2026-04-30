@@ -44,8 +44,9 @@ function _isEditable(path) {
 
 function _getClipboard() {
   const cb = (typeof window !== 'undefined') ? window.ClipboardModule : null;
-  if (cb && cb.state && cb.state.clipboard != null) return cb.state.clipboard;
-  if (cb && cb.clipboard != null) return cb.clipboard;
+  if (!cb || typeof cb.getState !== 'function') return null;
+  const s = cb.getState();
+  if (s && s.operation && Array.isArray(s.paths) && s.paths.length > 0) return s;
   return null;
 }
 
@@ -166,7 +167,15 @@ async function _handleMenuAction(action, targetPath, targetType) {
     }
     case 'paste': {
       const Cb = (typeof window !== 'undefined') ? window.ClipboardModule : null;
-      if (Cb && typeof Cb.paste === 'function') Cb.paste(targetPath);
+      if (!Cb || typeof Cb.paste !== 'function') break;
+      // paste 는 디렉토리 대상으로만 의미가 있다. file 위에서 메뉴가 노출되지 않지만,
+      // 미래 회귀 방어를 위해 명시적 가드 — file 이면 부모 디렉토리로 변환.
+      let target = targetPath;
+      if (targetType === 'file' && typeof targetPath === 'string') {
+        const idx = targetPath.lastIndexOf('/');
+        target = idx <= 0 ? '/' : targetPath.slice(0, idx);
+      }
+      Cb.paste(target);
       break;
     }
   }
