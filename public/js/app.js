@@ -1043,9 +1043,6 @@ async function toggleDirectory(dirPath, wrapper, childrenContainer, expandIcon, 
 // Show folder contents as a list in main area (Step 9.2)
 async function showFolderList(folderPath) {
   try {
-    // Save current path
-    currentPath = folderPath;
-
     // Update breadcrumb
     document.getElementById('breadcrumb').textContent = folderPath + '/';
 
