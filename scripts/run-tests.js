@@ -18,7 +18,6 @@ const SUITES = [
   'test/chatbot/tool-registry.test.js',
   'test/chatbot/budget.test.js',
   'test/chatbot/sse-events.test.js',
-  'test/chatbot/feature-flag.test.js',
   'test/chatbot/anthropic-features.test.js',
   'test/chatbot/anthropic-cache-transition.test.js',
   'test/chatbot/security.test.js',

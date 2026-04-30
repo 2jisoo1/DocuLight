@@ -1,5 +1,7 @@
 # DocLight 에이전틱 챗봇 마이그레이션 가이드
 
+> **[SUPERSEDED]** `agenticMode` / `thinkingMode` / `selfCorrection` 토글은 모두 폐지되었습니다. agentic 그래프가 유일한 워크플로이며 별도 설정 없이 항상 활성됩니다. 본 문서는 히스토리 보존용입니다.
+
 > NFR-7, Δ-9 — agenticMode 전환 절차 및 세션 호환성
 
 ## 개요

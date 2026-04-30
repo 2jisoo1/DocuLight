@@ -28,11 +28,6 @@
         <h1 class="chatbot-title"><%= title || 'DocLight' %> Chatbot</h1>
       </div>
       <div class="header-right">
-        <label class="thinking-toggle" title="Enable Thinking Mode for complex questions">
-          <input type="checkbox" id="thinkingMode" checked>
-          <span class="toggle-label">Thinking Mode</span>
-          <span class="toggle-switch"></span>
-        </label>
         <button id="newSessionBtn" class="btn-new-session" title="Start new conversation">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 5v14M5 12h14"/>
@@ -98,18 +93,6 @@
         </div>
       </form>
     </footer>
-  </div>
-
-  <!-- Thinking Mode Panel (shown when active) -->
-  <div class="thinking-panel" id="thinkingPanel" style="display: none;">
-    <div class="thinking-header">
-      <span class="thinking-icon">🧠</span>
-      <span>Thinking Process</span>
-      <button class="thinking-close" id="closeThinking">×</button>
-    </div>
-    <div class="thinking-content" id="thinkingContent">
-      <!-- Thinking steps will be added here -->
-    </div>
   </div>
 
   <!-- Client configuration from server -->

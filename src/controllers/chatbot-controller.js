@@ -115,7 +115,7 @@ async function chat(req, res, next) {
     });
   }
 
-  const { message, threadId, thinkingMode = false } = req.body;
+  const { message, threadId } = req.body;
 
   if (!message || typeof message !== "string" || message.trim().length === 0) {
     return res.status(400).json({
@@ -148,7 +148,7 @@ async function chat(req, res, next) {
   try {
     // 세션 ID 생성 또는 사용
     const sessionId = threadId || chatbotService.createSession();
-    logger?.info(`Chat request: session=${sessionId}, thinking=${thinkingMode}`);
+    logger?.info(`Chat request: session=${sessionId}`);
 
     // 워크플로우 단계 콜백
     const onStep = (step, stepMessage) => {
@@ -175,13 +175,6 @@ async function chat(req, res, next) {
           count: docs.length,
           sources: sources.slice(0, 5)
         }, logger);
-      }
-    };
-
-    // Thinking 모드 콜백
-    const onThinking = (phase, content) => {
-      if (checkConnection() && thinkingMode) {
-        sendSSE(res, "thinking", { phase, content }, logger);
       }
     };
 
@@ -256,10 +249,8 @@ async function chat(req, res, next) {
     const startTime = Date.now();
 
     const result = await chatbotService.chat(sessionId, message, {
-      thinkingMode,
       onStep,
       onRetrieval,
-      onThinking,
       onToken,
       onPlan,
       onToolUseStart,
@@ -276,7 +267,6 @@ async function chat(req, res, next) {
     const doneSent = emitSseEvent(res, "end", {
       threadId: sessionId,
       duration,
-      thinkingMode
     }, logger);
     logger?.info(`End event send result: ${doneSent}`);
 

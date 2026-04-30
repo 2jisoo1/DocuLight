@@ -348,8 +348,7 @@
   //     compressionTarget: 0.1
   //   },
   //
-  //   // Self-Correcting RAG Settings
-  //   // Improves answer quality by evaluating and re-trying with RAG when needed
+  //   // [DEPRECATED] Self-Correcting RAG Settings — agentic 단일 모드로 통합되어 더 이상 사용되지 않음
   //   selfCorrection: {
   //     // Enable Self-Correcting RAG workflow (default: true)
   //     // When enabled, answers are first generated without RAG (fast path),
@@ -418,11 +417,6 @@
   //     // Set to 0 to disable keep-alive
   //     keepAliveInterval: 30000
   //   },
-  //
-  //   // Feature Flag A/B: Agentic graph routing (FR-14)
-  //   // "A" (default): Standard RAG graph (현행 동작 유지)
-  //   // "B": Agentic ReAct+Reflexion graph (LangGraph 기반 에이전틱 모드)
-  //   // agenticMode: "A",
   //
   //   // Custom system prompt (optional)
   //   // Leave empty to use default RAG prompt

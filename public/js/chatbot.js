@@ -28,7 +28,6 @@
   const state = {
     threadId: null,
     isProcessing: false,
-    thinkingMode: true,  // Default: enabled
     eventSource: null,
     messageHistory: []
   };
@@ -42,14 +41,10 @@
     messageInput: document.getElementById('messageInput'),
     sendBtn: document.getElementById('sendBtn'),
     newSessionBtn: document.getElementById('newSessionBtn'),
-    thinkingModeToggle: document.getElementById('thinkingMode'),
     workflowIndicator: document.getElementById('workflowIndicator'),
     workflowStep: document.getElementById('workflowStep'),
     retrievalInfo: document.getElementById('retrievalInfo'),
-    retrievalText: document.getElementById('retrievalText'),
-    thinkingPanel: document.getElementById('thinkingPanel'),
-    thinkingContent: document.getElementById('thinkingContent'),
-    closeThinking: document.getElementById('closeThinking')
+    retrievalText: document.getElementById('retrievalText')
   };
 
   // ============================================
@@ -397,51 +392,6 @@
   };
 
   // ============================================
-  // Thinking Panel UI
-  // ============================================
-  const thinkingUI = {
-    show() {
-      if (state.thinkingMode && elements.thinkingPanel) {
-        elements.thinkingPanel.style.display = 'block';
-      }
-    },
-
-    hide() {
-      if (elements.thinkingPanel) {
-        elements.thinkingPanel.style.display = 'none';
-      }
-      if (elements.thinkingContent) {
-        elements.thinkingContent.innerHTML = '';
-      }
-    },
-
-    addStep(phase, content) {
-      // Skip if thinking panel not available (embedded mode)
-      if (!elements.thinkingPanel || !elements.thinkingContent) return;
-
-      // Show panel only when content arrives (not initially)
-      if (state.thinkingMode && elements.thinkingPanel.style.display !== 'block') {
-        elements.thinkingPanel.style.display = 'block';
-      }
-
-      const stepEl = document.createElement('div');
-      stepEl.className = `thinking-step thinking-${phase}`;
-
-      const phaseLabels = {
-        analyze: '🔍 Analysis',
-        plan: '📋 Plan',
-        execute: '⚙️ Execution'
-      };
-
-      stepEl.innerHTML = `
-        <div class="thinking-step-header">${phaseLabels[phase] || phase}</div>
-        <div class="thinking-step-content">${renderer.render(content)}</div>
-      `;
-
-      elements.thinkingContent.appendChild(stepEl);
-    }
-  };
-
   // ============================================
   // API Client
   // ============================================
@@ -455,10 +405,10 @@
       return response.json();
     },
 
-    async sendMessage(message, threadId, thinkingMode) {
+    async sendMessage(message, threadId) {
       return new Promise((resolve, reject) => {
         const url = `${CONFIG.API_BASE}/chat`;
-        const body = JSON.stringify({ message, threadId, thinkingMode });
+        const body = JSON.stringify({ message, threadId });
 
         // Close existing EventSource if any
         if (state.eventSource) {
@@ -474,7 +424,6 @@
           timeoutId = setTimeout(() => {
             abortController.abort();
             workflowUI.hide();
-            thinkingUI.hide();
             reject(new Error(`Request timeout after ${CONFIG.TIMEOUT / 1000} seconds. Consider increasing chatbot.client.timeout in config.`));
           }, CONFIG.TIMEOUT);
         }
@@ -561,7 +510,6 @@
                 if (!resolved) {
                   resolved = true;
                   workflowUI.hide();
-                  thinkingUI.hide();
                   if (botMessageEl) {
                     messageUI.updateBotMessage(botMessageEl, fullContent, false);
                     messageUI.addSources(botMessageEl, sources);
@@ -599,10 +547,6 @@
           callbacks.onSources(data.sources || []);
           break;
 
-        case 'thinking':
-          thinkingUI.addStep(data.phase, data.content);
-          break;
-
         case 'token':
           callbacks.onBotMessageCreate();
           callbacks.onContent(data.content);
@@ -610,13 +554,11 @@
 
         case 'done':
           workflowUI.hide();
-          thinkingUI.hide();
           callbacks.onDone(data);
           break;
 
         case 'error':
           workflowUI.hide();
-          thinkingUI.hide();
           callbacks.onError(new Error(data.message || 'Unknown error'));
           break;
       }
@@ -653,9 +595,6 @@
       workflowUI.show();
       workflowUI.updateStep('start', 'Connecting...');
 
-      // Note: Thinking panel will be shown only when thinking content arrives
-      // (handled in thinkingUI.addStep)
-
       try {
         // Create session if needed
         if (!state.threadId) {
@@ -664,7 +603,7 @@
         }
 
         // Send message
-        const result = await api.sendMessage(message, state.threadId, state.thinkingMode);
+        const result = await api.sendMessage(message, state.threadId);
 
         // Update state
         state.threadId = result.threadId || state.threadId;
@@ -673,7 +612,6 @@
         console.error('Chat error:', error);
         messageUI.addErrorMessage(error.message || 'Failed to get response');
         workflowUI.hide();
-        thinkingUI.hide();
       } finally {
         state.isProcessing = false;
         this.updateUI(false);
@@ -720,12 +658,6 @@
         welcomeMsg.style.display = 'flex';
       }
 
-      // Clear thinking panel
-      if (elements.thinkingContent) {
-        elements.thinkingContent.innerHTML = '';
-      }
-      thinkingUI.hide();
-
       elements.messageInput.focus();
     }
   };
@@ -762,17 +694,6 @@
         chat.newSession();
       }
     });
-
-    // Thinking mode toggle
-    elements.thinkingModeToggle.addEventListener('change', (e) => {
-      state.thinkingMode = e.target.checked;
-      document.body.classList.toggle('thinking-enabled', state.thinkingMode);
-    });
-
-    // Close thinking panel
-    elements.closeThinking.addEventListener('click', () => {
-      thinkingUI.hide();
-    });
   }
 
   function autoResizeTextarea() {
@@ -787,19 +708,6 @@
   function init() {
     renderer.init();
     setupEventHandlers();
-
-    // Sync state with HTML checkbox (default: checked in HTML)
-    // HTML has checked attribute, so read actual checkbox state
-    state.thinkingMode = elements.thinkingModeToggle.checked;
-    if (state.thinkingMode) {
-      document.body.classList.add('thinking-enabled');
-    }
-
-    // Save preferences on change
-    elements.thinkingModeToggle.addEventListener('change', () => {
-      localStorage.setItem('chatbot_thinkingMode', state.thinkingMode);
-    });
-
     console.log('DocLight Chatbot initialized');
   }
 
