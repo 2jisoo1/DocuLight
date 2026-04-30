@@ -142,7 +142,7 @@ const AdminAPI = {
   createUser(data) { return this.getJson('/api/admin/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); },
   updateUser(id, data) { return this.getJson(`/api/admin/users/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); },
   deleteUser(id) { return this.getJson(`/api/admin/users/${id}`, { method: 'DELETE' }); },
-  resetUserPassword(id, password) { return this.getJson(`/api/admin/users/${id}/reset-password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) }); },
+  resetUserPassword(id, newPassword) { return this.getJson(`/api/admin/users/${id}/reset-password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ newPassword }) }); },
   unlockUser(id) { return this.getJson(`/api/admin/users/${id}/unlock`, { method: 'POST' }); },
   getGroups() { return this.getJson('/api/admin/groups'); },
   createGroup(data) { return this.getJson('/api/admin/groups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); },
