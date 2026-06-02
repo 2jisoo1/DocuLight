@@ -1,4 +1,5 @@
 const express = require('express');
+const net = require('net');
 
 /**
  * MCP over HTTP (JSON-RPC 2.0)
@@ -51,93 +52,147 @@ function sanitizeForToolName(title) {
   return sanitized || DEFAULT_MCP_PREFIX;
 }
 
-function getConfiguredPort(config) {
-  return config.port || 3000;
+function listAllowsWildcard(list) {
+  return Array.isArray(list) && list.includes(WILDCARD_ALLOW);
 }
 
-function getConfiguredScheme(config) {
-  return config.ssl && config.ssl.enabled ? 'https' : 'http';
-}
-
-function normalizeHost(host) {
-  if (!host || typeof host !== 'string') return '';
-  const value = host.trim().toLowerCase();
-  if (!value) return '';
-
-  try {
-    return new URL(value.includes('://') ? value : `http://${value}`).host;
-  } catch (error) {
-    return value;
-  }
-}
-
-function hostnameOnly(host) {
-  const normalized = normalizeHost(host);
-  if (!normalized) return '';
-  if (normalized.startsWith('[')) {
-    const end = normalized.indexOf(']');
-    return end === -1 ? normalized : normalized.slice(1, end);
-  }
-  if ((normalized.match(/:/g) || []).length > 1) {
-    return normalized;
-  }
-  return normalized.split(':')[0];
+function hasOwn(obj, key) {
+  return Object.prototype.hasOwnProperty.call(obj, key);
 }
 
 function normalizeOrigin(origin) {
   if (!origin || typeof origin !== 'string') return '';
+  const value = origin.trim().toLowerCase();
+  if (!value) return '';
   try {
-    const parsed = new URL(origin);
-    return `${parsed.protocol}//${parsed.host}`.toLowerCase();
+    const parsed = new URL(value);
+    if (parsed.origin === 'null') return '';
+    if (value !== parsed.origin.toLowerCase()) return '';
+    return parsed.origin.toLowerCase();
   } catch (error) {
     return '';
   }
 }
 
-function configuredHostNames(config) {
-  const host = config.host;
-  if (!host || host === '0.0.0.0' || host === '::' || host === '[::]') {
-    return [];
+function isValidHostPort(port) {
+  if (!/^\d+$/.test(port)) return false;
+  const portNumber = Number(port);
+  return portNumber >= 0 && portNumber <= 65535;
+}
+
+function isValidHostname(hostname) {
+  if (!hostname || typeof hostname !== 'string') return false;
+  if (net.isIP(hostname) === 4) return true;
+  if (hostname === 'localhost') return true;
+  if (hostname.length > 253) return false;
+
+  const labels = hostname.split('.');
+  return labels.every(label => (
+    label.length >= 1 &&
+    label.length <= 63 &&
+    /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label)
+  ));
+}
+
+function normalizeHostEntry(host) {
+  if (!host || typeof host !== 'string') return null;
+  const value = host.trim().toLowerCase();
+  if (!value) return null;
+  if (/^https?:\/\//i.test(value) || /[/?#]/.test(value)) return null;
+
+  if (value.startsWith('[')) {
+    const match = value.match(/^\[([^\]]+)\](?::(\d+))?$/);
+    if (!match || net.isIP(match[1]) !== 6) return null;
+    if (match[2] !== undefined && !isValidHostPort(match[2])) return null;
+    return {
+      hostname: match[1],
+      port: match[2] || '',
+      hasPort: match[2] !== undefined,
+    };
   }
-  return [host];
-}
 
-function defaultAllowedHosts(config) {
-  return ['localhost', '127.0.0.1', '::1', ...configuredHostNames(config)];
-}
+  const colonCount = (value.match(/:/g) || []).length;
+  if (colonCount > 1) {
+    const lastColon = value.lastIndexOf(':');
+    const possiblePort = value.slice(lastColon + 1);
+    const possibleIpv6Host = value.slice(0, lastColon);
+    if (/^\d+$/.test(possiblePort) && net.isIP(possibleIpv6Host) === 6) {
+      return null;
+    }
+    return net.isIP(value) === 6
+      ? { hostname: value, port: '', hasPort: false }
+      : null;
+  }
 
-function defaultAllowedOrigins(config) {
-  const scheme = getConfiguredScheme(config);
-  const port = getConfiguredPort(config);
-  return defaultAllowedHosts(config).flatMap(host => {
-    const displayHost = host.includes(':') && !host.startsWith('[') ? `[${host}]` : host;
-    return [`${scheme}://${displayHost}:${port}`];
-  });
-}
+  if (colonCount === 1) {
+    const colonIndex = value.lastIndexOf(':');
+    const hostname = value.slice(0, colonIndex);
+    const port = value.slice(colonIndex + 1);
+    if (!isValidHostname(hostname) || !isValidHostPort(port)) return null;
+    return { hostname, port, hasPort: true };
+  }
 
-function configList(value, fallback) {
-  return Array.isArray(value) ? value : fallback;
-}
-
-function listAllowsWildcard(list) {
-  return list.includes(WILDCARD_ALLOW);
+  if (!isValidHostname(value)) return null;
+  return {
+    hostname: value,
+    port: '',
+    hasPort: false,
+  };
 }
 
 function originAllowed(origin, allowedOrigins) {
-  if (listAllowsWildcard(allowedOrigins)) return true;
   const normalized = normalizeOrigin(origin);
   if (!normalized) return false;
+  if (listAllowsWildcard(allowedOrigins)) return true;
   return allowedOrigins.map(normalizeOrigin).includes(normalized);
 }
 
 function hostAllowed(host, allowedHosts) {
+  const normalized = normalizeHostEntry(host);
+  if (!normalized) return false;
   if (listAllowsWildcard(allowedHosts)) return true;
-  const normalized = normalizeHost(host);
-  const bare = hostnameOnly(normalized);
+
   return allowedHosts.some(allowed => {
-    const allowedHost = normalizeHost(allowed);
-    return normalized === allowedHost || bare === hostnameOnly(allowedHost);
+    const allowedEntry = normalizeHostEntry(allowed);
+    if (!allowedEntry) return false;
+    if (allowedEntry.hostname !== normalized.hostname) return false;
+    if (allowedEntry.hasPort) return allowedEntry.port === normalized.port;
+    return true;
   });
+}
+
+function rejectForbidden(res, code, message) {
+  return res.status(403).json({
+    error: {
+      status: 403,
+      code,
+      message
+    }
+  });
+}
+
+function validateMcpRequestSource(req, res, logger = console) {
+  const origin = req.get('Origin');
+  const hasOriginHeader = hasOwn(req.headers, 'origin');
+  const host = req.get('Host');
+  const config = req.app.locals.config || {};
+  const mcpConfig = config.mcp || {};
+  const allowedOrigins = mcpConfig.allowedOrigins || [];
+  const allowedHosts = mcpConfig.allowedHosts || [];
+
+  if (hasOriginHeader && !originAllowed(origin, allowedOrigins)) {
+    logger.warn('MCP request rejected by Origin allowlist', { origin, host });
+    rejectForbidden(res, 'FORBIDDEN_ORIGIN', 'Origin is not allowed for MCP requests');
+    return false;
+  }
+
+  if (!hostAllowed(host, allowedHosts)) {
+    logger.warn('MCP request rejected by Host allowlist', { origin, host });
+    rejectForbidden(res, 'FORBIDDEN_HOST', 'Host is not allowed for MCP requests');
+    return false;
+  }
+
+  return true;
 }
 
 /**
@@ -554,6 +609,11 @@ function createMcpRouter() {
   const router = express.Router();
 
   router.get('/mcp', (req, res) => {
+    const logger = req.app.locals.logger || console;
+    if (!validateMcpRequestSource(req, res, logger)) {
+      return;
+    }
+
     return res
       .status(405)
       .set('Allow', 'POST')
@@ -564,10 +624,6 @@ function createMcpRouter() {
         }
       });
   });
-
-  function hasOwn(obj, key) {
-    return Object.prototype.hasOwnProperty.call(obj, key);
-  }
 
   function classifyJsonRpcMessage(body) {
     if (Array.isArray(body)) {
@@ -623,42 +679,6 @@ function createMcpRouter() {
     });
   }
 
-  function rejectForbidden(res, code, message) {
-    return res.status(403).json({
-      error: {
-        status: 403,
-        code,
-        message
-      }
-    });
-  }
-
-  function validateBrowserOrigin(req, res, logger) {
-    const origin = req.get('Origin');
-    if (!origin) {
-      return true;
-    }
-
-    const config = req.app.locals.config || {};
-    const mcpConfig = config.mcp || {};
-    const allowedOrigins = configList(mcpConfig.allowedOrigins, defaultAllowedOrigins(config));
-    const allowedHosts = configList(mcpConfig.allowedHosts, defaultAllowedHosts(config));
-
-    if (!originAllowed(origin, allowedOrigins)) {
-      logger.warn('MCP request rejected by Origin allowlist', { origin, host: req.get('Host') });
-      rejectForbidden(res, 'FORBIDDEN_ORIGIN', 'Origin is not allowed for MCP requests');
-      return false;
-    }
-
-    if (!hostAllowed(req.get('Host'), allowedHosts)) {
-      logger.warn('MCP request rejected by Host allowlist', { origin, host: req.get('Host') });
-      rejectForbidden(res, 'FORBIDDEN_HOST', 'Host is not allowed for MCP requests');
-      return false;
-    }
-
-    return true;
-  }
-
   function validateProtocolHeader(req, res, logger, messageInfo) {
     const version = req.get('MCP-Protocol-Version');
     if (version && !SUPPORTED_MCP_PROTOCOL_VERSIONS.includes(version)) {
@@ -703,13 +723,17 @@ function createMcpRouter() {
   }
 
   // MCP endpoint - JSON-RPC 2.0
-  router.post('/mcp', express.json(), async (req, res) => {
-    const { config, logger } = req.app.locals;
-    const prefix = sanitizeForToolName(config.ui?.title);
-
-    if (!validateBrowserOrigin(req, res, logger)) {
+  function validateMcpSourceMiddleware(req, res, next) {
+    const { logger } = req.app.locals;
+    if (!validateMcpRequestSource(req, res, logger)) {
       return;
     }
+    next();
+  }
+
+  router.post('/mcp', validateMcpSourceMiddleware, express.json(), async (req, res) => {
+    const { config, logger } = req.app.locals;
+    const prefix = sanitizeForToolName(config.ui?.title);
 
     const messageInfo = classifyJsonRpcMessage(req.body);
 
@@ -826,3 +850,4 @@ module.exports.sanitizeForToolName = sanitizeForToolName;
 module.exports.SUPPORTED_MCP_PROTOCOL_VERSIONS = SUPPORTED_MCP_PROTOCOL_VERSIONS;
 module.exports.DEFAULT_MCP_PROTOCOL_VERSION = DEFAULT_MCP_PROTOCOL_VERSION;
 module.exports.resolveHandlerKey = resolveHandlerKey;
+module.exports.validateMcpRequestSource = validateMcpRequestSource;

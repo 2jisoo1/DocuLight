@@ -69,6 +69,13 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use((req, res, next) => {
+  if (req.path !== '/mcp' && req.path !== '/mcp/') return next();
+  const lg = (req.app && req.app.locals && req.app.locals.logger) || console;
+  if (!createMcpRouter.validateMcpRequestSource(req, res, lg)) return;
+  next();
+});
+
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -398,6 +405,10 @@ app.get('/healthz', (req, res) => {
 // Note: 404 and error handlers are added dynamically in start() function
 // This ensures they are placed after all routers are mounted
 
+function resolveListenHost(cfg = {}, env = process.env) {
+  return env.HOST || cfg.host || '127.0.0.1';
+}
+
 // Start the server (exposed API)
 async function start(options = {}) {
   if (isStarting) return { success: false, error: 'Start already in progress' };
@@ -593,7 +604,7 @@ async function start(options = {}) {
     logger.info('Error handler mounted');
 
     const PORT = cfg.port || 3000;
-    const HOST = process.env.HOST || cfg.host || '0.0.0.0';
+    const HOST = resolveListenHost(cfg, process.env);
 
     if (cfg.ssl && cfg.ssl.enabled) {
       const sslOptions = loadSSLOptions(cfg.ssl);
@@ -762,6 +773,7 @@ async function restart() {
 app.start = start;
 app.stop = stop;
 app.restart = restart;
+app.resolveListenHost = resolveListenHost;
 
 // Graceful shutdown on signals
 const shutdown = async () => {

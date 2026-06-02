@@ -3,8 +3,10 @@
 ## 메타데이터
 
 - **완료일**: 2026-06-01
+- **보강 기록일**: 2026-06-02
 - **기준 계획**: `docs/srs/plan.step20_mcp_streamable_http.md`
 - **범위**: Phase 1-4
+- **상태**: 초기 상호운용성 구현 완료. PR #2 보안 대응은 일부 구현되었으나 2026-06-02 최종 보안 요구사항 기준으로는 추가 보강 필요
 
 ---
 
@@ -79,6 +81,28 @@ git diff --check
 ## 4. 후순위 유지 항목
 
 - `MCP-Session-Id` 기반 lifecycle gate는 구현하지 않았다.
-- Origin allowlist는 구현하지 않았다.
 - SSE stream, event id, resumability, `DELETE /mcp` session 종료는 구현하지 않았다.
-- local bind 기본값 변경은 하지 않았다.
+
+---
+
+## 5. PR #2 보안 리뷰 이후 추가 보강 필요 항목
+
+2026-06-01 완료 기록은 Streamable HTTP 초기 상호운용성 기준이다. 이후 PR #2에서 DNS rebinding과 public read mode 노출 위험이 지적되었고, 1차 review-response commit에서 Origin/Host guard 일부가 추가되었다.
+
+다만 2026-06-02 정책 결정은 더 구체적인 보안 기준을 요구한다. 따라서 현재 PR은 "초기 상호운용성 완료 + 보안 보강 진행 중"으로 보고, 다음 항목을 merge 전 최종 보강 대상으로 둔다.
+
+- `config-loader`에서 `config.mcp.allowedOrigins`와 `config.mcp.allowedHosts`를 정규화/검증한다.
+- `/mcp` Origin 처리 절차를 모든 요청에 수행하되, allowlist 판정은 Origin header가 있는 요청에 적용한다.
+- `Origin` header가 있고 invalid이면 JSON-RPC dispatch 전에 `403 Forbidden`과 `FORBIDDEN_ORIGIN`을 반환한다.
+- `Origin` header가 없는 non-browser MCP client 요청은 Origin 누락만으로 거부하지 않는다.
+- HTTP `Host` header는 Origin 유무와 관계없이 항상 `mcp.allowedHosts`와 비교한다.
+- invalid Host는 JSON-RPC dispatch 전에 `403 Forbidden`과 `FORBIDDEN_HOST`를 반환한다.
+- wildcard `["*"]`는 insecure opt-out으로 허용하되 startup warning과 문서 경고를 제공한다. 단, malformed present Origin과 malformed/missing Host는 wildcard여도 차단한다.
+- 기본 bind address를 `127.0.0.1`로 변경한다.
+- default allowlist는 localhost 계열 Origin/Host와 `config.port` 기준으로 결정한다.
+- Host matching은 hostname/IP 항목은 모든 port 허용, `host:port` 항목은 port까지 exact match한다.
+- Origin matching은 canonical origin 문자열 exact match이며 path/query/hash/userinfo가 포함된 Origin header는 invalid로 처리한다.
+- public read mode(`auth.requireReadLogin=false`)에서 MCP read tools가 공개 조회될 수 있음을 문서화한다.
+- reverse proxy 배포에서 `Host` header 보존을 요구하고, `X-Forwarded-Host`는 trusted proxy 설계 전까지 신뢰하지 않는다고 문서화한다.
+
+상세 요구사항은 `docs/srs/requirements.step20_mcp_streamable_http_security.md`를 기준으로 한다.

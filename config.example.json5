@@ -27,6 +27,11 @@
   // Port number for the server
   port: 3000,
 
+  // Listen address (optional)
+  // The server binds to 127.0.0.1 by default.
+  // Set top-level host: "0.0.0.0" only when direct remote access is required.
+  // host: "127.0.0.1",
+
   // Base path for reverse proxy sub-path deployment (optional)
   // When deploying behind nginx with sub-path proxy (e.g., /develop/ → localhost:3000/),
   // set this to the sub-path prefix so static resources and URLs work correctly.
@@ -100,12 +105,15 @@
   },
 
   // MCP Streamable HTTP security settings (optional)
-  // Browser-origin requests to POST /mcp are checked against these allowlists
-  // to reduce DNS rebinding exposure when read access is public.
-  // Requests without an Origin header (typical CLI/server MCP clients) are allowed.
+  // POST /mcp always checks Host against allowedHosts.
+  // Browser-origin requests with an Origin header are also checked against allowedOrigins.
+  // Requests without an Origin header (typical CLI/server MCP clients) are allowed
+  // only in the sense that missing Origin is not rejected; Host is still checked.
   // Defaults:
   // - allowedOrigins: localhost/127.0.0.1/[::1] on the configured port
   // - allowedHosts: localhost, 127.0.0.1, ::1
+  // Origin entries must be canonical origins: scheme + host + optional port, no path/query/hash/userinfo.
+  // Host entries may be hostnames/IPs or exact host:port values.
   // Use ["*"] only as an explicit insecure opt-out; it disables that check.
   // mcp: {
   //   allowedOrigins: [

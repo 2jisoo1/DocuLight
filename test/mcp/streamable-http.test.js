@@ -194,6 +194,325 @@ function writeTestConfig(testDir, selectedPort) {
       assert.strictEqual(json.error.code, 'FORBIDDEN_HOST');
     });
 
+    function rawMcpRequest({ method = 'POST', path = '/mcp', headers = [], body, rawBody }) {
+      return new Promise((resolve, reject) => {
+        const payload = rawBody !== undefined ? rawBody : (body === undefined ? null : JSON.stringify(body));
+        const socket = net.connect(port, '127.0.0.1');
+        socket.setTimeout(3000, () => {
+          socket.destroy(new Error('raw MCP request timed out'));
+        });
+        let response = '';
+        socket.on('connect', () => {
+          socket.write([
+            `${method} ${path} HTTP/1.0`,
+            ...headers,
+            ...(payload === null ? [] : [
+              'Content-Type: application/json',
+              `Content-Length: ${Buffer.byteLength(payload)}`,
+            ]),
+            '',
+            payload || '',
+          ].join('\r\n'));
+          socket.end();
+        });
+        socket.on('data', chunk => {
+          response += chunk.toString('utf8');
+        });
+        socket.on('end', () => {
+          const statusCode = Number(response.match(/^HTTP\/1\.1 (\d+)/)?.[1]);
+          const bodyText = response.split('\r\n\r\n')[1] || '';
+          resolve({ statusCode, json: bodyText ? JSON.parse(bodyText) : null });
+        });
+        socket.on('error', reject);
+      });
+    }
+
+    function rawMcpRequestWithoutHost(body) {
+      return rawMcpRequest({ body });
+    }
+
+    await test('GET /mcp with disallowed Host is rejected before 405', async () => {
+      const { res, json } = await request({
+        method: 'GET',
+        headers: { Host: `evil.example:${port}` },
+      });
+      assert.strictEqual(res.statusCode, 403);
+      assert.strictEqual(json.error.code, 'FORBIDDEN_HOST');
+    });
+
+    await test('POST /mcp validates source before JSON parsing', async () => {
+      const disallowedHost = await rawMcpRequest({
+        headers: [
+          `Host: evil.example:${port}`,
+        ],
+        rawBody: '{',
+      });
+      assert.strictEqual(disallowedHost.statusCode, 403);
+      assert.strictEqual(disallowedHost.json.error.code, 'FORBIDDEN_HOST');
+
+      const malformedOrigin = await rawMcpRequest({
+        headers: [
+          `Host: 127.0.0.1:${port}`,
+          'Origin: https://docs.example.com/path',
+        ],
+        rawBody: '{',
+      });
+      assert.strictEqual(malformedOrigin.statusCode, 403);
+      assert.strictEqual(malformedOrigin.json.error.code, 'FORBIDDEN_ORIGIN');
+
+      const trailingSlash = await rawMcpRequest({
+        path: '/mcp/',
+        headers: [
+          `Host: evil.example:${port}`,
+        ],
+        rawBody: '{',
+      });
+      assert.strictEqual(trailingSlash.statusCode, 403);
+      assert.strictEqual(trailingSlash.json.error.code, 'FORBIDDEN_HOST');
+    });
+
+    await test('originless request with disallowed Host is rejected', async () => {
+      const { res, json } = await rpc('initialize', { protocolVersion: '2025-11-25' }, {
+        headers: {
+          Host: `evil.example:${port}`,
+        },
+      });
+      assert.strictEqual(res.statusCode, 403);
+      assert.strictEqual(json.error.code, 'FORBIDDEN_HOST');
+    });
+
+    await test('custom allowed Host without port allows any port', async () => {
+      app.locals.config.mcp.allowedOrigins = ['https://docs.example.com'];
+      app.locals.config.mcp.allowedHosts = ['docs.example.com'];
+      try {
+        const { res, json } = await rpc('initialize', { protocolVersion: '2025-11-25' }, {
+          headers: {
+            Origin: 'https://docs.example.com',
+            Host: 'docs.example.com:8443',
+          },
+        });
+        assert.strictEqual(res.statusCode, 200);
+        assert.strictEqual(json.result.protocolVersion, '2025-11-25');
+      } finally {
+        app.locals.config.mcp.allowedOrigins = [`http://localhost:${port}`, `http://127.0.0.1:${port}`, `http://[::1]:${port}`];
+        app.locals.config.mcp.allowedHosts = ['localhost', '127.0.0.1', '::1'];
+      }
+    });
+
+    await test('host:port allowlist entry requires exact port', async () => {
+      app.locals.config.mcp.allowedOrigins = ['https://docs.example.com'];
+      app.locals.config.mcp.allowedHosts = ['docs.example.com:8443'];
+      try {
+        const { res, json } = await rpc('initialize', { protocolVersion: '2025-11-25' }, {
+          headers: {
+            Origin: 'https://docs.example.com',
+            Host: 'docs.example.com:8444',
+          },
+        });
+        assert.strictEqual(res.statusCode, 403);
+        assert.strictEqual(json.error.code, 'FORBIDDEN_HOST');
+      } finally {
+        app.locals.config.mcp.allowedOrigins = [`http://localhost:${port}`, `http://127.0.0.1:${port}`, `http://[::1]:${port}`];
+        app.locals.config.mcp.allowedHosts = ['localhost', '127.0.0.1', '::1'];
+      }
+    });
+
+    await test('host:80 allowlist entry still requires exact port', async () => {
+      app.locals.config.mcp.allowedOrigins = ['https://docs.example.com'];
+      app.locals.config.mcp.allowedHosts = ['docs.example.com:80'];
+      try {
+        const { res, json } = await rpc('initialize', { protocolVersion: '2025-11-25' }, {
+          headers: {
+            Origin: 'https://docs.example.com',
+            Host: 'docs.example.com:8443',
+          },
+        });
+        assert.strictEqual(res.statusCode, 403);
+        assert.strictEqual(json.error.code, 'FORBIDDEN_HOST');
+      } finally {
+        app.locals.config.mcp.allowedOrigins = [`http://localhost:${port}`, `http://127.0.0.1:${port}`, `http://[::1]:${port}`];
+        app.locals.config.mcp.allowedHosts = ['localhost', '127.0.0.1', '::1'];
+      }
+    });
+
+    await test('host:443 allowlist entry still requires exact port', async () => {
+      app.locals.config.mcp.allowedOrigins = ['https://docs.example.com'];
+      app.locals.config.mcp.allowedHosts = ['docs.example.com:443'];
+      try {
+        const { res, json } = await rpc('initialize', { protocolVersion: '2025-11-25' }, {
+          headers: {
+            Origin: 'https://docs.example.com',
+            Host: 'docs.example.com',
+          },
+        });
+        assert.strictEqual(res.statusCode, 403);
+        assert.strictEqual(json.error.code, 'FORBIDDEN_HOST');
+      } finally {
+        app.locals.config.mcp.allowedOrigins = [`http://localhost:${port}`, `http://127.0.0.1:${port}`, `http://[::1]:${port}`];
+        app.locals.config.mcp.allowedHosts = ['localhost', '127.0.0.1', '::1'];
+      }
+    });
+
+    await test('wildcard Origin and Host allow arbitrary browser request', async () => {
+      app.locals.config.mcp.allowedOrigins = ['*'];
+      app.locals.config.mcp.allowedHosts = ['*'];
+      try {
+        const { res, json } = await rpc('initialize', { protocolVersion: '2025-11-25' }, {
+          headers: {
+            Origin: 'https://evil.example',
+            Host: 'evil.example:4444',
+          },
+        });
+        assert.strictEqual(res.statusCode, 200);
+        assert.strictEqual(json.result.protocolVersion, '2025-11-25');
+      } finally {
+        app.locals.config.mcp.allowedOrigins = [`http://localhost:${port}`, `http://127.0.0.1:${port}`, `http://[::1]:${port}`];
+        app.locals.config.mcp.allowedHosts = ['localhost', '127.0.0.1', '::1'];
+      }
+    });
+
+    await test('wildcard Origin still rejects malformed present Origin', async () => {
+      app.locals.config.mcp.allowedOrigins = ['*'];
+      app.locals.config.mcp.allowedHosts = ['*'];
+      try {
+        for (const originHeader of [
+          'Origin:',
+          'Origin: https://docs.example.com/path',
+          'Origin: https://docs.example.com?x=1',
+          'Origin: https://docs.example.com#x',
+          'Origin: https://user:pass@docs.example.com',
+        ]) {
+          const result = await rawMcpRequest({
+            headers: [
+              `Host: 127.0.0.1:${port}`,
+              originHeader,
+            ],
+            body: {
+              jsonrpc: '2.0',
+              id: 1,
+              method: 'initialize',
+              params: { protocolVersion: '2025-11-25' },
+            },
+          });
+          assert.strictEqual(result.statusCode, 403);
+          assert.strictEqual(result.json.error.code, 'FORBIDDEN_ORIGIN');
+        }
+      } finally {
+        app.locals.config.mcp.allowedOrigins = [`http://localhost:${port}`, `http://127.0.0.1:${port}`, `http://[::1]:${port}`];
+        app.locals.config.mcp.allowedHosts = ['localhost', '127.0.0.1', '::1'];
+      }
+    });
+
+    await test('wildcard Host still rejects malformed or missing Host', async () => {
+      app.locals.config.mcp.allowedOrigins = ['*'];
+      app.locals.config.mcp.allowedHosts = ['*'];
+      try {
+        for (const headers of [
+          [],
+          ['Host: http://127.0.0.1/mcp'],
+          ['Host: bad host:123'],
+          ['Host: -bad.example:123'],
+          ['Host: example..com:123'],
+          ['Host: example.com:99999'],
+        ]) {
+          const result = await rawMcpRequest({
+            headers,
+            body: {
+              jsonrpc: '2.0',
+              id: 1,
+              method: 'initialize',
+              params: { protocolVersion: '2025-11-25' },
+            },
+          });
+          assert.strictEqual(result.statusCode, 403);
+          assert.strictEqual(result.json.error.code, 'FORBIDDEN_HOST');
+        }
+      } finally {
+        app.locals.config.mcp.allowedOrigins = [`http://localhost:${port}`, `http://127.0.0.1:${port}`, `http://[::1]:${port}`];
+        app.locals.config.mcp.allowedHosts = ['localhost', '127.0.0.1', '::1'];
+      }
+    });
+
+    await test('malformed Origin is rejected', async () => {
+      const { res, json } = await rpc('initialize', { protocolVersion: '2025-11-25' }, {
+        headers: {
+          Origin: 'not a url',
+          Host: `127.0.0.1:${port}`,
+        },
+      });
+      assert.strictEqual(res.statusCode, 403);
+      assert.strictEqual(json.error.code, 'FORBIDDEN_ORIGIN');
+    });
+
+    await test('Origin null is rejected', async () => {
+      const { res, json } = await rpc('initialize', { protocolVersion: '2025-11-25' }, {
+        headers: {
+          Origin: 'null',
+          Host: `127.0.0.1:${port}`,
+        },
+      });
+      assert.strictEqual(res.statusCode, 403);
+      assert.strictEqual(json.error.code, 'FORBIDDEN_ORIGIN');
+    });
+
+    await test('empty Origin header is rejected', async () => {
+      const result = await rawMcpRequest({
+        headers: [
+          `Host: 127.0.0.1:${port}`,
+          'Origin:',
+        ],
+        body: {
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'initialize',
+          params: { protocolVersion: '2025-11-25' },
+        },
+      });
+      assert.strictEqual(result.statusCode, 403);
+      assert.strictEqual(result.json.error.code, 'FORBIDDEN_ORIGIN');
+    });
+
+    await test('missing Host is rejected', async () => {
+      const result = await rawMcpRequestWithoutHost({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: { protocolVersion: '2025-11-25' },
+      });
+      assert.strictEqual(result.statusCode, 403);
+      assert.strictEqual(result.json.error.code, 'FORBIDDEN_HOST');
+    });
+
+    await test('Host with scheme, path, query, or fragment characters is rejected', async () => {
+      for (const host of [`http://127.0.0.1:${port}`, `127.0.0.1:${port}/mcp`, `127.0.0.1:${port}?x=1`, `127.0.0.1:${port}#x`]) {
+        const result = await rawMcpRequest({
+          headers: [
+            `Host: ${host}`,
+          ],
+          body: {
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'initialize',
+            params: { protocolVersion: '2025-11-25' },
+          },
+        });
+        assert.strictEqual(result.statusCode, 403);
+        assert.strictEqual(result.json.error.code, 'FORBIDDEN_HOST');
+      }
+    });
+
+    await test('X-Forwarded-Host does not bypass Host validation', async () => {
+      const { res, json } = await rpc('initialize', { protocolVersion: '2025-11-25' }, {
+        headers: {
+          Origin: `http://127.0.0.1:${port}`,
+          Host: 'evil.example',
+          'X-Forwarded-Host': `127.0.0.1:${port}`,
+        },
+      });
+      assert.strictEqual(res.statusCode, 403);
+      assert.strictEqual(json.error.code, 'FORBIDDEN_HOST');
+    });
+
     await test('initialize falls back on unsupported requested protocol version', async () => {
       const { res, json } = await rpc('initialize', { protocolVersion: '1900-01-01' });
       assert.strictEqual(res.statusCode, 200);

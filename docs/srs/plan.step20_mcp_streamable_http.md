@@ -9,6 +9,7 @@
   - `docs/research/2026-06-01-mcp-streamable-http-spec.md`
   - `docs/analysis/2026-06-01.mcp-streamable-http-gap.md`
   - `docs/plan/2026-06-01-mcp-streamable-http-direction.md`
+  - `docs/srs/requirements.step20_mcp_streamable_http_security.md`
 - **참고한 기존 계획 형식**:
   - `docs/srs/plan.step7.ko.md`
   - `docs/srs/plan.step8.2.md`
@@ -20,7 +21,7 @@
 
 ### 1.1 목적
 
-DocuLight의 `/mcp` endpoint를 최신 MCP Streamable HTTP transport에 맞춰 정리한다. 단, DocuLight는 SSE를 지원하지 않으며 Origin allowlist와 `MCP-Session-Id` 기반 lifecycle gate도 후순위로 둔다. 따라서 이번 Step은 완전한 최소 준수가 아니라, `POST /mcp` 단일 JSON-RPC 응답 중심의 초기 상호운용성 확보를 목표로 한다.
+DocuLight의 `/mcp` endpoint를 최신 MCP Streamable HTTP transport에 맞춰 정리한다. 단, DocuLight는 SSE를 지원하지 않으며 `MCP-Session-Id` 기반 lifecycle gate는 후순위로 둔다. PR #2 보안 리뷰 이후에는 Streamable HTTP 초기 상호운용성뿐 아니라 `/mcp` Origin/Host 검증과 기본 localhost bind를 Step 20 보안 보강 범위에 포함한다.
 
 이번 Step의 목적은 다음과 같다.
 
@@ -30,6 +31,7 @@ DocuLight의 `/mcp` endpoint를 최신 MCP Streamable HTTP transport에 맞춰 �
 4. `initialize`의 `protocolVersion`을 최신 MCP protocol revision 기준으로 협상한다.
 5. `MCP-Protocol-Version` 및 `Accept` header 처리 정책을 도입한다.
 6. `/context`는 MCP Streamable HTTP endpoint가 아닌 legacy/context helper로 분리한다.
+7. `/mcp` Origin/Host allowlist와 기본 localhost bind로 DNS rebinding 방어를 보강한다.
 
 ### 1.2 범위
 
@@ -40,8 +42,11 @@ DocuLight의 `/mcp` endpoint를 최신 MCP Streamable HTTP transport에 맞춰 �
 | JSON-RPC notification/response 수락 시 `202 Accepted` | JSON-RPC batch 지원 |
 | `initialize` protocolVersion `2025-11-25` 협상 | 구버전 MCP protocol 완전 호환 모드 |
 | `MCP-Protocol-Version` header 검증 | `MCP-Session-Id` 기반 stateful lifecycle gate |
-| `Accept` header compatibility/conformance 정책 | Origin allowlist middleware |
-| `public/mcp-doc.md` 및 관련 문서 갱신 | `/context` endpoint deprecated 처리 |
+| `Accept` header compatibility/conformance 정책 | SSE stream 응답 |
+| MCP Origin/Host allowlist 검증 | `DELETE /mcp` session 종료 |
+| 기본 bind address `127.0.0.1` 전환 | trusted proxy 기반 forwarded header 신뢰 |
+| public read mode 및 reverse proxy 운영 문서화 | `/context` endpoint deprecated 처리 |
+| `public/mcp-doc.md` 및 관련 문서 갱신 | MCP 전용 read auth 설정 |
 
 ### 1.3 핵심 결정
 
@@ -54,7 +59,10 @@ DocuLight의 `/mcp` endpoint를 최신 MCP Streamable HTTP transport에 맞춰 �
 | `protocolVersion` 의미 | JSON-RPC/HTTP/app version이 아니라 MCP specification revision version |
 | 목표 protocol version | `2025-11-25` |
 | `MCP-Session-Id` | 구현 난이도가 커서 최후순위 phase로 분리 |
-| Origin allowlist | 보안 필요성은 인정하되 초기 구현 우선순위에서는 낮춤 |
+| Origin validation | `/mcp` 필수 절차. Origin이 있고 invalid이면 `403`, Origin이 없으면 non-browser MCP client 호환을 위해 허용 |
+| Host validation | HTTP `Host` header를 모든 `/mcp` 요청에서 항상 allowlist 검사 |
+| 기본 bind address | 명시 설정이 없으면 `127.0.0.1` |
+| wildcard allowlist | `["*"]` 허용. 단, DNS rebinding 방어를 끄는 insecure opt-out으로 warning 및 문서화 |
 
 ### 1.4 현재 상태 요약
 
@@ -228,6 +236,45 @@ DocuLight의 `/mcp` endpoint를 최신 MCP Streamable HTTP transport에 맞춰 �
   4. 예제 요청에 `Accept: application/json, text/event-stream`과 `MCP-Protocol-Version: 2025-11-25`를 추가한다.
 - **우선순위**: P1
 
+### FR-20-009: `/mcp` Origin/Host validation
+
+- **설명**: DNS rebinding 방어를 위해 `/mcp` 요청을 JSON-RPC dispatch 전에 Origin/Host allowlist로 검증한다.
+- **처리**:
+  1. `Origin` header가 있으면 lower-case로 정규화한 full origin 문자열(`scheme://host[:port]`)을 `mcp.allowedOrigins`와 exact match한다.
+  2. `Origin: null`, malformed Origin, empty Origin, allowlist 불일치 시 `403 Forbidden`과 `FORBIDDEN_ORIGIN`을 반환한다.
+  3. `Origin` header가 없으면 non-browser MCP client 호환을 위해 Origin 누락만으로 거부하지 않는다.
+  4. HTTP `Host` header는 Origin 유무와 관계없이 항상 `mcp.allowedHosts`와 비교한다.
+  5. `allowedHosts` 항목이 hostname/IP만 포함하면 같은 hostname/IP의 모든 port를 허용한다.
+  6. `allowedHosts` 항목이 `host:port` 또는 `[ipv6]:port`이면 host와 port가 모두 일치해야 한다.
+  7. missing, empty, malformed Host는 wildcard 여부와 관계없이 허용되지 않은 Host로 처리한다.
+  8. Host 불일치 시 `403 Forbidden`과 `FORBIDDEN_HOST`를 반환한다.
+  9. `X-Forwarded-Host`는 trusted proxy 설계 전까지 신뢰하지 않는다.
+- **우선순위**: P0
+
+### FR-20-010: MCP allowlist config 정규화/검증
+
+- **설명**: `config.mcp`는 route 내부에서 임시 해석하지 않고 config loading 단계에서 정규화/검증한다.
+- **처리**:
+  1. `config.mcp`가 없으면 기본값을 생성한다.
+  2. 기본 `allowedOrigins`는 `config.port`와 SSL 설정을 기준으로 `http://localhost:<port>`, `http://127.0.0.1:<port>`, `http://[::1]:<port>` 또는 SSL enabled 시 `https` variant를 포함한다.
+  3. 기본 `allowedHosts`는 `localhost`, `127.0.0.1`, `::1`을 포함한다.
+  4. `config.host`가 `0.0.0.0`, `::`, `[::]`가 아닌 특정 host이면 그 host의 Origin/Host도 기본 후보에 포함한다.
+  5. `mcp.allowedOrigins`와 `mcp.allowedHosts`는 문자열 배열이어야 한다.
+  6. `allowedOrigins` 값은 full origin 형식(`scheme://host[:port]`)이어야 한다. `*`는 예외로 허용한다.
+  7. `allowedHosts` 값은 hostname, IP literal, `host:port`, `[ipv6]:port` 형식이어야 한다. `*`는 예외로 허용한다.
+  8. invalid allowlist config는 fallback 없이 startup validation error로 처리하고, error message에 실패한 config key를 포함한다.
+  9. wildcard `["*"]`는 insecure opt-out으로 startup warning을 남긴다.
+- **우선순위**: P0
+
+### FR-20-011: 기본 bind address 변경
+
+- **설명**: 로컬 MCP 노출 위험을 줄이기 위해 명시 설정이 없으면 localhost에만 bind한다.
+- **처리**:
+  1. `config.host`와 `HOST` 환경변수가 모두 없으면 server listen host는 `127.0.0.1`이다.
+  2. 원격 직접 접속이 필요한 운영자는 `host: "0.0.0.0"` 또는 특정 서버 IP를 명시한다.
+  3. 문서는 `0.0.0.0`이 모든 network interface listen을 의미한다고 설명한다.
+- **우선순위**: P0
+
 ---
 
 ## 3. 비기능 요구사항
@@ -237,12 +284,13 @@ DocuLight의 `/mcp` endpoint를 최신 MCP Streamable HTTP transport에 맞춰 �
 - 기존 MCP tools/list, tools/call의 tool schema와 handler 동작을 변경하지 않는다.
 - `create_document`, `delete_document`의 user-key 인증 정책을 유지한다.
 - `requireReadLogin` 활성 시 읽기 도구 인증 정책을 유지한다.
+- `requireReadLogin=false` 상태에서는 MCP read tools가 공개 조회될 수 있음을 문서화하고, public/network 배포에서는 read authentication, IP allowlist, reverse proxy ACL 중 하나 이상을 권장한다.
 
 ### NFR-20-002: 안전한 점진 도입
 
 - `MCP-Session-Id` 기반 lifecycle 강제는 이번 Step에서 구현하지 않는다.
-- Origin allowlist는 이번 Step에서 구현하지 않는다.
 - 기존 curl/manual client가 즉시 깨지지 않도록 header 누락은 compatibility mode에서 허용한다.
+- Origin 없는 request는 non-browser MCP client 호환을 위해 허용하되, Origin이 있는 browser request는 allowlist로 통제한다.
 
 ### NFR-20-003: 관측 가능성
 
@@ -257,7 +305,9 @@ DocuLight의 `/mcp` endpoint를 최신 MCP Streamable HTTP transport에 맞춰 �
 
 | 파일 | 작업 |
 |------|------|
-| `src/routes/mcp.js` | Streamable HTTP helper, `GET /mcp`, message type 분기, protocol/header 검증 추가 |
+| `src/routes/mcp.js` | Streamable HTTP helper, `GET /mcp`, message type 분기, protocol/header 검증, Origin/Host 검증 추가 |
+| `src/utils/config-loader.js` | `config.mcp` allowlist 정규화/검증 및 wildcard warning 추가 |
+| `src/app.js` | 기본 bind address를 `127.0.0.1`로 변경 |
 | `test/mcp/streamable-http.test.js` | transport semantics 회귀 테스트 추가 |
 | `scripts/run-tests.js` | 새 MCP transport 테스트를 기본 suite에 포함 |
 | `public/mcp-doc.md` | MCP version, header, GET 미지원 문서화 |
@@ -545,6 +595,125 @@ assert.strictEqual(res.statusCode, 200);
 assert.ok(Array.isArray(res.json.result.tools));
 ```
 
+#### TC-20-011: Origin 없는 `initialize`는 허용
+
+```javascript
+const res = await sendMcpRequest('initialize', {
+  protocolVersion: '2025-11-25',
+  capabilities: {},
+  clientInfo: { name: 'test-client', version: '1.0.0' }
+}, { Origin: undefined });
+assert.strictEqual(res.statusCode, 200);
+```
+
+#### TC-20-012: Origin 없는 `tools/list`는 Host가 유효하면 허용
+
+```javascript
+const res = await sendMcpRequest('tools/list', null, {
+  'Host': 'localhost:3000',
+  'MCP-Protocol-Version': '2025-11-25'
+});
+assert.strictEqual(res.statusCode, 200);
+assert.ok(Array.isArray(res.json.result.tools));
+```
+
+#### TC-20-013: Origin이 없어도 invalid Host는 403
+
+```javascript
+const res = await sendMcpRequest('tools/list', null, {
+  'Host': 'attacker.example',
+  'MCP-Protocol-Version': '2025-11-25'
+});
+assert.strictEqual(res.statusCode, 403);
+assert.strictEqual(res.json.error.code, 'FORBIDDEN_HOST');
+```
+
+#### TC-20-014: invalid Origin + valid Host는 403
+
+```javascript
+const res = await sendMcpRequest('tools/list', null, {
+  'Origin': 'https://attacker.example',
+  'Host': 'localhost:3000',
+  'MCP-Protocol-Version': '2025-11-25'
+});
+assert.strictEqual(res.statusCode, 403);
+assert.strictEqual(res.json.error.code, 'FORBIDDEN_ORIGIN');
+```
+
+#### TC-20-015: valid Origin + invalid Host는 403
+
+```javascript
+const res = await sendMcpRequest('tools/list', null, {
+  'Origin': 'http://localhost:3000',
+  'Host': 'attacker.example',
+  'MCP-Protocol-Version': '2025-11-25'
+});
+assert.strictEqual(res.statusCode, 403);
+assert.strictEqual(res.json.error.code, 'FORBIDDEN_HOST');
+```
+
+#### TC-20-016: custom allowed Origin/Host는 허용
+
+```javascript
+// test config: mcp.allowedOrigins = ['https://docs.example.com']
+// test config: mcp.allowedHosts = ['docs.example.com']
+const res = await sendMcpRequest('tools/list', null, {
+  'Origin': 'https://docs.example.com',
+  'Host': 'docs.example.com',
+  'MCP-Protocol-Version': '2025-11-25'
+});
+assert.strictEqual(res.statusCode, 200);
+```
+
+#### TC-20-017: wildcard Origin/Host는 허용하고 warning을 남김
+
+```javascript
+// test config: mcp.allowedOrigins = ['*'], mcp.allowedHosts = ['*']
+const res = await sendMcpRequest('tools/list', null, {
+  'Origin': 'https://attacker.example',
+  'Host': 'attacker.example',
+  'MCP-Protocol-Version': '2025-11-25'
+});
+assert.strictEqual(res.statusCode, 200);
+assert.ok(loggerWarns.some(message => message.includes('MCP') && message.includes('wildcard')));
+```
+
+#### TC-20-018: invalid allowlist config는 startup validation error
+
+```javascript
+assert.throws(
+  () => loadConfig({ mcp: { allowedOrigins: 'https://docs.example.com' } }),
+  /mcp\.allowedOrigins/
+);
+```
+
+#### TC-20-019: 기본 bind address는 `127.0.0.1`
+
+```javascript
+delete process.env.HOST;
+const config = loadConfig({});
+assert.strictEqual(resolveListenHost(config), '127.0.0.1');
+```
+
+#### TC-20-020: malformed Origin/Host는 차단
+
+```javascript
+const originRes = await sendMcpRequest('tools/list', null, {
+  'Origin': 'not a url',
+  'Host': 'localhost:3000',
+  'MCP-Protocol-Version': '2025-11-25'
+});
+assert.strictEqual(originRes.statusCode, 403);
+assert.strictEqual(originRes.json.error.code, 'FORBIDDEN_ORIGIN');
+
+const hostRes = await sendMcpRequest('tools/list', null, {
+  'Host': '',
+  'MCP-Protocol-Version': '2025-11-25'
+});
+assert.strictEqual(hostRes.statusCode, 403);
+assert.strictEqual(hostRes.json.error.code, 'FORBIDDEN_HOST');
+```
+
 ### 5.3 테스트 실행
 
 ```bash
@@ -591,16 +760,28 @@ PASS - all suites passed
 - [ ] unsupported header/version 테스트 추가
 - [ ] `npm test` 기본 suite 통과
 
-### Phase 3: 문서 갱신 (P1)
+### Phase 3: MCP 보안 보강 (P0)
+
+- [ ] `config-loader`에서 `config.mcp.allowedOrigins`와 `config.mcp.allowedHosts` 기본값 생성
+- [ ] invalid allowlist config를 startup validation error로 처리
+- [ ] wildcard `["*"]` 사용 시 insecure opt-out warning 추가
+- [ ] `/mcp` Origin 처리 절차와 Origin allowlist exact match 추가
+- [ ] `/mcp` Host allowlist 검증을 모든 요청에 적용
+- [ ] 기본 bind address를 `127.0.0.1`로 변경
+- [ ] Origin 없음, invalid Origin, invalid Host, custom allowlist, wildcard, malformed Origin/Host 테스트 추가
+
+### Phase 4: 문서 갱신 (P1)
 
 - [ ] `public/mcp-doc.md`의 MCP version을 `2025-11-25`로 갱신
 - [ ] `public/mcp-doc.md`에 `GET /mcp` 405와 SSE 미지원 정책 추가
+- [ ] public read mode, wildcard insecure opt-out, default localhost bind, reverse proxy Host 보존 정책 추가
 - [ ] curl 예제에 `Accept` 및 `MCP-Protocol-Version` header 추가
 - [ ] `/context`를 MCP transport endpoint가 아닌 context helper로 설명
 - [ ] `docs/api/doc/ko/api-curl-example.md`의 MCP 예제 갱신
 
-### Phase 4: 회귀 확인 및 정리 (P1)
+### Phase 5: 회귀 확인 및 정리 (P1)
 
+- [ ] `node test/mcp/streamable-http.test.js` 실행
 - [ ] `node test/test-mcp-tools.js` 실행
 - [ ] `node test/mcp/handler-parity.test.js` 실행
 - [ ] `npm test` 실행
@@ -703,6 +884,14 @@ curl -i -X GET http://localhost:3000/mcp \
 - [ ] `Accept`에 `application/json`이 없으면 `406 Not Acceptable`로 응답한다.
 - [ ] 기존 MCP tool handler registry와 tools/list 결과가 유지된다.
 - [ ] `/context`는 기존 helper endpoint로 유지되며 deprecated 처리하지 않는다.
+- [ ] Origin이 있는 `/mcp` 요청은 `mcp.allowedOrigins` 검증을 통과해야 한다.
+- [ ] Origin이 없는 `/mcp` 요청은 Origin 누락만으로 거부되지 않는다.
+- [ ] 모든 `/mcp` 요청의 HTTP `Host` header는 `mcp.allowedHosts` 검증을 통과해야 한다.
+- [ ] invalid Origin/Host는 tool dispatch 전에 `403`으로 차단된다.
+- [ ] custom Origin/Host allowlist가 실제 route에서 적용된다.
+- [ ] wildcard `["*"]` 사용 시 insecure opt-out warning이 남는다.
+- [ ] invalid allowlist config는 startup validation error를 발생시킨다.
+- [ ] 명시 host 설정이 없으면 기본 bind address가 `127.0.0.1`이다.
 - [ ] MCP 문서와 curl 예제가 새 transport 정책과 일치한다.
 - [ ] `npm test`가 통과한다.
 
@@ -720,18 +909,13 @@ curl -i -X GET http://localhost:3000/mcp \
 - `notifications/initialized` 이후에만 tool request 허용
 - missing session은 `400`, unknown/expired session은 `404`
 
-### 9.2 Origin allowlist
+### 9.2 trusted proxy 기반 forwarded header 지원
 
-이번 Step에서는 구현하지 않는다. 후속 보안 hardening phase에서 다음을 별도 설계한다.
+이번 Step에서는 `X-Forwarded-Host` 또는 `X-Forwarded-Proto`를 신뢰하지 않는다. 후속 phase에서 trusted proxy 설정, proxy chain 검증, forwarded header 정규화 정책을 별도 설계한다.
 
-- `security.mcp.allowedOrigins` 설정 추가
-- `Origin` header가 존재할 때 URL origin exact match
-- reverse proxy 환경의 `Host`, `X-Forwarded-Host`, `X-Forwarded-Proto` 신뢰 정책 결정
-- `null` Origin 처리 정책 결정
+### 9.3 MCP 전용 read auth 설정
 
-### 9.3 local bind 기본값
-
-이번 Step에서는 `HOST=0.0.0.0` 기본 실행 방식을 변경하지 않는다. MCP endpoint의 외부 노출 위험은 문서 경고로 먼저 다루고, 기본 bind 변경 여부는 별도 배포 영향 검토 후 결정한다.
+이번 Step에서는 MCP 전용 `mcp.requireReadAuth`를 추가하지 않는다. read tools 인증은 기존 `auth.requireReadLogin` 정책을 따른다.
 
 ---
 
@@ -743,4 +927,6 @@ curl -i -X GET http://localhost:3000/mcp \
 | 일부 client가 `Accept: text/event-stream`만 전송 | `406`으로 실패 | 문서에 `application/json, text/event-stream` 필요성을 명시 |
 | `protocolVersion`을 `2024-11-05`로 기대하는 client 존재 | 서버가 `2025-11-25`로 fallback 응답할 수 있음 | client가 fallback version을 수락하지 못하면 별도 legacy mode Step을 작성 |
 | session gate 미구현 | lifecycle strict conformance 부족 | 계획 문서와 gap 문서에 후순위로 명시 |
-| Origin allowlist 미구현 | browser-origin 기반 DNS rebinding 방어 부족 | local exposure 경고와 후순위 hardening 항목으로 관리 |
+| Origin 없는 non-browser 요청 허용 | Origin header만으로 모든 access control을 대체할 수 없음 | read authentication, localhost bind, IP allowlist, reverse proxy ACL을 운영 문서에 명시 |
+| wildcard allowlist 사용 | DNS rebinding 방어 비활성화 | 기본값으로 사용하지 않고 startup warning 및 문서 경고 제공 |
+| 기본 bind 변경 | 기존 원격 직접 접속 사용자가 접속 실패 가능 | 원격 직접 접속 시 `host: "0.0.0.0"` 또는 특정 IP 명시를 문서화 |

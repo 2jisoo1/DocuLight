@@ -35,6 +35,7 @@ npm start
 ```
 
 Server runs on port 3000 by default. Access at `http://localhost:3000`.
+The server binds to `127.0.0.1` by default. Set `host: "0.0.0.0"` in `config.json5`, or set the `HOST` environment variable, only when direct remote access is required.
 
 ---
 
@@ -209,7 +210,7 @@ curl -X POST http://localhost:3000/mcp \
 
 ### MCP Origin and Host Allowlist
 
-DocuLight rejects browser requests to `POST /mcp` when the `Origin` or `Host` header is not allowed. Requests without an `Origin` header, such as normal CLI/server MCP clients, are accepted.
+DocuLight rejects requests to `POST /mcp` when the `Host` header is not allowed. If an `Origin` header is present, it must also be allowed. Requests without an `Origin` header, such as normal CLI/server MCP clients, are accepted only in the sense that missing `Origin` is not rejected; `Host` is still always checked.
 
 Configure browser access explicitly when exposing MCP through a domain:
 
@@ -220,7 +221,12 @@ mcp: {
 }
 ```
 
-`["*"]` is supported only as an explicit insecure opt-out for the corresponding check. It should not be used when read tools are public.
+Origin values must be canonical origins such as `https://docs.example.com`; do not include path, query, hash, or userinfo.
+Host entries may be hostnames/IPs or exact `host:port` values. Entries without a port allow any port for that hostname; entries with a port require an exact port match.
+
+The server binds to `127.0.0.1` by default. For public deployments, keep DocuLight bound locally and terminate public traffic at a reverse proxy when possible. Preserve the original `Host` header when using a reverse proxy; DocuLight does not trust `X-Forwarded-Host` for MCP allowlist checks.
+
+`["*"]` is supported only as an explicit insecure opt-out for the corresponding check. It disables that allowlist check for well-formed values and should not be used when read tools are public.
 
 ### MCP Tool Authentication
 

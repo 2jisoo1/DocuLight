@@ -4,9 +4,12 @@
 
 - 작성일: 2026-06-01
 - 목적: SSE를 지원하지 않고 최신 MCP Streamable HTTP 최소 준수를 목표로 할 때의 1차 방향 결정
+- 보강일: 2026-06-02
+- 보강 사유: PR #2 보안 리뷰와 후속 정책 결정에 따라 `/mcp` Origin/Host 검증 및 기본 bind 정책을 추가
 - 입력 문서:
   - `docs/research/2026-06-01-mcp-streamable-http-spec.md`
   - `docs/analysis/2026-06-01.mcp-streamable-http-gap.md`
+  - `docs/srs/requirements.step20_mcp_streamable_http_security.md`
 - 성격: 최종 구현 계획이 아니라, 후속 research/plan 보강 phase의 기준 초안
 
 ## 목표 범위
@@ -27,7 +30,9 @@ DocuLight는 `GET` SSE stream을 제공하지 않는다. 대신 `/mcp`를 최신
 | `/context` | 이번 Streamable HTTP 대상에서 제외하고 legacy/context helper로 분류 |
 | protocol version | MCP protocol spec revision version으로 해석한다 |
 | lifecycle 지원 | `MCP-Session-Id` 기반 stateful 강제는 설계/구현 우선순위를 최후순위로 둔다 |
-| Origin 검증 | 필요성은 인정하되 초기 구현 우선순위에서는 낮춘다 |
+| Origin 검증 | 2026-06-02 보안 정책으로 대체: `/mcp` 필수 검증. Origin이 있으면 allowlist 검사, invalid Origin은 `403`. Origin이 없으면 non-browser MCP client 호환을 위해 허용하되 다른 access control에 의존 |
+| Host 검증 | 2026-06-02 보안 정책으로 추가: HTTP `Host` header는 모든 `/mcp` 요청에서 항상 allowlist 검사 |
+| 기본 bind | 2026-06-02 보안 정책으로 추가: 명시 설정이 없으면 `127.0.0.1`에 bind |
 
 ## GAP별 선택
 
@@ -38,8 +43,8 @@ DocuLight는 `GET` SSE stream을 제공하지 않는다. 대신 `/mcp`를 최신
 **동작**:
 
 - `GET /mcp` + `Accept: text/event-stream` -> `405 Method Not Allowed`
-- 응답 body는 비워도 되지만, 디버깅 편의상 JSON error body를 둘지는 후속 research에서 결정한다.
-- `Allow` header는 후속 research에서 확정한다. HTTP 405 관례상 초안은 `Allow: POST`를 선호한다.
+- 응답 body는 JSON error body를 사용한다.
+- `Allow` header는 `POST`로 둔다.
 
 ### GAP-2, GAP-6. notification/response 처리
 
@@ -101,7 +106,7 @@ HTTP는 요청이 분리되므로 `initialize` -> `notifications/initialized` ->
 - Streamable HTTP 목표 version은 `2025-11-25`로 둔다.
 - `SUPPORTED_MCP_PROTOCOL_VERSIONS = ["2025-11-25"]`로 시작한다.
 - `initialize.params.protocolVersion === "2025-11-25"`이면 같은 version으로 응답한다.
-- 요청 version이 미지원이면 JSON-RPC initialization error를 반환할지, 서버 지원 최신 version을 반환할지는 후속 research에서 결정한다.
+- 요청 version이 미지원이면 서버 지원 최신 version인 `2025-11-25`로 fallback 응답한다.
 - 기존 `2024-11-05` client 호환은 이번 목표 범위 밖으로 둔다. 필요하면 별도 legacy mode로 분리한다.
 
 ### GAP-5. `MCP-Protocol-Version` header
@@ -131,28 +136,24 @@ HTTP는 요청이 분리되므로 `initialize` -> `notifications/initialized` ->
 
 **질문**: Gap 8은 Origin을 어떻게 검증하라는 것인지?
 
-**결정**: `Origin` allowlist는 필요성은 인정하되, 초기 Streamable HTTP 구현 우선순위에서는 낮춘다.
+**결정**: 2026-06-02 보안 정책으로 대체한다. `/mcp`에는 Origin validation을 필수 절차로 둔다.
 
-이유는 현재 코드에 Origin allowlist 인가 로직이 없고, 기존 allowlist는 IP 기반 `security.allows`뿐이기 때문이다. 먼저 `/mcp`의 transport semantics, protocol version negotiation, notification handling, method/Accept 처리를 맞춘 뒤 MCP endpoint 전용 Origin 검증을 별도 보안 hardening 항목으로 다룬다.
+**검증 방식**:
 
-**후순위 구현 시 검증 방식 초안**:
+1. `Origin` header가 있으면 canonical origin 문자열로 parse한다.
+2. parse 실패, canonical origin 형식 불일치(path/query/hash/userinfo 포함), 또는 allowlist 불일치 시 `403 Forbidden`을 반환한다.
+3. `Origin` header가 없으면 non-browser MCP client 호환을 위해 Origin 누락만으로 거부하지 않는다.
+4. Origin 없는 요청은 "안전함"이 아니라 "browser Origin 검증 대상이 아님"으로 해석하며, read authentication, localhost bind, IP allowlist, reverse proxy access control 중 하나 이상으로 보완한다.
 
-1. `Origin` header가 없으면 allow.
-2. `Origin` header가 있으면 URL로 parse한다.
-3. parse 실패 시 `403 Forbidden`.
-4. `origin` 문자열(`scheme://host[:port]`)을 allowlist와 exact match한다.
-5. match 실패 시 `403 Forbidden`.
+**allowlist 결정**:
 
-**후순위 allowlist 초안**:
-
-- 현재 코드에는 Origin allowlist 인가 로직이 없다. 기존 allowlist는 IP 기반 `security.allows`뿐이다.
-- 새 설정 후보: `security.mcp.allowedOrigins`
-- 기본값:
-  - `http://localhost:<port>`
-  - `http://127.0.0.1:<port>`
-  - `http://[::1]:<port>`
-  - SSL enabled이면 `https` variant
-- 외부 reverse proxy 배포는 운영자가 explicit origin을 추가한다.
+- 현재 IP 기반 `security.allows`와 분리된 MCP 전용 설정을 둔다.
+- 새 설정: `mcp.allowedOrigins`
+- 입력 형태: full origin 문자열(`scheme://host[:port]`) 배열
+- 기본값은 현재 scheme과 `config.port` 기준의 `localhost`, `127.0.0.1`, `[::1]` origin이다.
+- wildcard `["*"]`는 허용하되 DNS rebinding 방어를 끄는 insecure opt-out으로 문서화하고 startup warning을 남긴다.
+- wildcard `["*"]`는 well-formed canonical Origin에 대한 allowlist 판정만 우회한다. malformed present Origin은 wildcard여도 `403 Forbidden`이다.
+- public web UI에서만 브라우저 MCP 호출을 허용하려면 `mcp.allowedOrigins`에 브라우저 주소창의 origin, 즉 scheme + host + port를 넣는다. path/query/hash는 포함하지 않는다.
 
 **기존 allowlist 참고**:
 
@@ -167,21 +168,27 @@ HTTP는 요청이 분리되므로 `initialize` -> `notifications/initialized` ->
 - 적용 로직: `src/middleware/ip-whitelist.js`가 `config.security.allows`를 읽고, 비어 있으면 비활성화한다. `src/utils/ip-matcher.js`가 패턴 매칭을 수행한다.
 - Origin allowlist는 URL origin 문자열(`scheme://host[:port]`)을 다루므로, 기존 IP allowlist와 별도 설정/별도 matcher가 필요하다.
 
-**추가 research 질문**:
+**Host header 검증 추가 결정**:
 
-- reverse proxy에서 `X-Forwarded-Proto`, `X-Forwarded-Host`를 신뢰할지.
-- `Host` header 검증도 같이 할지.
-- `null` Origin을 어떻게 처리할지.
+- HTTP `Host` header는 Origin 유무와 관계없이 모든 `/mcp` 요청에서 `mcp.allowedHosts`와 비교한다.
+- 입력 형태는 hostname 또는 `host:port` 문자열 배열이다.
+- 기본값은 `localhost`, `127.0.0.1`, `::1`이다.
+- hostname/IP만 포함한 항목은 해당 hostname/IP의 모든 port를 허용한다.
+- `host:port` 또는 `[ipv6]:port` 항목은 host와 port를 모두 exact match한다.
+- missing, empty, malformed Host는 wildcard 여부와 관계없이 `403 Forbidden`으로 차단한다.
+- invalid Host는 JSON-RPC dispatch 전에 `403 Forbidden`으로 차단한다.
+- `X-Forwarded-Host`는 trusted proxy 설계 전까지 신뢰하지 않는다.
+- reverse proxy 배포에서는 proxy가 원래 `Host` header를 보존해야 한다.
+- wildcard `["*"]`는 well-formed Host에 대한 allowlist 판정만 우회한다. malformed/missing Host는 wildcard여도 `403 Forbidden`이다.
 
 ### GAP-9. local bind
 
-**결정**: 이번 초안에서는 기본 bind 변경을 바로 결정하지 않는다.
+**결정**: 2026-06-02 보안 정책으로 대체한다. 명시 설정이 없으면 기본 bind address는 `127.0.0.1`로 변경한다.
 
-`0.0.0.0` 기본값은 기존 사용자의 네트워크 접근 방식과 충돌할 수 있다. 대신 Streamable HTTP 구현 phase에서는 최소한 다음을 포함한다.
-
-- 문서에 MCP local exposure 경고 추가
-- `Origin` 검증은 후순위 보안 hardening으로 분리
-- 후속 research에서 `host` 기본값 변경 여부 별도 결정
+- 로컬 MCP 사용자는 기본적으로 localhost에서만 접근한다.
+- 원격 직접 접속이 필요한 운영자는 `host: "0.0.0.0"` 또는 특정 서버 IP를 명시한다.
+- public/reverse proxy 배포는 DocuLight를 `127.0.0.1`에 bind하고 proxy가 외부 접속을 받는 구성을 권장한다.
+- `0.0.0.0`은 모든 network interface에 listen한다는 뜻이며, 원격 client가 서버 IP 또는 domain으로 접근해야 할 때만 명시적으로 선택한다.
 
 ### GAP-10. 문서 정리
 
@@ -225,15 +232,17 @@ HTTP는 요청이 분리되므로 `initialize` -> `notifications/initialized` ->
 2. `initialize`에서 `2025-11-25` negotiation 구현
 3. `notifications/initialized` notification `202` 처리
 4. `MCP-Protocol-Version` header 검증
-5. conformance 중심 테스트 추가
-6. README 및 MCP 문서 갱신
-7. 후순위 phase에서 MCP endpoint 전용 Origin 검증 middleware 검토
-8. 후순위 phase에서 `MCP-Session-Id` 기반 lifecycle gate 검토
+5. `config-loader`에서 `config.mcp.allowedOrigins`와 `config.mcp.allowedHosts` 정규화/검증
+6. `/mcp` Origin/Host validation 추가
+7. 기본 bind address를 `127.0.0.1`로 변경
+8. conformance 및 security 중심 테스트 추가
+9. README 및 MCP 문서 갱신
+10. 후순위 phase에서 `MCP-Session-Id` 기반 lifecycle gate 검토
 
 ## 후속 research에서 보강할 항목
 
 - official SDK들의 Streamable HTTP no-SSE 구현 관례
 - `MCP-Session-Id`를 쓰는 서버의 session expiry 관례
 - `MCP-Protocol-Version` 누락 시 compatibility 처리 관례
-- Origin allowlist default와 reverse proxy 배포 사례
+- Origin/Host allowlist default와 reverse proxy 배포 사례
 - 기존 Claude Code HTTP transport가 no-SSE Streamable HTTP 서버에 요구하는 실제 handshake

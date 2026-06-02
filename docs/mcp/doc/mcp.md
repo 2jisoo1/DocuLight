@@ -780,7 +780,7 @@ print(result["result"]["content"][0]["text"])
 
 ### Browser Origin and Host Guard
 
-Browser-origin requests to `POST /mcp` are checked against MCP Origin and Host allowlists. This reduces DNS rebinding exposure when read tools are public. Requests without an `Origin` header, such as normal CLI/server MCP clients, are accepted.
+Requests to `POST /mcp` are checked against the MCP Host allowlist. Browser-origin requests with an `Origin` header are also checked against the MCP Origin allowlist. This reduces DNS rebinding exposure when read tools are public. Requests without an `Origin` header, such as normal CLI/server MCP clients, are accepted only in the sense that missing `Origin` is not rejected; `Host` is still always checked.
 
 Example:
 
@@ -791,7 +791,12 @@ mcp: {
 }
 ```
 
-`["*"]` is supported only as an explicit insecure opt-out for the corresponding check. Do not use it when read tools are public.
+Origin values must be canonical origins such as `https://docs.example.com`; do not include path, query, hash, or userinfo.
+Host entries may be hostnames/IPs or exact `host:port` values. Entries without a port allow any port for that hostname; entries with a port require an exact port match.
+
+The server binds to `127.0.0.1` by default. For public deployments, keep DocuLight bound locally and terminate public traffic at a reverse proxy when possible. Preserve the original `Host` header when using a reverse proxy; DocuLight does not trust `X-Forwarded-Host` for MCP allowlist checks.
+
+`["*"]` is supported only as an explicit insecure opt-out for the corresponding check. It disables that allowlist check for well-formed values and should not be used when read tools are public.
 
 ### Authentication
 

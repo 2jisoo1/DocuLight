@@ -1252,10 +1252,15 @@ curl -X POST http://localhost:3000/mcp \
 ### 보안 기능
 
 0. **브라우저 Origin/Host 검증**
-   - 브라우저에서 `POST /mcp`로 들어오는 요청은 MCP Origin/Host allowlist로 검증
-   - 일반 CLI/server MCP 클라이언트처럼 `Origin` 헤더가 없는 요청은 허용
+   - `POST /mcp` 요청은 항상 MCP Host allowlist로 검증
+   - 브라우저 요청처럼 `Origin` header가 있으면 MCP Origin allowlist도 함께 검증
+   - 일반 CLI/server MCP 클라이언트처럼 `Origin` 헤더가 없는 요청은 Origin 누락만으로 거부하지 않지만, Host 검사는 항상 적용
    - 공개 읽기 도구 사용 시 DNS rebinding 노출을 줄이기 위한 방어선
-   - `mcp.allowedOrigins` 또는 `mcp.allowedHosts`에 `["*"]`를 설정하면 해당 검증을 명시적으로 끄는 insecure opt-out으로 동작
+   - Origin 값은 `https://docs.example.com` 같은 canonical origin이어야 하며 path, query, hash, userinfo를 포함하지 않습니다.
+   - Host 항목은 hostname/IP 또는 exact `host:port` 값입니다. port가 없는 항목은 해당 host의 모든 port를 허용하고, port가 있는 항목은 port까지 정확히 일치해야 합니다.
+   - 서버는 기본적으로 `127.0.0.1`에 bind합니다. 원격 직접 접속이 필요한 경우에만 `host: "0.0.0.0"` 또는 `HOST` 환경변수를 명시합니다.
+   - reverse proxy를 사용할 때는 원래 `Host` header를 보존해야 하며, DocuLight는 MCP allowlist 검사에 `X-Forwarded-Host`를 신뢰하지 않습니다.
+   - `mcp.allowedOrigins` 또는 `mcp.allowedHosts`에 `["*"]`를 설정하면 well-formed 값에 대한 해당 검증을 명시적으로 끄는 insecure opt-out으로 동작
 
 1. **경로 검증**
    - 모든 경로는 `path-validator` 유틸리티로 검증

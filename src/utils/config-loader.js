@@ -1,8 +1,198 @@
 const fs = require('fs');
+const net = require('net');
 const path = require('path');
 const JSON5 = require('json5');
 const { validateIpPattern } = require('./ip-matcher.js');
 const { validateSSL } = require('./ssl-validator.js');
+
+const MCP_WILDCARD = '*';
+const MCP_LOCAL_HOSTS = ['localhost', '127.0.0.1', '::1'];
+const MCP_WILDCARD_BIND_HOSTS = new Set(['0.0.0.0', '::', '[::]']);
+
+function getMcpConfigPort(config) {
+  return config.port || 3000;
+}
+
+function getMcpConfigScheme(config) {
+  return config.ssl && config.ssl.enabled ? 'https' : 'http';
+}
+
+function isWildcardBindHost(host) {
+  return MCP_WILDCARD_BIND_HOSTS.has(String(host || '').trim().toLowerCase());
+}
+
+function normalizeMcpHostName(host) {
+  const value = String(host || '').trim().toLowerCase();
+  if (!value) return '';
+  if (value.startsWith('[') && value.endsWith(']')) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
+
+function hostValueForUrlParse(host) {
+  const value = String(host || '').trim().toLowerCase();
+  if (!value) return '';
+  if (value.startsWith('[')) return value;
+  if ((value.match(/:/g) || []).length > 1) return `[${value}]`;
+  return value;
+}
+
+function formatMcpOriginHost(host) {
+  const normalized = normalizeMcpHostName(host);
+  return normalized.includes(':') ? `[${normalized}]` : normalized;
+}
+
+function defaultMcpHosts(config) {
+  const hosts = [...MCP_LOCAL_HOSTS];
+  if (config.host && !isWildcardBindHost(config.host)) {
+    const normalized = normalizeMcpHostName(config.host);
+    if (normalized && !hosts.includes(normalized)) hosts.push(normalized);
+  }
+  return hosts;
+}
+
+function defaultMcpOrigins(config) {
+  const scheme = getMcpConfigScheme(config);
+  const port = getMcpConfigPort(config);
+  return defaultMcpHosts(config).map(host => (
+    new URL(`${scheme}://${formatMcpOriginHost(host)}:${port}`).origin
+  ));
+}
+
+function assertStringArray(value, key) {
+  if (!Array.isArray(value)) {
+    throw new Error(`Configuration error: ${key} must be an array of strings`);
+  }
+  for (const entry of value) {
+    if (typeof entry !== 'string' || entry.trim() === '') {
+      throw new Error(`Configuration error: ${key} entries must be non-empty strings`);
+    }
+  }
+}
+
+function validateMcpOriginEntry(entry) {
+  if (entry === MCP_WILDCARD) return true;
+  try {
+    const parsed = new URL(entry);
+    return parsed.origin !== 'null' && entry.toLowerCase() === parsed.origin.toLowerCase();
+  } catch (error) {
+    return false;
+  }
+}
+
+function isValidMcpPort(port) {
+  if (!/^\d+$/.test(port)) return false;
+  const portNumber = Number(port);
+  return portNumber >= 0 && portNumber <= 65535;
+}
+
+function isAmbiguousBareIpv6WithPort(value) {
+  const lastColon = value.lastIndexOf(':');
+  if (lastColon <= 0) return false;
+
+  const port = value.slice(lastColon + 1);
+  if (!isValidMcpPort(port)) return false;
+
+  const possibleIpv6Host = value.slice(0, lastColon);
+  return net.isIP(possibleIpv6Host) === 6;
+}
+
+function validateMcpHostnameValue(value) {
+  const hostname = String(value || '').trim().toLowerCase();
+  if (net.isIP(hostname) === 4) return true;
+  if (hostname === 'localhost') return true;
+  if (hostname.length > 253) return false;
+  if ((hostname.match(/:/g) || []).length > 1) return net.isIP(hostname) === 6;
+  const labels = hostname.split('.');
+  if (!labels.every(label => (
+    label.length >= 1 &&
+    label.length <= 63 &&
+    /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label)
+  ))) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(`http://${hostname}`);
+    return !!parsed.hostname &&
+      parsed.pathname === '/' &&
+      parsed.search === '' &&
+      parsed.hash === '' &&
+      parsed.port === '';
+  } catch (error) {
+    return false;
+  }
+}
+
+function validateMcpHostEntry(entry) {
+  if (entry === MCP_WILDCARD) return true;
+  if (/^https?:\/\//i.test(entry)) return false;
+  if (/[/?#]/.test(entry)) return false;
+
+  const value = entry.trim();
+  if (value.endsWith(':')) return false;
+
+  if (value.startsWith('[')) {
+    const match = value.match(/^\[([^\]]+)\](?::(\d+))?$/);
+    return !!match &&
+      net.isIP(match[1]) === 6 &&
+      (match[2] === undefined || isValidMcpPort(match[2]));
+  }
+
+  const colonCount = (value.match(/:/g) || []).length;
+  if (colonCount > 1) {
+    return net.isIP(value) === 6 && !isAmbiguousBareIpv6WithPort(value);
+  }
+
+  if (colonCount === 1) {
+    const colonIndex = value.lastIndexOf(':');
+    const host = value.slice(0, colonIndex);
+    const port = value.slice(colonIndex + 1);
+    return host !== '' && isValidMcpPort(port) && validateMcpHostnameValue(host);
+  }
+
+  return validateMcpHostnameValue(hostValueForUrlParse(value));
+}
+
+function warnMcpWildcard(list, key) {
+  if (list.includes(MCP_WILDCARD)) {
+    console.warn(`Warning: ${key} contains wildcard "*"; MCP DNS rebinding protection for this check is disabled.`);
+  }
+}
+
+function normalizeMcpSecurityConfig(config) {
+  config.mcp = config.mcp || {};
+
+  if (config.mcp.allowedOrigins === undefined) {
+    config.mcp.allowedOrigins = defaultMcpOrigins(config);
+  } else {
+    assertStringArray(config.mcp.allowedOrigins, 'mcp.allowedOrigins');
+  }
+
+  if (config.mcp.allowedHosts === undefined) {
+    config.mcp.allowedHosts = defaultMcpHosts(config);
+  } else {
+    assertStringArray(config.mcp.allowedHosts, 'mcp.allowedHosts');
+  }
+
+  for (const origin of config.mcp.allowedOrigins) {
+    if (!validateMcpOriginEntry(origin)) {
+      throw new Error(`Configuration error: mcp.allowedOrigins contains invalid origin: ${origin}`);
+    }
+  }
+
+  for (const host of config.mcp.allowedHosts) {
+    if (!validateMcpHostEntry(host)) {
+      throw new Error(`Configuration error: mcp.allowedHosts contains invalid host: ${host}`);
+    }
+  }
+
+  warnMcpWildcard(config.mcp.allowedOrigins, 'mcp.allowedOrigins');
+  warnMcpWildcard(config.mcp.allowedHosts, 'mcp.allowedHosts');
+
+  return config;
+}
 
 /**
  * Load and validate configuration from config.json5
@@ -98,6 +288,7 @@ function loadConfig() {
   config.excludes = config.excludes || [];
   config.logDir = config.logDir || './logs';
   config.logLevel = config.logLevel || 'info';
+  normalizeMcpSecurityConfig(config);
 
   // Normalize basePath: default "", must start with "/", no trailing "/"
   if (config.basePath && typeof config.basePath === 'string') {
@@ -627,4 +818,4 @@ function validateClientConfig(clientConfig) {
   }
 }
 
-module.exports = { loadConfig };
+module.exports = { loadConfig, normalizeMcpSecurityConfig };
