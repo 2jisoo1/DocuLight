@@ -857,12 +857,15 @@ echo -e "\n=== Test Complete ==="
 ## 13. MCP API 예제
 
 DocuLight는 AI 에이전트를 위한 MCP (Model Context Protocol) API도 제공합니다.
+MCP 요청은 Streamable HTTP 초기 상호 운용성을 위해 `Accept: application/json, text/event-stream`를 사용합니다. 초기화 이후 요청에는 `MCP-Protocol-Version: 2025-11-25` 헤더를 포함하세요. 아래 예제는 초기화가 완료된 상태를 전제로 합니다. SSE는 지원하지 않으므로 `GET /mcp`는 `405 Method Not Allowed`를 반환합니다.
 
 ### 13.1 도구 목록 조회
 
 ```bash
 curl -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
   -d '{
     "jsonrpc": "2.0",
     "id": 1,
@@ -888,6 +891,8 @@ curl -X POST http://localhost:3000/mcp \
 ```bash
 curl -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
   -d '{
     "jsonrpc": "2.0",
     "id": 2,
@@ -906,6 +911,8 @@ UI 설정만 조회:
 ```bash
 curl -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
   -d '{
     "jsonrpc": "2.0",
     "id": 3,
@@ -928,6 +935,8 @@ curl -X POST http://localhost:3000/mcp \
 ```bash
 curl -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
   -d '{
     "jsonrpc": "2.0",
     "id": 4,
@@ -947,6 +956,8 @@ curl -X POST http://localhost:3000/mcp \
 ```bash
 curl -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
   -d '{
     "jsonrpc": "2.0",
     "id": 5,
@@ -994,6 +1005,8 @@ API configuration is in config.json5
 echo "1. Searching for 'configuration'..."
 curl -s -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
   -d '{
     "jsonrpc": "2.0",
     "id": 1,
@@ -1008,6 +1021,8 @@ curl -s -X POST http://localhost:3000/mcp \
 echo -e "\n2. Reading document..."
 curl -s -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
   -d '{
     "jsonrpc": "2.0",
     "id": 2,
@@ -1022,6 +1037,8 @@ curl -s -X POST http://localhost:3000/mcp \
 echo -e "\n3. Checking current config..."
 curl -s -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
   -d '{
     "jsonrpc": "2.0",
     "id": 3,
@@ -1040,6 +1057,6 @@ echo -e "\n=== MCP Workflow Complete ==="
 ## 추가 리소스
 
 - [DocuLight API 문서](./api.md) - 전체 REST API 참조 문서
-- [DocuLight MCP 문서](./mcp.md) - MCP (AI 에이전트용) API 참조 문서
+- [DocuLight MCP 문서](../../../mcp/doc/ko/mcp.md) - MCP (AI 에이전트용) API 참조 문서
 - [cURL 공식 문서](https://curl.se/docs/manual.html)
 - [jq 매뉴얼](https://stedolan.github.io/jq/manual/)

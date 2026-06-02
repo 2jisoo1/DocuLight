@@ -37,6 +37,8 @@ function createJsonRpcError(id, code, message, data = null) {
 }
 
 const DEFAULT_MCP_PREFIX = 'DocuLight';
+const SUPPORTED_MCP_PROTOCOL_VERSIONS = ['2025-11-25'];
+const DEFAULT_MCP_PROTOCOL_VERSION = '2025-11-25';
 
 /**
  * Convert ui.title to MCP tool name prefix.
@@ -324,19 +326,44 @@ const handlers = require('../services/agent-tools/handlers');
 /**
  * Check if tool requires write authentication
  */
-function requiresWriteAuth(toolName) {
+function requiresWriteAuth(handlerKey) {
   const protectedTools = ['create_document', 'delete_document'];
-  return protectedTools.includes(toolName);
+  return protectedTools.includes(handlerKey);
 }
 
 /**
  * Check if tool requires read authentication (when requireReadLogin is enabled)
  */
-function requiresReadAuth(toolName, prefix) {
-  const readTools = ['list_documents', 'read_document', prefix + '_get_config',
-    prefix + '_search', 'query_document', 'summarize_document', prefix + '_smart_search',
+function requiresReadAuth(handlerKey) {
+  const readTools = ['list_documents', 'list_full_tree', 'read_document',
+    'get_config', 'search', 'query_document', 'summarize_document', 'smart_search',
     'resolve_project', 'query_code_examples'];
-  return readTools.includes(toolName);
+  return readTools.includes(handlerKey);
+}
+
+const PREFIXED_TOOL_KEYS = ['get_config', 'search', 'smart_search'];
+
+function resolveHandlerKey(toolName, prefix) {
+  if (!toolName || typeof toolName !== 'string') {
+    return null;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(handlers, toolName) &&
+      typeof handlers[toolName] === 'function') {
+    return toolName;
+  }
+
+  const prefixMarker = prefix + '_';
+  if (!toolName.startsWith(prefixMarker)) {
+    return toolName;
+  }
+
+  const suffix = toolName.slice(prefixMarker.length);
+  return PREFIXED_TOOL_KEYS.includes(suffix) &&
+    Object.prototype.hasOwnProperty.call(handlers, suffix) &&
+    typeof handlers[suffix] === 'function'
+    ? suffix
+    : null;
 }
 
 /**
@@ -381,9 +408,16 @@ function validateApiKey(req, config) {
  * MCP Tool 실행
  */
 async function executeTool(config, logger, name, args, req, prefix) {
+  const handlerKey = resolveHandlerKey(name, prefix);
+  const hasHandler = handlerKey && Object.prototype.hasOwnProperty.call(handlers, handlerKey);
+  const handler = hasHandler ? handlers[handlerKey] : null;
+  if (typeof handler !== 'function') {
+    throw new Error(`Unknown tool: ${name}`);
+  }
+
   // Check authentication for read tools (when requireReadLogin is enabled)
   const stores = req.app.locals.stores;
-  if (requiresReadAuth(name, prefix) && stores && stores.authSettingsStore) {
+  if (requiresReadAuth(handlerKey) && stores && stores.authSettingsStore) {
     const settings = stores.authSettingsStore.get();
     if (settings.requireReadLogin) {
       const authResult = validateApiKey(req, config);
@@ -394,7 +428,7 @@ async function executeTool(config, logger, name, args, req, prefix) {
   }
 
   // Check authentication for write tools (always required)
-  if (requiresWriteAuth(name)) {
+  if (requiresWriteAuth(handlerKey)) {
     const authResult = validateApiKey(req, config);
     if (!authResult.valid) {
       throw new Error(`UNAUTHORIZED: ${authResult.error}`);
@@ -405,13 +439,6 @@ async function executeTool(config, logger, name, args, req, prefix) {
         throw new Error('UNAUTHORIZED: Write permission required');
       }
     }
-  }
-
-  // Resolve handler: strip dynamic prefix for prefix-based tools
-  const handlerKey = name.startsWith(prefix + '_') ? name.slice(prefix.length + 1) : name;
-  const handler = handlers[handlerKey];
-  if (!handler) {
-    throw new Error(`Unknown tool: ${name}`);
   }
 
   return handler(config, logger, args, req, prefix);
@@ -436,20 +463,153 @@ function summarizeArgs(args) {
 function createMcpRouter() {
   const router = express.Router();
 
+  router.get('/mcp', (req, res) => {
+    return res
+      .status(405)
+      .set('Allow', 'POST')
+      .json({
+        error: {
+          code: 'METHOD_NOT_ALLOWED',
+          message: 'GET /mcp is not supported because SSE streams are disabled. Use POST /mcp.'
+        }
+      });
+  });
+
+  function hasOwn(obj, key) {
+    return Object.prototype.hasOwnProperty.call(obj, key);
+  }
+
+  function classifyJsonRpcMessage(body) {
+    if (Array.isArray(body)) {
+      return { type: 'invalid', id: null, reason: 'Batch requests are not supported' };
+    }
+
+    if (!body || typeof body !== 'object') {
+      return { type: 'invalid', id: null, reason: 'body must be a JSON-RPC object' };
+    }
+
+    const id = hasOwn(body, 'id') ? body.id : null;
+    if (body.jsonrpc !== '2.0') {
+      return { type: 'invalid', id, reason: 'jsonrpc must be "2.0"' };
+    }
+
+    const hasId = hasOwn(body, 'id');
+    const hasMethod = hasOwn(body, 'method');
+    const hasNonEmptyMethod = typeof body.method === 'string' && body.method.length > 0;
+    const hasResultOrError = hasOwn(body, 'result') || hasOwn(body, 'error');
+
+    if (hasId && hasNonEmptyMethod) {
+      return { type: 'request', id, method: body.method, params: body.params };
+    }
+
+    if (!hasId && hasNonEmptyMethod) {
+      return { type: 'notification', id: null, method: body.method, params: body.params };
+    }
+
+    if (hasId && !hasMethod && hasResultOrError) {
+      return { type: 'response', id, method: undefined };
+    }
+
+    return { type: 'invalid', id, reason: 'body must be a JSON-RPC request, notification, or response' };
+  }
+
+  function acceptAllowsJson(req) {
+    const accept = req.get('Accept');
+    if (!accept) return true;
+
+    return accept
+      .split(',')
+      .map(part => part.split(';')[0].trim().toLowerCase())
+      .some(mediaType => mediaType === 'application/json' || mediaType === '*/*');
+  }
+
+  function rejectNotAcceptable(res) {
+    return res.status(406).json({
+      error: {
+        status: 406,
+        code: 'NOT_ACCEPTABLE',
+        message: 'Accept header must include application/json'
+      }
+    });
+  }
+
+  function validateProtocolHeader(req, res, logger, messageInfo) {
+    const version = req.get('MCP-Protocol-Version');
+    if (version && !SUPPORTED_MCP_PROTOCOL_VERSIONS.includes(version)) {
+      res.status(400).json({
+        error: {
+          status: 400,
+          code: 'UNSUPPORTED_MCP_PROTOCOL_VERSION',
+          message: `Unsupported MCP-Protocol-Version header: ${version}`
+        }
+      });
+      return false;
+    }
+
+    const isInitializeRequest = messageInfo.type === 'request' && messageInfo.method === 'initialize';
+    if (!version && !isInitializeRequest) {
+      const logCompatibility = typeof logger.debug === 'function'
+        ? logger.debug.bind(logger)
+        : logger.info.bind(logger);
+      logCompatibility('MCP-Protocol-Version header missing; compatibility mode assumed', {
+        method: messageInfo.method
+      });
+    }
+
+    return true;
+  }
+
+  function resolveInitializeProtocolVersion(params, logger) {
+    const requested = params && params.protocolVersion;
+    if (!requested) {
+      return DEFAULT_MCP_PROTOCOL_VERSION;
+    }
+
+    if (SUPPORTED_MCP_PROTOCOL_VERSIONS.includes(requested)) {
+      return requested;
+    }
+
+    logger.warn('Unsupported initialize protocolVersion requested; falling back to default', {
+      requested,
+      protocolVersion: DEFAULT_MCP_PROTOCOL_VERSION
+    });
+    return DEFAULT_MCP_PROTOCOL_VERSION;
+  }
+
   // MCP endpoint - JSON-RPC 2.0
   router.post('/mcp', express.json(), async (req, res) => {
     const { config, logger } = req.app.locals;
     const prefix = sanitizeForToolName(config.ui?.title);
-    const { jsonrpc, id, method, params } = req.body;
+    const messageInfo = classifyJsonRpcMessage(req.body);
 
-    // JSON-RPC 2.0 validation
-    if (jsonrpc !== '2.0') {
-      return res.json(createJsonRpcError(id, -32600, 'Invalid Request', 'jsonrpc must be "2.0"'));
+    if (messageInfo.type === 'invalid') {
+      return res.json(createJsonRpcError(messageInfo.id, -32600, 'Invalid Request', messageInfo.reason));
     }
 
-    if (!method) {
-      return res.json(createJsonRpcError(id, -32600, 'Invalid Request', 'method is required'));
+    if (!acceptAllowsJson(req)) {
+      return rejectNotAcceptable(res);
     }
+
+    if (!validateProtocolHeader(req, res, logger, messageInfo)) {
+      return;
+    }
+
+    if (messageInfo.type === 'response') {
+      logger.info('MCP: JSON-RPC response accepted', { id: messageInfo.id });
+      return res.status(202).end();
+    }
+
+    if (messageInfo.type === 'notification') {
+      if (messageInfo.method === 'notifications/initialized') {
+        logger.info('MCP: notifications/initialized received');
+        activityLogger.mcp('INITIALIZED', { ip: req.ip });
+      } else {
+        logger.info('MCP: notification accepted', { method: messageInfo.method });
+      }
+      return res.status(202).end();
+    }
+
+    const { id, method, params } = messageInfo;
 
     try {
       switch (method) {
@@ -496,7 +656,7 @@ function createMcpRouter() {
           logger.info('MCP: initialize called');
           activityLogger.mcp('INITIALIZE', { ip: req.ip });
           return res.json(createJsonRpcResponse(id, {
-            protocolVersion: '2024-11-05',
+            protocolVersion: resolveInitializeProtocolVersion(params, logger),
             capabilities: {
               tools: {}
             },
@@ -532,3 +692,6 @@ function createMcpRouter() {
 module.exports = createMcpRouter;
 module.exports.buildTools = buildTools;
 module.exports.sanitizeForToolName = sanitizeForToolName;
+module.exports.SUPPORTED_MCP_PROTOCOL_VERSIONS = SUPPORTED_MCP_PROTOCOL_VERSIONS;
+module.exports.DEFAULT_MCP_PROTOCOL_VERSION = DEFAULT_MCP_PROTOCOL_VERSION;
+module.exports.resolveHandlerKey = resolveHandlerKey;

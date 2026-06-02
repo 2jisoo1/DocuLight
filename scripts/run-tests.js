@@ -23,6 +23,7 @@ const SUITES = [
   'test/chatbot/security.test.js',
   'test/chatbot/path-traversal-guard.test.js',
   'test/chatbot/vector-store-memory.test.js',
+  'test/mcp/streamable-http.test.js',
   'test/mcp/handler-parity.test.js',
   'test/chatbot/llm-fallback.test.js',
   'test/chatbot/standard-fallback-bounds.test.js',

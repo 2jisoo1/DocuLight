@@ -2,15 +2,20 @@
 
 ## 개요
 
-DocuLight는 Model Context Protocol (MCP) over HTTP를 지원하여 AI 에이전트가 문서 관리 작업을 수행할 수 있도록 합니다. MCP는 JSON-RPC 2.0 프로토콜을 기반으로 하며, SDK 없이 직접 구현되었습니다.
+DocuLight는 Model Context Protocol (MCP) Streamable HTTP 초기 상호 운용성을 지원하여 AI 에이전트가 문서 관리 작업을 수행할 수 있도록 합니다. MCP는 JSON-RPC 2.0 프로토콜을 기반으로 하며, SDK 없이 직접 구현되었습니다.
 
 ### 기본 정보
 
 - **프로토콜**: JSON-RPC 2.0
 - **엔드포인트**: `POST /mcp`
+- **전송 방식**: Streamable HTTP 초기 상호 운용성 (SSE 스트림 미지원)
+- **메서드**: JSON-RPC 요청은 `POST`, `GET /mcp`는 `405 Method Not Allowed` 및 `Allow: POST` 반환
 - **Content-Type**: `application/json`
-- **MCP 버전**: 2024-11-05
-- **인증**: 불필요 (공개 엔드포인트)
+- **응답 Content-Type**: 일반 JSON-RPC `POST` 응답은 `application/json`
+- **Accept**: `application/json, text/event-stream`
+- **MCP 버전**: 2025-11-25
+- **MCP-Protocol-Version 헤더**: `initialize`는 생략 가능, 이후 요청은 `2025-11-25` 권장. 호환 모드로 생략 요청을 수락하지만, 지원하지 않는 버전이 명시되면 `400 Bad Request` 반환
+- **인증**: 읽기 도구는 read-login이 활성화되지 않은 경우 공개, 쓰기 도구는 `X-API-Key` 사용자 키 필요
 
 ---
 
@@ -68,7 +73,15 @@ MCP 서버를 초기화하고 서버 정보 및 기능을 조회합니다.
 {
   "jsonrpc": "2.0",
   "id": 1,
-  "method": "initialize"
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2025-11-25",
+    "capabilities": {},
+    "clientInfo": {
+      "name": "example-client",
+      "version": "1.0.0"
+    }
+  }
 }
 ```
 
@@ -78,7 +91,7 @@ MCP 서버를 초기화하고 서버 정보 및 기능을 조회합니다.
   "jsonrpc": "2.0",
   "id": 1,
   "result": {
-    "protocolVersion": "2024-11-05",
+    "protocolVersion": "2025-11-25",
     "capabilities": {
       "tools": {}
     },
@@ -97,6 +110,14 @@ MCP 서버를 초기화하고 서버 정보 및 기능을 조회합니다.
 - `serverInfo`: 서버 정보
   - `name`: 서버 이름
   - `version`: 서버 버전
+
+---
+
+### 초기화 이후 알림 및 SSE
+
+- `notifications/initialized` 알림은 HTTP `202 Accepted`와 빈 본문으로 처리됩니다.
+- JSON-RPC notification/response POST도 HTTP `202 Accepted`와 빈 본문으로 수락됩니다.
+- SSE 스트림은 지원하지 않으므로 `GET /mcp`는 `405 Method Not Allowed`와 `Allow: POST`를 반환합니다.
 
 ---
 
@@ -804,19 +825,34 @@ import requests
 import json
 
 MCP_URL = "http://localhost:3000/mcp"
+API_KEY = "YOUR_API_KEY"
 
-def mcp_call(method, params=None):
+def mcp_call(method, params=None, api_key=None):
     payload = {
         "jsonrpc": "2.0",
         "id": 1,
         "method": method,
         "params": params or {}
     }
-    response = requests.post(MCP_URL, json=payload)
+    headers = {
+        "Accept": "application/json, text/event-stream"
+    }
+    if method != "initialize":
+        headers["MCP-Protocol-Version"] = "2025-11-25"
+    if api_key:
+        headers["X-API-Key"] = api_key
+    response = requests.post(MCP_URL, json=payload, headers=headers)
     return response.json()
 
 # 1. 초기화
-init_result = mcp_call("initialize")
+init_result = mcp_call("initialize", {
+    "protocolVersion": "2025-11-25",
+    "capabilities": {},
+    "clientInfo": {
+        "name": "python-example",
+        "version": "1.0.0"
+    }
+})
 print(f"Server: {init_result['result']['serverInfo']['name']}")
 
 # 2. 도구 목록 조회
@@ -844,7 +880,7 @@ create_result = mcp_call("tools/call", {
         "path": "/test/hello.md",
         "content": "# Hello World\n\nThis is a test document."
     }
-})
+}, api_key=API_KEY)
 print(create_result['result']['content'][0]['text'])
 
 # 6. 전체 트리 조회 (최대 깊이 2)
@@ -861,7 +897,7 @@ print(tree_result['result']['content'][0]['text'])
 delete_result = mcp_call("tools/call", {
     "name": "delete_document",
     "arguments": {"path": "/test/hello.md"}
-})
+}, api_key=API_KEY)
 print(delete_result['result']['content'][0]['text'])
 
 # 8. 설정 조회
@@ -890,20 +926,39 @@ print(search_result['result']['content'][0]['text'])
 const axios = require('axios');
 
 const MCP_URL = 'http://localhost:3000/mcp';
+const API_KEY = 'YOUR_API_KEY';
 
-async function mcpCall(method, params = {}) {
+async function mcpCall(method, params = {}, apiKey = null) {
+  const headers = {
+    Accept: 'application/json, text/event-stream'
+  };
+  if (method !== 'initialize') {
+    headers['MCP-Protocol-Version'] = '2025-11-25';
+  }
+  if (apiKey) {
+    headers['X-API-Key'] = apiKey;
+  }
   const response = await axios.post(MCP_URL, {
     jsonrpc: '2.0',
     id: Date.now(),
     method,
     params
+  }, {
+    headers
   });
   return response.data;
 }
 
 async function main() {
   // 1. 초기화
-  const initResult = await mcpCall('initialize');
+  const initResult = await mcpCall('initialize', {
+    protocolVersion: '2025-11-25',
+    capabilities: {},
+    clientInfo: {
+      name: 'node-example',
+      version: '1.0.0'
+    }
+  });
   console.log('Server:', initResult.result.serverInfo.name);
 
   // 2. 도구 목록
@@ -931,7 +986,7 @@ async function main() {
       path: '/guide/new-guide.md',
       content: '# New Guide\n\nContent here...'
     }
-  });
+  }, API_KEY);
   console.log(createResult.result.content[0].text);
 
   // 6. 전체 트리
@@ -945,7 +1000,7 @@ async function main() {
   const deleteResult = await mcpCall('tools/call', {
     name: 'delete_document',
     arguments: { path: '/guide/new-guide.md' }
-  });
+  }, API_KEY);
   console.log(deleteResult.result.content[0].text);
 
   // 8. 설정 조회
@@ -977,10 +1032,19 @@ main().catch(console.error);
 ```bash
 curl -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
   -d '{
     "jsonrpc": "2.0",
     "id": 1,
-    "method": "initialize"
+    "method": "initialize",
+    "params": {
+      "protocolVersion": "2025-11-25",
+      "capabilities": {},
+      "clientInfo": {
+        "name": "curl-example",
+        "version": "1.0.0"
+      }
+    }
   }'
 ```
 
@@ -988,6 +1052,8 @@ curl -X POST http://localhost:3000/mcp \
 ```bash
 curl -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
   -d '{
     "jsonrpc": "2.0",
     "id": 2,
@@ -999,6 +1065,8 @@ curl -X POST http://localhost:3000/mcp \
 ```bash
 curl -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
   -d '{
     "jsonrpc": "2.0",
     "id": 3,
@@ -1016,6 +1084,8 @@ curl -X POST http://localhost:3000/mcp \
 ```bash
 curl -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
   -d '{
     "jsonrpc": "2.0",
     "id": 4,
@@ -1034,6 +1104,8 @@ curl -X POST http://localhost:3000/mcp \
 ```bash
 curl -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
   -d '{
     "jsonrpc": "2.0",
     "id": 5,
@@ -1051,6 +1123,9 @@ curl -X POST http://localhost:3000/mcp \
 ```bash
 curl -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
+  -H "X-API-Key: YOUR_API_KEY" \
   -d '{
     "jsonrpc": "2.0",
     "id": 6,
@@ -1069,6 +1144,9 @@ curl -X POST http://localhost:3000/mcp \
 ```bash
 curl -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
+  -H "X-API-Key: YOUR_API_KEY" \
   -d '{
     "jsonrpc": "2.0",
     "id": 7,
@@ -1086,6 +1164,8 @@ curl -X POST http://localhost:3000/mcp \
 ```bash
 curl -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
   -d '{
     "jsonrpc": "2.0",
     "id": 8,
@@ -1103,6 +1183,8 @@ curl -X POST http://localhost:3000/mcp \
 ```bash
 curl -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
   -d '{
     "jsonrpc": "2.0",
     "id": 9,
@@ -1144,9 +1226,10 @@ curl -X POST http://localhost:3000/mcp \
 
 ### 제약사항
 
-1. **인증 없음**
-   - MCP 엔드포인트는 현재 공개 접근 허용
-   - 프로덕션 환경에서는 네트워크 레벨 보안 권장
+1. **인증**
+   - 읽기 도구는 read-login이 활성화되지 않은 경우 공개 접근 허용
+   - 쓰기 도구(`create_document`, `delete_document`)는 `X-API-Key` 사용자 키 필요
+   - 프로덕션 환경에서는 인증 설정과 네트워크 레벨 보안 권장
 
 2. **마크다운 전용**
    - `read_document`는 `.md` 파일만 지원
@@ -1202,4 +1285,3 @@ MCP는 직접적인 복사/이동 기능이 없으므로 읽기+쓰기+삭제 �
 2. create_document (path: "/target/doc.md", content: "...") → 대상에 쓰기
 3. delete_document (path: "/source/doc.md") → 원본 삭제 (이동의 경우)
 ```
-

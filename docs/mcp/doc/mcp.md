@@ -2,15 +2,20 @@
 
 ## Overview
 
-DocuLight supports Model Context Protocol (MCP) over HTTP, enabling AI agents to perform document management tasks. MCP is based on JSON-RPC 2.0 protocol and implemented natively without SDK dependencies.
+DocuLight supports Model Context Protocol (MCP) Streamable HTTP initial interoperability, enabling AI agents to perform document management tasks. MCP is based on JSON-RPC 2.0 protocol and implemented natively without SDK dependencies.
 
 ### Basic Information
 
 - **Protocol**: JSON-RPC 2.0
-- **Endpoint**: `POST /mcp`
+- **Endpoint**: `/mcp`
+- **Transport**: Streamable HTTP initial interoperability (SSE streams disabled)
+- **Method**: JSON-RPC requests use `POST`; `GET /mcp` returns `405 Method Not Allowed` with `Allow: POST`
 - **Content-Type**: `application/json`
-- **MCP Version**: 2024-11-05
-- **Authentication**: Not required (public endpoint)
+- **Response Content-Type**: normal JSON-RPC `POST` responses use `application/json`
+- **Accept**: `application/json, text/event-stream`
+- **MCP Version**: 2025-11-25
+- **MCP-Protocol-Version header**: optional for `initialize`; `2025-11-25` is recommended for later requests. Missing headers are accepted in compatibility mode, but unsupported explicit versions return `400 Bad Request`.
+- **Authentication**: read tools are public unless read-login is enabled; write tools require the `X-API-Key` user key
 
 ---
 
@@ -68,7 +73,15 @@ Initialize MCP server and retrieve server information and capabilities.
 {
   "jsonrpc": "2.0",
   "id": 1,
-  "method": "initialize"
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2025-11-25",
+    "capabilities": {},
+    "clientInfo": {
+      "name": "example-client",
+      "version": "1.0.0"
+    }
+  }
 }
 ```
 
@@ -78,7 +91,7 @@ Initialize MCP server and retrieve server information and capabilities.
   "jsonrpc": "2.0",
   "id": 1,
   "result": {
-    "protocolVersion": "2024-11-05",
+    "protocolVersion": "2025-11-25",
     "capabilities": {
       "tools": {}
     },
@@ -97,6 +110,14 @@ Initialize MCP server and retrieve server information and capabilities.
 - `serverInfo`: Server information
   - `name`: Server name
   - `version`: Server version
+
+---
+
+### Initialized Notification and SSE
+
+- `notifications/initialized` is accepted with HTTP `202 Accepted` and an empty body.
+- JSON-RPC notification/response POST messages are also accepted with HTTP `202 Accepted` and an empty body.
+- SSE streams are not supported; `GET /mcp` returns `405 Method Not Allowed` with `Allow: POST`.
 
 ---
 
@@ -615,6 +636,8 @@ Search → Read → Modify → Save:
 # 1. Search for "configuration"
 curl -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
   -d '{
     "jsonrpc": "2.0",
     "id": 1,
@@ -628,6 +651,8 @@ curl -X POST http://localhost:3000/mcp \
 # 2. Read first result file
 curl -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
   -d '{
     "jsonrpc": "2.0",
     "id": 2,
@@ -641,6 +666,9 @@ curl -X POST http://localhost:3000/mcp \
 # 3. Create updated document
 curl -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
+  -H "X-API-Key: your-api-key" \
   -d '{
     "jsonrpc": "2.0",
     "id": 3,
@@ -672,6 +700,8 @@ Add to Claude Code MCP configuration:
         "-X", "POST",
         "http://localhost:3000/mcp",
         "-H", "Content-Type: application/json",
+        "-H", "Accept: application/json, text/event-stream",
+        "-H", "MCP-Protocol-Version: 2025-11-25",
         "-d", "@-"
       ]
     }
@@ -689,6 +719,10 @@ import requests
 def call_mcp_tool(tool_name, arguments):
     response = requests.post(
         "http://localhost:3000/mcp",
+        headers={
+            "Accept": "application/json, text/event-stream",
+            "MCP-Protocol-Version": "2025-11-25"
+        },
         json={
             "jsonrpc": "2.0",
             "id": 1,
@@ -714,7 +748,7 @@ print(result["result"]["content"][0]["text"])
 
 MCP tools are divided into public (read-only) and protected (write) operations:
 
-**Public Tools** (No authentication required):
+**Read Tools** (public unless read login is enabled):
 - `list_documents` - List directory contents
 - `list_full_tree` - Recursive tree listing
 - `read_document` - Read document content
@@ -734,6 +768,8 @@ X-API-Key: your-api-key-here
 ```bash
 curl -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
   -H "X-API-Key: your-api-key" \
   -d '{
     "jsonrpc": "2.0",

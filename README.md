@@ -115,7 +115,8 @@ Error handling:
 
 ## MCP Integration
 
-DocuLight provides an HTTP-based MCP (Model Context Protocol) server at `POST /mcp`.
+DocuLight provides MCP (Model Context Protocol) Streamable HTTP initial interoperability at `POST /mcp`.
+SSE streams are not enabled: normal JSON-RPC POST requests return `application/json`, and `GET /mcp` returns `405 Method Not Allowed` with `Allow: POST`.
 
 ### Claude Code
 
@@ -139,21 +140,43 @@ docuLight: http://localhost:3000/mcp (HTTP) - ✓ Connected
 All AI agents can use DocuLight MCP through standard HTTP requests:
 
 ```bash
-# List available tools
+# Initialize the MCP session
 curl -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
   -d '{
     "jsonrpc": "2.0",
     "id": 1,
+    "method": "initialize",
+    "params": {
+      "protocolVersion": "2025-11-25",
+      "capabilities": {},
+      "clientInfo": {
+        "name": "curl",
+        "version": "1.0.0"
+      }
+    }
+  }'
+
+# List available tools
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 2,
     "method": "tools/list"
   }'
 
 # Read a document
 curl -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
   -d '{
     "jsonrpc": "2.0",
-    "id": 2,
+    "id": 3,
     "method": "tools/call",
     "params": {
       "name": "read_document",
@@ -165,10 +188,12 @@ curl -X POST http://localhost:3000/mcp \
 ### MCP Server Details
 
 - **Endpoint**: `http://localhost:3000/mcp`
-- **Transport**: HTTP
-- **Method**: POST
+- **Transport**: Streamable HTTP initial interoperability (no SSE streams)
+- **Method**: POST for JSON-RPC; GET returns 405 with `Allow: POST`
 - **Content-Type**: application/json
-- **Authentication**: X-API-Key header required for write operations (create_document, delete_document)
+- **Accept**: `application/json, text/event-stream`
+- **Protocol Version**: `2025-11-25`
+- **Authentication**: read tools are public unless read login is enabled; write tools require the `X-API-Key` user key
 - **Protocol**: JSON-RPC 2.0
 
 ### MCP Tool Authentication
