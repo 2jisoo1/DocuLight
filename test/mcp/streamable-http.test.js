@@ -167,6 +167,33 @@ function writeTestConfig(testDir, selectedPort) {
       assert.strictEqual(json.result.protocolVersion, '2025-11-25');
     });
 
+    await test('browser request from allowed local Origin is accepted', async () => {
+      const { res, json } = await rpc('initialize', { protocolVersion: '2025-11-25' }, {
+        headers: { Origin: `http://127.0.0.1:${port}` },
+      });
+      assert.strictEqual(res.statusCode, 200);
+      assert.strictEqual(json.result.protocolVersion, '2025-11-25');
+    });
+
+    await test('browser request from disallowed Origin is rejected', async () => {
+      const { res, json } = await rpc('initialize', { protocolVersion: '2025-11-25' }, {
+        headers: { Origin: 'http://evil.example' },
+      });
+      assert.strictEqual(res.statusCode, 403);
+      assert.strictEqual(json.error.code, 'FORBIDDEN_ORIGIN');
+    });
+
+    await test('browser request with disallowed Host is rejected', async () => {
+      const { res, json } = await rpc('initialize', { protocolVersion: '2025-11-25' }, {
+        headers: {
+          Origin: `http://127.0.0.1:${port}`,
+          Host: `evil.example:${port}`,
+        },
+      });
+      assert.strictEqual(res.statusCode, 403);
+      assert.strictEqual(json.error.code, 'FORBIDDEN_HOST');
+    });
+
     await test('initialize falls back on unsupported requested protocol version', async () => {
       const { res, json } = await rpc('initialize', { protocolVersion: '1900-01-01' });
       assert.strictEqual(res.statusCode, 200);

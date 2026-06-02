@@ -99,6 +99,25 @@
     ]
   },
 
+  // MCP Streamable HTTP security settings (optional)
+  // Browser-origin requests to POST /mcp are checked against these allowlists
+  // to reduce DNS rebinding exposure when read access is public.
+  // Requests without an Origin header (typical CLI/server MCP clients) are allowed.
+  // Defaults:
+  // - allowedOrigins: localhost/127.0.0.1/[::1] on the configured port
+  // - allowedHosts: localhost, 127.0.0.1, ::1
+  // Use ["*"] only as an explicit insecure opt-out; it disables that check.
+  // mcp: {
+  //   allowedOrigins: [
+  //     "http://localhost:3000",
+  //     "http://127.0.0.1:3000"
+  //   ],
+  //   allowedHosts: [
+  //     "localhost",
+  //     "127.0.0.1"
+  //   ]
+  // },
+
   // SSL/TLS configuration (optional)
   // If enabled, server runs on HTTPS
   // If disabled or not specified, server runs on HTTP

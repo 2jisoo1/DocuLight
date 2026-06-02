@@ -39,6 +39,7 @@ function createJsonRpcError(id, code, message, data = null) {
 const DEFAULT_MCP_PREFIX = 'DocuLight';
 const SUPPORTED_MCP_PROTOCOL_VERSIONS = ['2025-11-25'];
 const DEFAULT_MCP_PROTOCOL_VERSION = '2025-11-25';
+const WILDCARD_ALLOW = '*';
 
 /**
  * Convert ui.title to MCP tool name prefix.
@@ -48,6 +49,95 @@ function sanitizeForToolName(title) {
   if (!title) return DEFAULT_MCP_PREFIX;
   const sanitized = title.replace(/\s+/g, '_').replace(/[^A-Za-z0-9_]/g, '');
   return sanitized || DEFAULT_MCP_PREFIX;
+}
+
+function getConfiguredPort(config) {
+  return config.port || 3000;
+}
+
+function getConfiguredScheme(config) {
+  return config.ssl && config.ssl.enabled ? 'https' : 'http';
+}
+
+function normalizeHost(host) {
+  if (!host || typeof host !== 'string') return '';
+  const value = host.trim().toLowerCase();
+  if (!value) return '';
+
+  try {
+    return new URL(value.includes('://') ? value : `http://${value}`).host;
+  } catch (error) {
+    return value;
+  }
+}
+
+function hostnameOnly(host) {
+  const normalized = normalizeHost(host);
+  if (!normalized) return '';
+  if (normalized.startsWith('[')) {
+    const end = normalized.indexOf(']');
+    return end === -1 ? normalized : normalized.slice(1, end);
+  }
+  if ((normalized.match(/:/g) || []).length > 1) {
+    return normalized;
+  }
+  return normalized.split(':')[0];
+}
+
+function normalizeOrigin(origin) {
+  if (!origin || typeof origin !== 'string') return '';
+  try {
+    const parsed = new URL(origin);
+    return `${parsed.protocol}//${parsed.host}`.toLowerCase();
+  } catch (error) {
+    return '';
+  }
+}
+
+function configuredHostNames(config) {
+  const host = config.host;
+  if (!host || host === '0.0.0.0' || host === '::' || host === '[::]') {
+    return [];
+  }
+  return [host];
+}
+
+function defaultAllowedHosts(config) {
+  return ['localhost', '127.0.0.1', '::1', ...configuredHostNames(config)];
+}
+
+function defaultAllowedOrigins(config) {
+  const scheme = getConfiguredScheme(config);
+  const port = getConfiguredPort(config);
+  return defaultAllowedHosts(config).flatMap(host => {
+    const displayHost = host.includes(':') && !host.startsWith('[') ? `[${host}]` : host;
+    return [`${scheme}://${displayHost}:${port}`];
+  });
+}
+
+function configList(value, fallback) {
+  return Array.isArray(value) ? value : fallback;
+}
+
+function listAllowsWildcard(list) {
+  return list.includes(WILDCARD_ALLOW);
+}
+
+function originAllowed(origin, allowedOrigins) {
+  if (listAllowsWildcard(allowedOrigins)) return true;
+  const normalized = normalizeOrigin(origin);
+  if (!normalized) return false;
+  return allowedOrigins.map(normalizeOrigin).includes(normalized);
+}
+
+function hostAllowed(host, allowedHosts) {
+  if (listAllowsWildcard(allowedHosts)) return true;
+  const normalized = normalizeHost(host);
+  const bare = hostnameOnly(normalized);
+  return allowedHosts.some(allowed => {
+    const allowedHost = normalizeHost(allowed);
+    return normalized === allowedHost || bare === hostnameOnly(allowedHost);
+  });
 }
 
 /**
@@ -533,6 +623,42 @@ function createMcpRouter() {
     });
   }
 
+  function rejectForbidden(res, code, message) {
+    return res.status(403).json({
+      error: {
+        status: 403,
+        code,
+        message
+      }
+    });
+  }
+
+  function validateBrowserOrigin(req, res, logger) {
+    const origin = req.get('Origin');
+    if (!origin) {
+      return true;
+    }
+
+    const config = req.app.locals.config || {};
+    const mcpConfig = config.mcp || {};
+    const allowedOrigins = configList(mcpConfig.allowedOrigins, defaultAllowedOrigins(config));
+    const allowedHosts = configList(mcpConfig.allowedHosts, defaultAllowedHosts(config));
+
+    if (!originAllowed(origin, allowedOrigins)) {
+      logger.warn('MCP request rejected by Origin allowlist', { origin, host: req.get('Host') });
+      rejectForbidden(res, 'FORBIDDEN_ORIGIN', 'Origin is not allowed for MCP requests');
+      return false;
+    }
+
+    if (!hostAllowed(req.get('Host'), allowedHosts)) {
+      logger.warn('MCP request rejected by Host allowlist', { origin, host: req.get('Host') });
+      rejectForbidden(res, 'FORBIDDEN_HOST', 'Host is not allowed for MCP requests');
+      return false;
+    }
+
+    return true;
+  }
+
   function validateProtocolHeader(req, res, logger, messageInfo) {
     const version = req.get('MCP-Protocol-Version');
     if (version && !SUPPORTED_MCP_PROTOCOL_VERSIONS.includes(version)) {
@@ -580,6 +706,11 @@ function createMcpRouter() {
   router.post('/mcp', express.json(), async (req, res) => {
     const { config, logger } = req.app.locals;
     const prefix = sanitizeForToolName(config.ui?.title);
+
+    if (!validateBrowserOrigin(req, res, logger)) {
+      return;
+    }
+
     const messageInfo = classifyJsonRpcMessage(req.body);
 
     if (messageInfo.type === 'invalid') {

@@ -119,6 +119,14 @@ Initialize MCP server and retrieve server information and capabilities.
 - JSON-RPC notification/response POST messages are also accepted with HTTP `202 Accepted` and an empty body.
 - SSE streams are not supported; `GET /mcp` returns `405 Method Not Allowed` with `Allow: POST`.
 
+**Notification:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "notifications/initialized"
+}
+```
+
 ---
 
 ### 2. tools/list
@@ -716,24 +724,50 @@ All AI agents can use DocuLight MCP through standard HTTP requests:
 ```python
 import requests
 
-def call_mcp_tool(tool_name, arguments):
+MCP_URL = "http://localhost:3000/mcp"
+
+def mcp_request(method, params=None, request_id=1):
     response = requests.post(
-        "http://localhost:3000/mcp",
+        MCP_URL,
         headers={
             "Accept": "application/json, text/event-stream",
             "MCP-Protocol-Version": "2025-11-25"
         },
         json={
             "jsonrpc": "2.0",
-            "id": 1,
-            "method": "tools/call",
-            "params": {
-                "name": tool_name,
-                "arguments": arguments
-            }
+            "id": request_id,
+            "method": method,
+            "params": params or {}
         }
     )
     return response.json()
+
+def send_initialized():
+    requests.post(
+        MCP_URL,
+        headers={
+            "Accept": "application/json, text/event-stream",
+            "MCP-Protocol-Version": "2025-11-25"
+        },
+        json={
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized"
+        }
+    )
+
+def call_mcp_tool(tool_name, arguments):
+    return mcp_request("tools/call", {
+        "name": tool_name,
+        "arguments": arguments
+    })
+
+# Initialize, then send initialized notification
+mcp_request("initialize", {
+    "protocolVersion": "2025-11-25",
+    "capabilities": {},
+    "clientInfo": {"name": "python-example", "version": "1.0.0"}
+})
+send_initialized()
 
 # Example: List documents
 result = call_mcp_tool("list_documents", {"path": "/guide"})
@@ -743,6 +777,21 @@ print(result["result"]["content"][0]["text"])
 ---
 
 ## Security Considerations
+
+### Browser Origin and Host Guard
+
+Browser-origin requests to `POST /mcp` are checked against MCP Origin and Host allowlists. This reduces DNS rebinding exposure when read tools are public. Requests without an `Origin` header, such as normal CLI/server MCP clients, are accepted.
+
+Example:
+
+```json5
+mcp: {
+  allowedOrigins: ["https://docs.example.com"],
+  allowedHosts: ["docs.example.com"]
+}
+```
+
+`["*"]` is supported only as an explicit insecure opt-out for the corresponding check. Do not use it when read tools are public.
 
 ### Authentication
 

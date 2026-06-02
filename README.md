@@ -158,6 +158,16 @@ curl -X POST http://localhost:3000/mcp \
     }
   }'
 
+# Send initialized notification
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "notifications/initialized"
+  }'
+
 # List available tools
 curl -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
@@ -194,7 +204,23 @@ curl -X POST http://localhost:3000/mcp \
 - **Accept**: `application/json, text/event-stream`
 - **Protocol Version**: `2025-11-25`
 - **Authentication**: read tools are public unless read login is enabled; write tools require the `X-API-Key` user key
+- **Browser Origin Guard**: browser-origin requests are checked against MCP Origin/Host allowlists to reduce DNS rebinding exposure
 - **Protocol**: JSON-RPC 2.0
+
+### MCP Origin and Host Allowlist
+
+DocuLight rejects browser requests to `POST /mcp` when the `Origin` or `Host` header is not allowed. Requests without an `Origin` header, such as normal CLI/server MCP clients, are accepted.
+
+Configure browser access explicitly when exposing MCP through a domain:
+
+```json5
+mcp: {
+  allowedOrigins: ["https://docs.example.com"],
+  allowedHosts: ["docs.example.com"]
+}
+```
+
+`["*"]` is supported only as an explicit insecure opt-out for the corresponding check. It should not be used when read tools are public.
 
 ### MCP Tool Authentication
 

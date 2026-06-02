@@ -119,6 +119,14 @@ MCP 서버를 초기화하고 서버 정보 및 기능을 조회합니다.
 - JSON-RPC notification/response POST도 HTTP `202 Accepted`와 빈 본문으로 수락됩니다.
 - SSE 스트림은 지원하지 않으므로 `GET /mcp`는 `405 Method Not Allowed`와 `Allow: POST`를 반환합니다.
 
+**알림 예시:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "notifications/initialized"
+}
+```
+
 ---
 
 ### 2. tools/list
@@ -844,6 +852,17 @@ def mcp_call(method, params=None, api_key=None):
     response = requests.post(MCP_URL, json=payload, headers=headers)
     return response.json()
 
+def mcp_notify(method):
+    headers = {
+        "Accept": "application/json, text/event-stream",
+        "MCP-Protocol-Version": "2025-11-25"
+    }
+    response = requests.post(MCP_URL, json={
+        "jsonrpc": "2.0",
+        "method": method
+    }, headers=headers)
+    return response.status_code
+
 # 1. 초기화
 init_result = mcp_call("initialize", {
     "protocolVersion": "2025-11-25",
@@ -854,6 +873,7 @@ init_result = mcp_call("initialize", {
     }
 })
 print(f"Server: {init_result['result']['serverInfo']['name']}")
+mcp_notify("notifications/initialized")
 
 # 2. 도구 목록 조회
 tools_result = mcp_call("tools/list")
@@ -949,6 +969,18 @@ async function mcpCall(method, params = {}, apiKey = null) {
   return response.data;
 }
 
+async function mcpNotify(method) {
+  await axios.post(MCP_URL, {
+    jsonrpc: '2.0',
+    method
+  }, {
+    headers: {
+      Accept: 'application/json, text/event-stream',
+      'MCP-Protocol-Version': '2025-11-25'
+    }
+  });
+}
+
 async function main() {
   // 1. 초기화
   const initResult = await mcpCall('initialize', {
@@ -960,6 +992,7 @@ async function main() {
     }
   });
   console.log('Server:', initResult.result.serverInfo.name);
+  await mcpNotify('notifications/initialized');
 
   // 2. 도구 목록
   const toolsResult = await mcpCall('tools/list');
@@ -1045,6 +1078,18 @@ curl -X POST http://localhost:3000/mcp \
         "version": "1.0.0"
       }
     }
+  }'
+```
+
+**초기화 완료 알림:**
+```bash
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-11-25" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "notifications/initialized"
   }'
 ```
 
@@ -1205,6 +1250,12 @@ curl -X POST http://localhost:3000/mcp \
 ## 보안 및 제약사항
 
 ### 보안 기능
+
+0. **브라우저 Origin/Host 검증**
+   - 브라우저에서 `POST /mcp`로 들어오는 요청은 MCP Origin/Host allowlist로 검증
+   - 일반 CLI/server MCP 클라이언트처럼 `Origin` 헤더가 없는 요청은 허용
+   - 공개 읽기 도구 사용 시 DNS rebinding 노출을 줄이기 위한 방어선
+   - `mcp.allowedOrigins` 또는 `mcp.allowedHosts`에 `["*"]`를 설정하면 해당 검증을 명시적으로 끄는 insecure opt-out으로 동작
 
 1. **경로 검증**
    - 모든 경로는 `path-validator` 유틸리티로 검증
